@@ -16,7 +16,6 @@ on:
 
 env:
   NODE_VERSION: '22'
-  PNPM_VERSION: '11.17.0'
 
 jobs:
   ##############################################################################
@@ -30,16 +29,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -61,16 +56,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -89,16 +80,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -117,16 +104,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -152,16 +135,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -169,12 +148,7 @@ jobs:
       - name: Run integration tests
         run: pnpm test:integration
         env:
-          # Integration tests use Testcontainers to spin up Postgres
-          # No additional env vars needed beyond what's in .env.example
           NODE_ENV: test
-
-      # Isolation tests are run via vitest workspace (__tests__/isolation/)
-      # Script will be added once isolation tests are written in Phase 2+
 
   ##############################################################################
   # Stage 6: Build
@@ -187,16 +161,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -215,16 +185,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -245,22 +211,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # Only run on PRs; the full E2E suite runs nightly
     if: github.event_name == 'pull_request'
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
+      - name: Setup Node.js with Corepack
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          enable-corepack: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
