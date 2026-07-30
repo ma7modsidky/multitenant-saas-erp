@@ -1,0 +1,15 @@
+# Auto-normalize everything to LF in the repo
+* text=auto
+
+# pnpm-lock.yaml must always have LF line endings (pnpm checksums differ on CRLF)
+pnpm-lock.yaml text eol=lf
+
+# Shell scripts must have LF line endings
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
