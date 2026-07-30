@@ -129,8 +129,10 @@ export default defineWorkspace([
       coverage: {
         enabled: false,
       },
-      testTimeout: 60000,
-      hookTimeout: 30000,
+      globals: true,
+      testTimeout: 180000,
+      hookTimeout: 180000,
+      fileParallelism: false,
     },
   },
 

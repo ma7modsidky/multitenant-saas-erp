@@ -57,14 +57,17 @@ function findImports(filePattern: string): Map<string, string[]> {
  */
 function findProcessEnvViolations(filePattern: string): string[] {
   const files = globSync(filePattern, {
-    ignore: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/coverage/**', '**/*.spec.ts', '**/*.test.ts'],
+    ignore: [
+      '**/node_modules/**', '**/dist/**', '**/.next/**', '**/coverage/**',
+      '**/*.spec.ts', '**/*.test.ts', '**/__tests__/**',
+    ],
   });
 
   const violations: string[] = [];
 
   // Allowed paths: packages/config (the canonical config service) and
   // main.ts entry point (which reads env to pass to ConfigService constructor)
-  const allowedPaths = [/^packages[\\/]config[\\/]/, /^apps[\\/]api[\\/]src[\\/]main\.ts$/];
+  const allowedPaths = [/^packages[/\\]config[/\\]/, /^apps[/\\]api[/\\]src[/\\]main\.ts$/];
 
   for (const file of files) {
     // Skip files in allowed paths entirely

@@ -4,20 +4,55 @@ import {
   FastifyAdapter,
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import pino from 'pino';
 
 import { AppModule } from './app.module.js';
+import { initializeTelemetry } from './core/observability/opentelemetry.setup.js';
 
 async function bootstrap(): Promise<void> {
+  // Initialize OpenTelemetry BEFORE NestFactory.create() to capture
+  // the full request lifecycle in traces.
+  // Fire-and-forget is intentional: OTel init is async but doesn't
+  // block the server from starting (it registers instrumentations).
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  initializeTelemetry();
+
   // Load config first — validates env vars and fails fast if invalid
   const config = new ConfigService(process.env);
 
+  // Configure structured Pino logger for Fastify
+  const loggerConfig = {
+    level: config.logLevel,
+    ...(config.isDev
+      ? {
+          transport: {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'HH:MM:ss.l',
+              ignore: 'pid,hostname',
+            },
+          },
+        }
+      : {
+          formatters: {
+            level(label: string) {
+              return { level: label };
+            },
+          },
+        }),
+  };
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: config.isDev }),
+    new FastifyAdapter({ logger: loggerConfig }),
   );
 
   await app.listen(config.port, '0.0.0.0');
-  console.log(`🚀 ModuBiz API running on http://localhost:${config.port}`);
+
+  // Use pino directly for startup log since LoggerService isn't initialized yet
+  const startupLogger = pino(loggerConfig);
+  startupLogger.info({ port: config.port }, 'ModuBiz API started');
 }
 
 void bootstrap();
