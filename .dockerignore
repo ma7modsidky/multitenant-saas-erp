@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+.next
+build
+out
+
+# Coverage
+coverage
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Documentation (not needed at runtime)
+docs
+*.md
+AGENTS.md
+CLAUDE.md
+
+# CI/CD (not needed at runtime)
+.github
+
+# Tooling (not needed at runtime)
+tooling
+
+# Config files (not needed at runtime)
+pnpm-workspace.yaml
+turbo
+commitlint.config.js
+.lintstagedrc.js
+.dependency-cruiser.js
+.prettierrc
+eslint.config.js
+vitest.workspace.ts
+
+# OS files
+.DS_Store
+Thumbs.db

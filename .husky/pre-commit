@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# Husky pre-commit hook
+# Runs lint-staged on staged files before every commit.
+# Configured in .lintstagedrc.js
+#
+# Per CODE_QUALITY.md §4.1:
+# - Format check (Prettier)
+# - Lint (ESLint flat config)
+# - Commit message format (commitlint)
+
+npx lint-staged

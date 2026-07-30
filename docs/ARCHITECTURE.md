@@ -1,20 +1,30 @@
 # ModuBiz — Architecture
 
-**Status:** Locked. Version 1.0.
-Companion documents: [TECH_STACK.md](./TECH_STACK.md) (what we use) · [MODULE_GUIDE.md](./MODULE_GUIDE.md) (how to add a module) · [DATA_MODEL.md](./DATA_MODEL.md) (persistence).
+**Status:** Locked. Version 1.0. Companion documents:
+[TECH_STACK.md](./TECH_STACK.md) (what we use) ·
+[MODULE_GUIDE.md](./MODULE_GUIDE.md) (how to add a module) ·
+[DATA_MODEL.md](./DATA_MODEL.md) (persistence).
 
 ---
 
 ## 1. Architectural principles
 
-1. **Modular monolith.** One deployable API. Boundaries are enforced by tooling, not by goodwill.
-2. **Modules own their data.** A module reads and writes only its own tables. Never another module's.
-3. **Depend inward.** `modules/*` → `platform/*` → `core/*`. Never the reverse. `core/` knows nothing about any business module.
-4. **No module knows another module exists** — except through a declared contract (event or port) defined in `@modubiz/contracts`.
-5. **Tenancy is infrastructure.** No feature code passes `organizationId` by hand into queries; the database enforces isolation.
-6. **Contract-first integration.** Event payloads and port interfaces are versioned types in a shared package, not ad-hoc objects.
-7. **Every boundary validates.** HTTP input, event payloads, environment variables, and external API responses are all parsed with Zod.
-8. **Extractable by construction.** Any module could be lifted into its own service by replacing its transport adapters only.
+1. **Modular monolith.** One deployable API. Boundaries are enforced by tooling,
+   not by goodwill.
+2. **Modules own their data.** A module reads and writes only its own tables.
+   Never another module's.
+3. **Depend inward.** `modules/*` → `platform/*` → `core/*`. Never the reverse.
+   `core/` knows nothing about any business module.
+4. **No module knows another module exists** — except through a declared
+   contract (event or port) defined in `@modubiz/contracts`.
+5. **Tenancy is infrastructure.** No feature code passes `organizationId` by
+   hand into queries; the database enforces isolation.
+6. **Contract-first integration.** Event payloads and port interfaces are
+   versioned types in a shared package, not ad-hoc objects.
+7. **Every boundary validates.** HTTP input, event payloads, environment
+   variables, and external API responses are all parsed with Zod.
+8. **Extractable by construction.** Any module could be lifted into its own
+   service by replacing its transport adapters only.
 
 ---
 
@@ -74,7 +84,9 @@ graph TD
     CLIENT -.->|"generated from<br/>OpenAPI"| API
 ```
 
-> `packages/contracts` must contain **no runtime dependency on Nest, Drizzle, or React**. It is pure types plus Zod schemas. This is what keeps it safely shareable.
+> `packages/contracts` must contain **no runtime dependency on Nest, Drizzle, or
+> React**. It is pure types plus Zod schemas. This is what keeps it safely
+> shareable.
 
 ---
 
@@ -121,27 +133,36 @@ apps/api/src/
 
 ### Import legality matrix
 
-| From ↓ / May import → | `core/` | `platform/` | another `modules/x` | `modules/x/public` | `@modubiz/contracts` |
-|---|---|---|---|---|---|
-| `core/` | ✅ | ❌ | ❌ | ❌ | ✅ |
-| `platform/` | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `modules/a/` | ✅ | ❌ (use `core/` abstractions) | ❌ | ❌ | ✅ |
-| **composition root** | ✅ | ✅ | ❌ | ✅ | ✅ |
+| From ↓ / May import → | `core/` | `platform/`                   | another `modules/x` | `modules/x/public` | `@modubiz/contracts` |
+| --------------------- | ------- | ----------------------------- | ------------------- | ------------------ | -------------------- |
+| `core/`               | ✅      | ❌                            | ❌                  | ❌                 | ✅                   |
+| `platform/`           | ✅      | ✅                            | ❌                  | ❌                 | ✅                   |
+| `modules/a/`          | ✅      | ❌ (use `core/` abstractions) | ❌                  | ❌                 | ✅                   |
+| **composition root**  | ✅      | ✅                            | ❌                  | ✅                 | ✅                   |
 
-**There is no legal path from one module to another's source.** Cross-module needs are satisfied by events or ports declared in `@modubiz/contracts` — see §6. This matrix is enforced by an ESLint boundary rule **and** an architecture test ([TESTING.md §5](./TESTING.md#5-architecture-boundary-tests)).
+**There is no legal path from one module to another's source.** Cross-module
+needs are satisfied by events or ports declared in `@modubiz/contracts` — see
+§6. This matrix is enforced by an ESLint boundary rule **and** an architecture
+test ([TESTING.md §5](./TESTING.md#5-architecture-boundary-tests)).
 
 ### The composition root exception
 
-Something must know which modules exist. Exactly **two files** are permitted to import a module's `public/` barrel, and they constitute the composition root:
+Something must know which modules exist. Exactly **two files** are permitted to
+import a module's `public/` barrel, and they constitute the composition root:
 
 ```
 apps/api/src/app.module.ts                                  # imports the Nest module classes
 apps/api/src/platform/module-registry/registered-modules.ts  # imports the module descriptors
 ```
 
-Everything else — including the rest of `platform/` — reaches modules only through the registry's runtime data, never through an import. The `ModuleDescriptor` type and the `defineModule()` helper live in **`@modubiz/contracts`**, not in `platform/`, precisely so that a module can declare its descriptor without importing `platform/`.
+Everything else — including the rest of `platform/` — reaches modules only
+through the registry's runtime data, never through an import. The
+`ModuleDescriptor` type and the `defineModule()` helper live in
+**`@modubiz/contracts`**, not in `platform/`, precisely so that a module can
+declare its descriptor without importing `platform/`.
 
-Adding a module therefore edits two files outside its own folder, both in the composition root, and zero files in `core/`.
+Adding a module therefore edits two files outside its own folder, both in the
+composition root, and zero files in `core/`.
 
 ---
 
@@ -197,15 +218,16 @@ modules/inventory/
 
 ### Layer rules
 
-| Layer | May depend on | Must never |
-|---|---|---|
-| `api/` | `application/`, `core/common`, contracts | Contain business logic; touch repositories or the database directly |
-| `application/` | `domain/`, port interfaces, `core/` services | Import Drizzle, Nest HTTP types, or Fastify types |
-| `domain/` | Nothing but `@modubiz/money`, `@modubiz/contracts` types, and language builtins | Import Nest, Drizzle, HTTP, or any I/O |
-| `infrastructure/` | `domain/` interfaces, `core/database`, Drizzle | Be imported by `domain/` |
-| `events/handlers/` | `application/` use cases | Contain business logic inline |
+| Layer              | May depend on                                                                   | Must never                                                          |
+| ------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `api/`             | `application/`, `core/common`, contracts                                        | Contain business logic; touch repositories or the database directly |
+| `application/`     | `domain/`, port interfaces, `core/` services                                    | Import Drizzle, Nest HTTP types, or Fastify types                   |
+| `domain/`          | Nothing but `@modubiz/money`, `@modubiz/contracts` types, and language builtins | Import Nest, Drizzle, HTTP, or any I/O                              |
+| `infrastructure/`  | `domain/` interfaces, `core/database`, Drizzle                                  | Be imported by `domain/`                                            |
+| `events/handlers/` | `application/` use cases                                                        | Contain business logic inline                                       |
 
-**Rule of thumb:** if you deleted `api/` and `infrastructure/`, the module's business rules should still compile and be unit-testable.
+**Rule of thumb:** if you deleted `api/` and `infrastructure/`, the module's
+business rules should still compile and be unit-testable.
 
 ---
 
@@ -246,14 +268,25 @@ sequenceDiagram
 
 ### Non-negotiables in this flow
 
-- **The tenant id is never a function argument in business code.** It lives in `TenantContext` (AsyncLocalStorage) and is applied to the database session by `TransactionManager`.
-- **Every query runs inside a transaction** that has already set `app.current_organization_id`. A query outside a tenant-bound transaction returns zero rows by design — RLS with a missing session variable denies access rather than leaking.
-- **Domain events are published after commit**, never inside the transaction, so a handler can never observe uncommitted state. Events that must not be lost use the transactional outbox in `core/events`.
-- **Errors leave the API as codes**, not sentences (see [CODING_STANDARDS.md §7](./CODING_STANDARDS.md#7-error-model)).
+- **The tenant id is never a function argument in business code.** It lives in
+  `TenantContext` (AsyncLocalStorage) and is applied to the database session by
+  `TransactionManager`.
+- **Every query runs inside a transaction** that has already set
+  `app.current_organization_id`. A query outside a tenant-bound transaction
+  returns zero rows by design — RLS with a missing session variable denies
+  access rather than leaking.
+- **Domain events are published after commit**, never inside the transaction, so
+  a handler can never observe uncommitted state. Events that must not be lost
+  use the transactional outbox in `core/events`.
+- **Errors leave the API as codes**, not sentences (see
+  [CODING_STANDARDS.md §7](./CODING_STANDARDS.md#7-error-model)).
 
 ### System-context routes
 
-A small, explicitly annotated set of routes runs without a tenant: signup, login, refresh, password reset, Stripe webhooks, health checks, and the module catalog. They are marked `@PublicRoute()` or `@SystemContext()`, are listed in a single allowlist file, and adding one requires a security review note in the PR.
+A small, explicitly annotated set of routes runs without a tenant: signup,
+login, refresh, password reset, Stripe webhooks, health checks, and the module
+catalog. They are marked `@PublicRoute()` or `@SystemContext()`, are listed in a
+single allowlist file, and adding one requires a security review note in the PR.
 
 ---
 
@@ -279,32 +312,49 @@ graph LR
 ### Level 1 — Asynchronous events (use this unless you can't)
 
 - Payload types and event names live in `@modubiz/contracts/events`.
-- Names are `<module>.<aggregate>.<pastTenseAction>.v<major>`, e.g. `inventory.stock.depleted.v1`.
-- Publishers do not know or care who listens. Handlers must be **idempotent** and must not throw back into the publisher's request.
-- Suitable for: notifications, denormalized read models, analytics, side effects that tolerate eventual consistency.
+- Names are `<module>.<aggregate>.<pastTenseAction>.v<major>`, e.g.
+  `inventory.stock.depleted.v1`.
+- Publishers do not know or care who listens. Handlers must be **idempotent**
+  and must not throw back into the publisher's request.
+- Suitable for: notifications, denormalized read models, analytics, side effects
+  that tolerate eventual consistency.
 
 ### Level 2 — Read-only query port
 
-For synchronous reads across a boundary (e.g. POS showing live stock on the product picker):
+For synchronous reads across a boundary (e.g. POS showing live stock on the
+product picker):
 
-- The consumer depends on an interface + injection token exported from `@modubiz/contracts/ports`.
-- The owning module provides the implementation. The consumer **never** imports the implementation.
-- Both modules declare it: `providesPorts` / `consumesPorts` in their descriptors.
+- The consumer depends on an interface + injection token exported from
+  `@modubiz/contracts/ports`.
+- The owning module provides the implementation. The consumer **never** imports
+  the implementation.
+- Both modules declare it: `providesPorts` / `consumesPorts` in their
+  descriptors.
 
 ### Level 3 — Transactional command port
 
-Only for operations requiring strong consistency within one transaction. The canonical case: **POS checkout must deduct inventory atomically with the sale.**
+Only for operations requiring strong consistency within one transaction. The
+canonical case: **POS checkout must deduct inventory atomically with the sale.**
 
-- Same rules as Level 2, plus: the port method accepts the ambient transaction, and the owning module's implementation must enforce its own invariants (POS cannot bypass inventory rules).
-- Adding a Level 3 port requires an explicit note in the PR describing why eventual consistency is insufficient.
+- Same rules as Level 2, plus: the port method accepts the ambient transaction,
+  and the owning module's implementation must enforce its own invariants (POS
+  cannot bypass inventory rules).
+- Adding a Level 3 port requires an explicit note in the PR describing why
+  eventual consistency is insufficient.
 
 ```typescript
 // packages/contracts/src/ports/inventory-stock.port.ts
 export const INVENTORY_STOCK_PORT = Symbol('INVENTORY_STOCK_PORT');
 
 export interface InventoryStockPort {
-  getAvailability(input: { productVariantIds: string[]; warehouseId: string }): Promise<AvailabilitySnapshot[]>;
-  reserve(input: ReserveStockInput, tx: TransactionRef): Promise<ReservationRef>;
+  getAvailability(input: {
+    productVariantIds: string[];
+    warehouseId: string;
+  }): Promise<AvailabilitySnapshot[]>;
+  reserve(
+    input: ReserveStockInput,
+    tx: TransactionRef,
+  ): Promise<ReservationRef>;
   commitReservation(reservationId: string, tx: TransactionRef): Promise<void>;
   releaseReservation(reservationId: string, tx: TransactionRef): Promise<void>;
 }
@@ -313,9 +363,12 @@ export interface InventoryStockPort {
 ### Forbidden
 
 - Importing another module's service, repository, entity, or Drizzle schema.
-- Reading or writing another module's tables — including "just a `SELECT`", including joins.
-- Adding a foreign key that crosses a module boundary (reference by id; validate through a port).
-- A shared "kitchen-sink" service in `core/` that exists only to let two modules talk.
+- Reading or writing another module's tables — including "just a `SELECT`",
+  including joins.
+- Adding a foreign key that crosses a module boundary (reference by id; validate
+  through a port).
+- A shared "kitchen-sink" service in `core/` that exists only to let two modules
+  talk.
 
 ---
 
@@ -340,28 +393,34 @@ graph TD
     RECON["Nightly reconciliation<br/>vs Stripe"] --> ENT
 ```
 
-- Descriptors are collected at boot. Boot **fails** if a module declares a dependency that is not registered, or declares a duplicate permission or event name.
-- `core_module_entitlements` is the runtime authority for access. Stripe is the commercial authority; a nightly job reconciles the two and alerts on drift.
-- `EntitlementGuard` runs before permission checks: an unentitled module returns `403 MODULE_NOT_ENTITLED` regardless of the user's role.
-- The frontend renders navigation and routes from `GET /me/navigation`, which is derived from entitlements + permissions. **The UI never hardcodes a module list.**
+- Descriptors are collected at boot. Boot **fails** if a module declares a
+  dependency that is not registered, or declares a duplicate permission or event
+  name.
+- `core_module_entitlements` is the runtime authority for access. Stripe is the
+  commercial authority; a nightly job reconciles the two and alerts on drift.
+- `EntitlementGuard` runs before permission checks: an unentitled module returns
+  `403 MODULE_NOT_ENTITLED` regardless of the user's role.
+- The frontend renders navigation and routes from `GET /me/navigation`, which is
+  derived from entitlements + permissions. **The UI never hardcodes a module
+  list.**
 
 ---
 
 ## 8. Cross-cutting concerns
 
-| Concern | Where it lives | Rule for feature code |
-|---|---|---|
-| Tenancy | `core/tenancy` + RLS | Never pass `organizationId` into a repository method; never build a query that filters it manually |
-| Authorization | `core/authorization` | Declare intent with decorators; do not write `if (user.role === ...)` in services |
-| Money | `@modubiz/money` | Never do arithmetic on raw numbers; never sum across currencies without explicit conversion |
-| Locale | `core/i18n` + `TenantContext.locale` | Never return a user-facing sentence from the API; never format a date/number by hand |
-| Transactions | `core/database` `TransactionManager` | One transaction per use case; repositories join the ambient transaction |
-| Events | `core/events` | Publish after commit; handlers idempotent |
-| Audit | `core/audit` | Mutating use cases record an audit entry; do not roll your own logging for this |
-| Caching | `core/cache` | Keys are always `org:<orgId>:<module>:<...>`; a cache read must be impossible to serve across tenants |
-| Background work | `core/jobs` | Job payloads carry `organizationId` explicitly and re-establish tenant context before touching the database |
-| Observability | `core/observability` | Use the injected logger; `console.log` is a lint error |
-| Errors | `core/common/errors` | Throw typed domain errors; the global filter maps them to HTTP + error codes |
+| Concern         | Where it lives                       | Rule for feature code                                                                                       |
+| --------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Tenancy         | `core/tenancy` + RLS                 | Never pass `organizationId` into a repository method; never build a query that filters it manually          |
+| Authorization   | `core/authorization`                 | Declare intent with decorators; do not write `if (user.role === ...)` in services                           |
+| Money           | `@modubiz/money`                     | Never do arithmetic on raw numbers; never sum across currencies without explicit conversion                 |
+| Locale          | `core/i18n` + `TenantContext.locale` | Never return a user-facing sentence from the API; never format a date/number by hand                        |
+| Transactions    | `core/database` `TransactionManager` | One transaction per use case; repositories join the ambient transaction                                     |
+| Events          | `core/events`                        | Publish after commit; handlers idempotent                                                                   |
+| Audit           | `core/audit`                         | Mutating use cases record an audit entry; do not roll your own logging for this                             |
+| Caching         | `core/cache`                         | Keys are always `org:<orgId>:<module>:<...>`; a cache read must be impossible to serve across tenants       |
+| Background work | `core/jobs`                          | Job payloads carry `organizationId` explicitly and re-establish tenant context before touching the database |
+| Observability   | `core/observability`                 | Use the injected logger; `console.log` is a lint error                                                      |
+| Errors          | `core/common/errors`                 | Throw typed domain errors; the global filter maps them to HTTP + error codes                                |
 
 ---
 
@@ -394,32 +453,53 @@ apps/web/src/
 
 Frontend rules:
 
-1. **Never call `fetch` directly** to the API. Use the generated client via TanStack Query hooks.
-2. Every module surface is wrapped in `<ModuleGate module="crm">`; every mutating control is wrapped in `<Can permission="crm:contact:update">`. Server-side entitlement checks remain authoritative — the gate is UX, not security.
-3. **No hardcoded user-facing strings.** All copy comes from `next-intl` message catalogs. A raw string literal in JSX is a lint error.
-4. RTL: use Tailwind logical utilities (`ms-*`, `me-*`, `ps-*`, `pe-*`, `start-*`, `end-*`). `ml-*`/`mr-*`/`left-*`/`right-*` are lint errors.
-5. Money is rendered only through the shared `<Money>` component / `formatMoney()`; never `toFixed(2)`.
-6. Feature folders mirror backend modules 1:1, and `features/a` must not import from `features/b`.
-7. The POS surface is an installable PWA with an offline shell and an IndexedDB outbox (see [BUSINESS_RULES.md §7](./BUSINESS_RULES.md#7-pos-rules)).
+1. **Never call `fetch` directly** to the API. Use the generated client via
+   TanStack Query hooks.
+2. Every module surface is wrapped in `<ModuleGate module="crm">`; every
+   mutating control is wrapped in `<Can permission="crm:contact:update">`.
+   Server-side entitlement checks remain authoritative — the gate is UX, not
+   security.
+3. **No hardcoded user-facing strings.** All copy comes from `next-intl` message
+   catalogs. A raw string literal in JSX is a lint error.
+4. RTL: use Tailwind logical utilities (`ms-*`, `me-*`, `ps-*`, `pe-*`,
+   `start-*`, `end-*`). `ml-*`/`mr-*`/`left-*`/`right-*` are lint errors.
+5. Money is rendered only through the shared `<Money>` component /
+   `formatMoney()`; never `toFixed(2)`.
+6. Feature folders mirror backend modules 1:1, and `features/a` must not import
+   from `features/b`.
+7. The POS surface is an installable PWA with an offline shell and an IndexedDB
+   outbox (see [BUSINESS_RULES.md §7](./BUSINESS_RULES.md#7-pos-rules)).
 
 ---
 
 ## 10. Path to extraction
 
-A module can become its own service when it needs independent scaling or isolation. Because of the rules above, the work is bounded:
+A module can become its own service when it needs independent scaling or
+isolation. Because of the rules above, the work is bounded:
 
-1. Move `modules/x/` into a new Nest app; it already only depends on `core/` and `@modubiz/contracts`.
-2. Promote its Level 1 events from in-process EventEmitter2 to a durable broker — the `EventBus` abstraction and outbox already exist, so publisher/handler code does not change.
-3. Replace Level 2/3 port implementations with HTTP or gRPC clients implementing the **same contract interface**. Consumers are untouched.
-4. Move its `<prefix>_` tables to their own database or schema. Cross-module foreign keys do not exist, so nothing breaks.
+1. Move `modules/x/` into a new Nest app; it already only depends on `core/` and
+   `@modubiz/contracts`.
+2. Promote its Level 1 events from in-process EventEmitter2 to a durable broker
+   — the `EventBus` abstraction and outbox already exist, so publisher/handler
+   code does not change.
+3. Replace Level 2/3 port implementations with HTTP or gRPC clients implementing
+   the **same contract interface**. Consumers are untouched.
+4. Move its `<prefix>_` tables to their own database or schema. Cross-module
+   foreign keys do not exist, so nothing breaks.
 5. Point the API gateway at the new service for that module's route prefix.
 
-**Every rule in this document exists to keep those five steps true.** Violating a boundary today converts this list into a rewrite.
+**Every rule in this document exists to keep those five steps true.** Violating
+a boundary today converts this list into a rewrite.
 
-**Trigger for reconsideration:** > 2,500 active organizations, or a single module consuming > 40% of API CPU, or a module requiring a fundamentally different scaling profile (e.g. Food Delivery real-time fan-out).
+**Trigger for reconsideration:** > 2,500 active organizations, or a single
+module consuming > 40% of API CPU, or a module requiring a fundamentally
+different scaling profile (e.g. Food Delivery real-time fan-out).
 
 ---
 
 ## 11. Related documents
 
-[PRD.md](./PRD.md) · [TECH_STACK.md](./TECH_STACK.md) · [MODULE_GUIDE.md](./MODULE_GUIDE.md) · [DATA_MODEL.md](./DATA_MODEL.md) · [BUSINESS_RULES.md](./BUSINESS_RULES.md) · [CODING_STANDARDS.md](./CODING_STANDARDS.md) · [TESTING.md](./TESTING.md)
+[PRD.md](./PRD.md) · [TECH_STACK.md](./TECH_STACK.md) ·
+[MODULE_GUIDE.md](./MODULE_GUIDE.md) · [DATA_MODEL.md](./DATA_MODEL.md) ·
+[BUSINESS_RULES.md](./BUSINESS_RULES.md) ·
+[CODING_STANDARDS.md](./CODING_STANDARDS.md) · [TESTING.md](./TESTING.md)

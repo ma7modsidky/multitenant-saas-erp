@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Husky commit-msg hook
+# Runs commitlint on the commit message to enforce Conventional Commits format.
+# Per CODING_STANDARDS.md §13.
+# Per CODE_QUALITY.md §4.1: commit message format is checked before every commit.
+
+npx --no -- commitlint --edit "$1"

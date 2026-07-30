@@ -1,0 +1,10 @@
+{
+  "": "https://json.schemastore.org/tsconfig",
+  "display": "ModuBiz Node.js",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022"
+  }
+}

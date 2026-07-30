@@ -1,0 +1,16 @@
+{
+  "name": "@modubiz/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "echo 'TODO: Generate typed client from OpenAPI spec'"
+  },
+  "devDependencies": {
+    "@modubiz/tsconfig": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

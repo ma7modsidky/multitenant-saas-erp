@@ -1,0 +1,20 @@
+{
+  "name": "@modubiz/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./events": "./src/events/index.ts",
+    "./ports": "./src/ports/index.ts",
+    "./permissions": "./src/permissions/index.ts",
+    "./module": "./src/module/index.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@modubiz/tsconfig": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

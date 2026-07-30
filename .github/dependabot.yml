@@ -1,0 +1,247 @@
+# ModuBiz — Dependabot Configuration
+#
+# Per TECH_STACK.md §4:
+# - Pin exact versions for nestjs, next, react, drizzle-orm, stripe
+# - Caret ranges allowed elsewhere
+# - Grouped weekly PRs
+# - Majors handled deliberately, never auto-merged
+
+version: 2
+updates:
+  # ─── Root monorepo dependencies ──────────────────────────────────────────
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    versioning-strategy: increase-if-necessary
+    open-pull-requests-limit: 10
+    groups:
+      root-dev-deps:
+        patterns:
+          - 'husky'
+          - 'lint-staged'
+          - 'prettier'
+          - 'turbo'
+          - 'vitest'
+          - '@vitest/*'
+          - 'dependency-cruiser'
+          - '@commitlint/*'
+    labels:
+      - 'dependencies'
+      - 'chore'
+
+  # ─── API app ─────────────────────────────────────────────────────────────
+  - package-ecosystem: 'npm'
+    directory: '/apps/api'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    versioning-strategy: increase-if-necessary
+    open-pull-requests-limit: 10
+    groups:
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      api-dev-deps:
+        patterns:
+          - '@types/*'
+          - 'typescript'
+          - 'vitest'
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'api'
+
+  # ─── Web app ─────────────────────────────────────────────────────────────
+  - package-ecosystem: 'npm'
+    directory: '/apps/web'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    versioning-strategy: increase-if-necessary
+    open-pull-requests-limit: 10
+    groups:
+      nextjs:
+        patterns:
+          - 'next'
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+        update-types:
+          - 'minor'
+          - 'patch'
+      web-deps:
+        patterns:
+          - 'next-intl'
+          - '@tanstack/*'
+          - 'react-hook-form'
+          - '@hookform/*'
+          - 'lucide-react'
+          - 'tailwindcss'
+          - 'tailwindcss-animate'
+        update-types:
+          - 'minor'
+          - 'patch'
+      web-dev-deps:
+        patterns:
+          - '@types/*'
+          - 'typescript'
+          - 'eslint'
+          - 'vitest'
+          - 'postcss'
+          - 'autoprefixer'
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'web'
+
+  # ─── Shared packages ────────────────────────────────────────────────────
+  - package-ecosystem: 'npm'
+    directory: '/packages/config'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/contracts'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/db'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/money'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/i18n'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/ui'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/eslint-config'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/tsconfig'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  - package-ecosystem: 'npm'
+    directory: '/packages/api-client'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'packages'
+
+  # ─── Docker images ──────────────────────────────────────────────────────
+  - package-ecosystem: 'docker'
+    directory: '/apps/api'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    labels:
+      - 'dependencies'
+      - 'docker'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'UTC'
+    groups:
+      actions:
+        patterns:
+          - '*'
+    labels:
+      - 'dependencies'
+      - 'ci'

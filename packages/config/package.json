@@ -1,0 +1,16 @@
+{
+  "name": "@modubiz/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@modubiz/tsconfig": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

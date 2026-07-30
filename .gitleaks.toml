@@ -1,0 +1,32 @@
+# gitleaks configuration for ModuBiz
+#
+# Extends default gitleaks rules with project-specific patterns.
+# Runs in CI as part of the security scan stage (TESTING.md §8).
+
+title = "ModuBiz Secret Scanning Config"
+
+# Extend from the default config
+[extend]
+useDefault = true
+
+# Allowlist — paths and values that are allowed to contain
+# otherwise-suspicious patterns
+[allowlist]
+  description = "Known safe paths and test values"
+  paths = [
+    # Test files and fixtures
+    "(.*/__tests__/.*|.*\\.spec\\.ts|.*\\.test\\.ts)$",
+    # Documentation and config
+    "(.*/docs/.*|.*/docker/.*)$",
+    # Migration files may contain placeholder values
+    "(.*migrations/.*)",
+    # Example env file
+    ".env.example",
+  ]
+  # Values that might look like secrets but are safe
+  regexes = [
+    # Example/test values
+    "(?i)(placeholder|example|test|dummy|your-|change-me)",
+    # UUID patterns in test data
+    "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+  ]
