@@ -65,7 +65,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     // For system-context routes, return null instead of throwing
     if (isSystemContext && (err || !user)) {
-      return null as unknown as TUser;
+      return null;
     }
 
     // For authenticated routes, throw on invalid/missing tokens

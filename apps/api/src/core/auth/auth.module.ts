@@ -1,8 +1,7 @@
+import { ConfigService } from '@modubiz/config';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-
-import { ConfigService } from '@modubiz/config';
 
 import { JwtAccessStrategy } from './jwt-access.strategy.js';
 import { JwtTokenService } from './jwt-token.service.js';

@@ -1,12 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import * as crypto from 'node:crypto';
 
 import { ConfigService } from '@modubiz/config';
+import { Inject, Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 
-import { type SessionStore } from './session-store.interface.js';
-import { type Session } from './session-store.interface.js';
+import { type SessionStore, type Session } from './session-store.interface.js';
 
 /**
  * Payload embedded in access tokens.

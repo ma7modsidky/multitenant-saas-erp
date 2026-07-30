@@ -66,10 +66,16 @@ export class TenantInterceptor implements NestInterceptor {
       context.getClass(),
     ]);
 
+    if (isSystemContext) {
+      // System context: auth optional, no tenant context required
+      return next.handle();
+    }
+
     // Extract user from the request (set by JwtAuthGuard in Phase 1.3)
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     const request = context.switchToHttp().getRequest();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const user = request.user as AuthenticatedUser | undefined;
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 
     if (!user) {
       // No user: let it pass (the JWT guard will reject if auth is required)
@@ -92,7 +98,7 @@ export class TenantInterceptor implements NestInterceptor {
     // Uses Observable subscriber pattern to forward inner events.
     // TenantContext.run expects an async callback, so we wrap the subscribe in a Promise.
     return new Observable((subscriber) => {
-      TenantContext.run(tenantData, async () => {
+      void TenantContext.run(tenantData, async () => {
         return new Promise<void>((resolve) => {
           next.handle().subscribe({
             next: (value: unknown) => subscriber.next(value),

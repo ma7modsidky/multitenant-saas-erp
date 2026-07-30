@@ -1,7 +1,6 @@
+import { ConfigService } from '@modubiz/config';
 import { JwtService } from '@nestjs/jwt';
 import { describe, expect, it, beforeEach } from 'vitest';
-
-import { ConfigService } from '@modubiz/config';
 
 import { JwtTokenService } from '../jwt-token.service.js';
 import { InMemorySessionStore } from '../session-store.js';
@@ -147,9 +146,9 @@ describe('JwtTokenService', () => {
       const sessions = await service.listSessions('user-1');
 
       expect(sessions).toHaveLength(1);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       expect(sessions[0]!.id).toBe(result.session.id);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       expect(sessions[0]!.device).toBe('device-1');
     });
 
@@ -306,7 +305,7 @@ describe('JwtTokenService', () => {
 
       expect(await service.listSessions('user-1')).toHaveLength(0);
       expect(await service.listSessions('user-2')).toHaveLength(1);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       expect((await service.listSessions('user-2'))[0]!.id).toBe(session.id);
     });
   });

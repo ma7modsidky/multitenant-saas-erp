@@ -1,8 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
-import { EventEmitter2EventBus } from './event-emitter.adapter.js';
 import { type IEventBus } from './event-bus.interface.js';
+import { EventEmitter2EventBus } from './event-emitter.adapter.js';
 import { type IOutboxStore, InMemoryOutboxStore } from './outbox-store.js';
 
 /**

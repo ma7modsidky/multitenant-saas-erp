@@ -1,8 +1,7 @@
+import { ConfigService } from '@modubiz/config';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-
-import { ConfigService } from '@modubiz/config';
 
 /**
  * Payload expected in a valid access token.

@@ -79,7 +79,7 @@ export function createAbility(permissions: string[]): AppAbility {
     }
 
     const action = parts[2] as AppActions;
-    const subject = `${parts[0]}:${parts[1]}` as AppSubjects;
+    const subject = `${parts[0]}:${parts[1]}`;
 
     if (action === 'manage') {
       // `manage` action grants all actions on the subject

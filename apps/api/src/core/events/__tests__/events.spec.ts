@@ -12,7 +12,7 @@ import { InMemoryOutboxStore } from '../outbox-store.js';
 
 interface MockListener {
   event: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   handler: (...args: any[]) => any;
 }
 
@@ -109,7 +109,7 @@ describe('EventEmitter2EventBus', () => {
       // The handler receives the event data
       const firstCall = handler.mock.calls[0];
       expect(firstCall).toBeDefined();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       const calledWith = firstCall![0] as Record<string, unknown>;
       expect(calledWith.payload).toEqual({ id: '123', value: 'test' });
       expect(calledWith.aggregateId).toBe('agg-1');
@@ -246,7 +246,7 @@ describe('InMemoryOutboxStore', () => {
       await store.save(event);
 
       const pending = await store.getPending();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       const firstEntry = pending[0]!;
       expect(firstEntry.event.name).toBe('test.event.v1');
       expect(firstEntry.sentAt).toBeNull();
@@ -269,7 +269,7 @@ describe('InMemoryOutboxStore', () => {
       await store.save(event);
 
       const pending = await store.getPending();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       const firstEntry = pending[0]!;
 
       expect(pending).toHaveLength(1);
@@ -290,7 +290,7 @@ describe('InMemoryOutboxStore', () => {
     it('marks an entry as sent', async () => {
       await store.save(createTestEvent());
       const pending = await store.getPending();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       const firstEntry = pending[0]!;
       expect(firstEntry.sentAt).toBeNull();
 
@@ -309,12 +309,11 @@ describe('InMemoryOutboxStore', () => {
     it('increments the retry count and records the error', async () => {
       await store.save(createTestEvent());
       const pending = await store.getPending();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       const firstEntry = pending[0]!;
 
       await store.recordError(firstEntry.id, 'Network timeout');
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const updated = (await store.getPending())[0]!;
       expect(updated.attempts).toBe(1);
       expect(updated.lastError).toBe('Network timeout');
@@ -323,13 +322,12 @@ describe('InMemoryOutboxStore', () => {
     it('accumulates multiple errors', async () => {
       await store.save(createTestEvent());
       const pending = await store.getPending();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       const firstEntry = pending[0]!;
 
       await store.recordError(firstEntry.id, 'Error 1');
       await store.recordError(firstEntry.id, 'Error 2');
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const updated = (await store.getPending())[0]!;
       expect(updated.attempts).toBe(2);
       expect(updated.lastError).toBe('Error 2');

@@ -65,7 +65,7 @@ export class TransactionManager {
       await tx.execute(sql`SELECT set_config('app.current_user_id', ${ctx.userId}, true)`);
 
       // Run the callback with the transaction-scoped db
-      return fn(tx as unknown as TxOrDb);
+      return fn(tx);
     });
   }
 }

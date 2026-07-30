@@ -1,9 +1,10 @@
-import { Injectable, type LoggerService as NestLoggerService } from '@nestjs/common';
 import { ConfigService } from '@modubiz/config';
+import { Injectable, type LoggerService as NestLoggerService } from '@nestjs/common';
 import pino from 'pino';
 
-import { CorrelationIdStorage } from './correlation-id.storage.js';
 import { TenantContext } from '../tenancy/tenant-context.js';
+
+import { CorrelationIdStorage } from './correlation-id.storage.js';
 
 /**
  * Standard structured log fields that every log line carries.

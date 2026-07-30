@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+
+import { Injectable } from '@nestjs/common';
 
 import { type Session, type SessionStore } from './session-store.interface.js';
 

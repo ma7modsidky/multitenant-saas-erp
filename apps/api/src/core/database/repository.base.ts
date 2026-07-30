@@ -86,15 +86,15 @@ export abstract class RepositoryBase<
     const conditions: SQL[] = [];
 
     // Auto-apply tenant isolation from TenantContext
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
     // requireOrganizationId() throws a clear error if no tenant context is available
     // This is intentional — the repository should never be used outside a tenant context.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
     conditions.push(eq(this.organizationIdColumn as never, TenantContext.requireOrganizationId() as never));
 
     // Exclude soft-deleted rows by default
     if (this.deletedAtColumn && !includeSoftDeleted) {
-      conditions.push(isNull(this.deletedAtColumn as never));
+      conditions.push(isNull(this.deletedAtColumn));
     }
 
     return conditions;
@@ -109,23 +109,16 @@ export abstract class RepositoryBase<
   async findById(id: string, tx?: TxOrDb): Promise<Record<string, unknown> | undefined> {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const db = this.getDb(tx);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
     const columns = getTableColumns(this.table as never);
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const [row] = await (db as PostgresJsDatabase)
       .select(columns)
       .from(this.table as never)
-      .where(
-        and(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          eq((this.table as never)['id'], id),
-          ...this.baseConditions(),
-        ),
-      )
+      .where(and(eq((this.table as never)['id'], id), ...this.baseConditions()))
       .limit(1);
 
-    return row as Record<string, unknown> | undefined;
+    return row;
   }
 
   /**
@@ -146,25 +139,22 @@ export abstract class RepositoryBase<
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const db = this.getDb(tx);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
     const columns = getTableColumns(this.table as never);
     const whereClause = and(...this.baseConditions(includeSoftDeleted), ...conditions);
 
     // Get total count
     const [countResult] = await (db as PostgresJsDatabase)
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
       .select({ count: drizzleSql<number>`count(*)` })
       .from(this.table as never)
       .where(whereClause);
 
-    const total = Number(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      (countResult as { count: number } | undefined)?.count ?? 0,
-    );
+    const total = Number((countResult as { count: number } | undefined)?.count ?? 0);
 
     // Apply sorting
     const orderByFn = pagination.sortOrder === 'desc' ? desc : asc;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
     const sortColumn = pagination.sortBy ? (this.table as never)[pagination.sortBy] : undefined;
 
     // Build query with optional sorting
@@ -177,7 +167,7 @@ export abstract class RepositoryBase<
       .offset(pagination.offset ?? 0);
 
     if (sortColumn) {
-      query = query.orderBy(orderByFn(sortColumn as never));
+      query = query.orderBy(orderByFn(sortColumn));
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -211,14 +201,13 @@ export abstract class RepositoryBase<
       updatedBy: ctx?.userId ?? null,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const columns = getTableColumns(this.table as never);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+
     const result = await (db as PostgresJsDatabase)
       .insert(this.table as never)
       .values(insertData as never)
       .returning(columns);
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
     const row = (result as Record<string, unknown>[] | undefined)?.[0];
 
     return row ?? {};
@@ -243,21 +232,14 @@ export abstract class RepositoryBase<
       updatedBy: ctx?.userId ?? null,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const columns = getTableColumns(this.table as never);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+
     const result = await (db as PostgresJsDatabase)
       .update(this.table as never)
       .set(updateData as never)
-      .where(
-        and(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          eq((this.table as never)['id'], id),
-          ...this.baseConditions(),
-        ),
-      )
+      .where(and(eq((this.table as never)['id'], id), ...this.baseConditions()))
       .returning(columns);
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
     const row = (result as Record<string, unknown>[] | undefined)?.[0];
 
     return row;
@@ -280,17 +262,10 @@ export abstract class RepositoryBase<
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
     await (db as PostgresJsDatabase)
       .update(this.table as never)
-      .set({ deletedAt: new Date(), updatedBy: ctx?.userId ?? null } as never)
-      .where(
-        and(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          eq((this.table as never)['id'], id),
-          ...this.baseConditions(),
-        ),
-      );
+      .set({ deletedAt: new Date(), updatedBy: ctx?.userId ?? null })
+      .where(and(eq((this.table as never)['id'], id), ...this.baseConditions()));
   }
 
   /**
@@ -304,13 +279,8 @@ export abstract class RepositoryBase<
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const db = this.getDb(tx);
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    await (db as PostgresJsDatabase).delete(this.table as never).where(
-      and(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        eq((this.table as never)['id'], id),
-        ...this.baseConditions(),
-      ),
-    );
+    await (db as PostgresJsDatabase)
+      .delete(this.table as never)
+      .where(and(eq((this.table as never)['id'], id), ...this.baseConditions()));
   }
 }

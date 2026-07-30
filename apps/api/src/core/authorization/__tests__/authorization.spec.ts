@@ -6,9 +6,9 @@ import { InMemoryEntitlementStore } from '../../entitlements/entitlement-store.j
 import { EntitlementService } from '../../entitlements/entitlement.service.js';
 import { EntitlementGuard } from '../entitlement.guard.js';
 import { JwtAuthGuard } from '../jwtauth.guard.js';
-import { PermissionGuard } from '../permission.guard.js';
 import { RequiresModule, REQUIRED_MODULE_KEY } from '../module.decorator.js';
 import { RequiresPermission, REQUIRED_PERMISSIONS_KEY } from '../permission.decorator.js';
+import { PermissionGuard } from '../permission.guard.js';
 
 // ─── Test helpers ──────────────────────────────────────────────────────────
 
@@ -73,8 +73,8 @@ async function createEntitlementGuard(
       purgeAfter: null,
     });
   }
-  const service = new EntitlementService(store as never);
-  return new EntitlementGuard(new Reflector(), service as never);
+  const service = new EntitlementService(store);
+  return new EntitlementGuard(new Reflector(), service);
 }
 
 // ─── @RequiresModule decorator ─────────────────────────────────────────────

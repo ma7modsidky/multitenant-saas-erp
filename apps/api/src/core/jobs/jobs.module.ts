@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+
 import { InMemoryJobQueue, type IJobQueue } from './job-queue.js';
 
 /**

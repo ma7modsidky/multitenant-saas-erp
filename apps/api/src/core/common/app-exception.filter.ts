@@ -2,6 +2,7 @@ import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpSta
 import { type FastifyReply } from 'fastify';
 
 import { CorrelationIdStorage } from '../observability/correlation-id.storage.js';
+
 import { AppError } from './errors.js';
 
 /**

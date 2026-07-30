@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { EntitlementService } from './entitlement.service.js';
 import { InMemoryEntitlementStore } from './entitlement-store.js';
+import { EntitlementService } from './entitlement.service.js';
 
 /**
  * EntitlementsModule — global module providing module entitlement infrastructure.

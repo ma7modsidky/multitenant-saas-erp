@@ -70,7 +70,6 @@ export class TenantContext {
    * After the callback completes, the outer scope is restored.
    */
   static runWithCleanContext<T>(fn: () => Promise<T>): Promise<T> {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     return this.storage.run(undefined as unknown as TenantContextData, fn);
   }
 

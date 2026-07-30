@@ -2,6 +2,7 @@ import { type CanActivate, type ExecutionContext, ForbiddenException, Injectable
 import { Reflector } from '@nestjs/core';
 
 import { EntitlementService } from '../entitlements/entitlement.service.js';
+
 import { REQUIRED_MODULE_KEY } from './module.decorator.js';
 
 /**

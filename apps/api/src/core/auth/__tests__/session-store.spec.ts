@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 
-import { InMemorySessionStore } from '../session-store.js';
 import { type Session } from '../session-store.interface.js';
+import { InMemorySessionStore } from '../session-store.js';
 
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {

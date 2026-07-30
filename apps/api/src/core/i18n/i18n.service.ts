@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import {
   resolveLocale,
   formatNumber,
@@ -7,6 +6,7 @@ import {
   getLocaleDirection,
   SUPPORTED_LOCALES,
 } from '@modubiz/i18n';
+import { Injectable } from '@nestjs/common';
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
@@ -37,7 +37,7 @@ export class I18nService {
     orgDefault?: string | null,
     acceptLanguage?: string | null,
   ): Locale {
-    return resolveLocale(explicit, userPreference, orgDefault, acceptLanguage) as Locale;
+    return resolveLocale(explicit, userPreference, orgDefault, acceptLanguage);
   }
 
   /**

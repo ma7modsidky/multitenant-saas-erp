@@ -37,10 +37,7 @@ describe('TransactionManager', () => {
       const mockTx = createMockTx();
       const manager = new TransactionManager(mockDb);
 
-      vi.mocked(mockDb.transaction).mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (cb: any) => cb(mockTx),
-      );
+      vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
       const result = await TenantContext.run(makeContext(), async () => manager.run(async () => 'done'));
 
@@ -53,7 +50,6 @@ describe('TransactionManager', () => {
       const mockTx = createMockTx();
       const manager = new TransactionManager(mockDb);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
       await TenantContext.run(makeContext({ organizationId: 'org-abc-123' }), async () => manager.run(async () => {}));
@@ -66,7 +62,6 @@ describe('TransactionManager', () => {
       const mockTx = createMockTx();
       const manager = new TransactionManager(mockDb);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
       await TenantContext.run(makeContext({ userId: 'user-xyz' }), async () => manager.run(async () => {}));
@@ -79,7 +74,6 @@ describe('TransactionManager', () => {
       const mockTx = createMockTx();
       const manager = new TransactionManager(mockDb);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
       await TenantContext.run(makeContext(), async () => manager.run(async () => {}));
@@ -93,7 +87,6 @@ describe('TransactionManager', () => {
       const mockTx = createMockTx();
       const manager = new TransactionManager(mockDb);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
       const result = await TenantContext.run(makeContext(), async () =>

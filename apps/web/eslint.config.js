@@ -35,6 +35,8 @@ export default [
       'next.config.*',                 // Next.js config
       'tailwind.config.*',             // Tailwind config
       'postcss.config.*',              // PostCSS config (JS/CJS/ESM variants)
+      'vitest.config.*',               // Vitest config
+      'next-env.d.ts',                 // Next.js type declarations
     ],
     rules: {
       'import/no-default-export': 'off',

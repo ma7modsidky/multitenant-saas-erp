@@ -1,9 +1,9 @@
-import { ConfigService } from '@modubiz/config';
+import type { ConfigService } from '@modubiz/config';
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
 
+import { CORRELATION_ID_HEADER } from '../correlation-id.middleware.js';
 import { CorrelationIdStorage } from '../correlation-id.storage.js';
 import { LoggerService } from '../observability.logger.js';
-import { CORRELATION_ID_HEADER } from '../correlation-id.middleware.js';
 
 // ─── Mock ConfigService ────────────────────────────────────────────────────
 

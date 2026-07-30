@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 
+import type { EntitlementEntry } from '../entitlement-store.interface.js';
 import { InMemoryEntitlementStore } from '../entitlement-store.js';
 import { EntitlementService } from '../entitlement.service.js';
-import type { EntitlementEntry } from '../entitlement-store.interface.js';
 
 describe('InMemoryEntitlementStore', () => {
   let store: InMemoryEntitlementStore;
@@ -165,7 +165,7 @@ describe('EntitlementService', () => {
 
   beforeEach(() => {
     store = new InMemoryEntitlementStore();
-    service = new EntitlementService(store as never);
+    service = new EntitlementService(store);
   });
 
   describe('isEntitled', () => {

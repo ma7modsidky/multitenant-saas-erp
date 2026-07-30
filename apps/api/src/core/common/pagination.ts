@@ -103,5 +103,5 @@ export function normalizePagination(input: Partial<PaginationInput>): Pagination
     // Conditionally include optional fields to satisfy exactOptionalPropertyTypes
     ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
     ...(input.sortBy !== undefined ? { sortBy: input.sortBy } : {}),
-  } as PaginationInput;
+  };
 }

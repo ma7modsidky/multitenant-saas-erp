@@ -86,7 +86,7 @@ describe('AUD-3: Sensitive fields are redacted', () => {
 
   it('AUD-3: stops recursion at MAX_REDACT_DEPTH (10 levels)', () => {
     // Build 15 levels of { nested: ... } wrapping { password: 'secret123' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let input: any = { password: 'secret123' };
     for (let i = 0; i < 15; i++) {
       input = { nested: input };
@@ -96,7 +96,7 @@ describe('AUD-3: Sensitive fields are redacted', () => {
 
     // Navigate 10 levels deep — still inside the processed wrapper
     // Recursion stops at depth 10, so depth 10+ returns data as-is
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let current: any = result;
     for (let i = 0; i < 10; i++) {
       current = current?.nested;
@@ -114,7 +114,7 @@ describe('AUD-3: Sensitive fields are redacted', () => {
 
   it('AUD-3: handles arrays with deeply nested objects at depth boundary', () => {
     // Build an array with objects at depth 9 (approaching MAX_REDACT_DEPTH)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let deeplyNested: any = { password: 'secret123' };
     for (let i = 0; i < 8; i++) {
       deeplyNested = { nested: deeplyNested };
@@ -127,7 +127,7 @@ describe('AUD-3: Sensitive fields are redacted', () => {
     const result = redactSensitiveFields(input);
 
     // The password field should be redacted because depth 9 < MAX_REDACT_DEPTH
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, no-restricted-syntax
     let current: any = (result as any)?.items?.[0];
     for (let i = 0; i < 8; i++) {
       current = current?.nested;

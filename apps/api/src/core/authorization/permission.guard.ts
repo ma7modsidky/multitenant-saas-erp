@@ -84,7 +84,7 @@ export class PermissionGuard implements CanActivate {
       }
 
       const action = parts[2] as AppActions;
-      const subject = `${parts[0]}:${parts[1]}` as AppSubjects;
+      const subject = `${parts[0]}:${parts[1]}`;
 
       if (!ability.can(action, subject)) {
         throw new ForbiddenException('FORBIDDEN');

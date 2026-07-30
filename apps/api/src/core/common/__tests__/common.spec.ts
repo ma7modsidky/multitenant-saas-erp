@@ -2,8 +2,8 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
 import { z } from 'zod';
 
-import { AppExceptionFilter } from '../app-exception.filter.js';
 import { CorrelationIdStorage } from '../../observability/correlation-id.storage.js';
+import { AppExceptionFilter } from '../app-exception.filter.js';
 import {
   AppError,
   ConflictError,
@@ -224,7 +224,7 @@ describe('AppExceptionFilter', () => {
 
     filter.catch(error, mockHost as never);
 
-    const sent = (mockResponse.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    const sent = mockResponse.send.mock.calls[0]?.[0];
     expect(sent.error.stack).toBeUndefined();
     expect(sent.error.message).toBeUndefined();
   });
@@ -262,7 +262,7 @@ describe('AppExceptionFilter', () => {
       const error = new DomainError('TEST');
       filter.catch(error, mockHost as never);
 
-      const sent = (mockResponse.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+      const sent = mockResponse.send.mock.calls[0]?.[0];
       expect(sent.error.correlationId).toBe('test-corr-123');
     });
   });

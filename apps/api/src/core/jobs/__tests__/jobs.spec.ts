@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
+
 import { InMemoryJobQueue } from '../job-queue.js';
 
 describe('InMemoryJobQueue', () => {

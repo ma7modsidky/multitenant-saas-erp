@@ -26,12 +26,11 @@ export interface SuccessResponse<T = unknown> {
 export function formatResponse<T>(data: T): SuccessResponse<T | null> {
   // Already in standard format — pass through
   if (data !== null && data !== undefined && typeof data === 'object' && 'data' in (data as Record<string, unknown>)) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return data as unknown as SuccessResponse<T | null>;
   }
 
   // Wrap plain value in { data }, converting undefined to null
-  return { data: (data ?? null) as T | null } as SuccessResponse<T | null>;
+  return { data: data ?? null };
 }
 
 /**

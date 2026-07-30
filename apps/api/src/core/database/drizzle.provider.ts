@@ -1,8 +1,7 @@
-import { type Provider } from '@nestjs/common';
-import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-
 import { ConfigService } from '@modubiz/config';
 import { createDbClient } from '@modubiz/db';
+import { type Provider } from '@nestjs/common';
+import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 /**
  * Drizzle database injection token.
