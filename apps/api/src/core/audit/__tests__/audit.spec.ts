@@ -128,7 +128,7 @@ describe('AUD-3: Sensitive fields are redacted', () => {
 
     // The password field should be redacted because depth 9 < MAX_REDACT_DEPTH
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let current: any = result?.items?.[0];
+    let current: any = (result as any)?.items?.[0];
     for (let i = 0; i < 8; i++) {
       current = current?.nested;
     }

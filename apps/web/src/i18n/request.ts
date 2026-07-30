@@ -1,6 +1,6 @@
 import { getRequestConfig } from 'next-intl/server';
 
-import { routing } from './routing.js';
+import { routing } from './routing';
 
 // Message catalog type
 type Messages = Record<string, string>;

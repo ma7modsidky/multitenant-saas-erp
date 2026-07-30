@@ -1,6 +1,6 @@
 import createMiddleware from 'next-intl/middleware';
 
-import { locales, localePrefix, pathnames } from './i18n/routing.js';
+import { locales, localePrefix, pathnames } from './i18n/routing';
 
 /**
  * next-intl middleware
