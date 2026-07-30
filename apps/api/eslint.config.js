@@ -3,7 +3,7 @@ import modubizConfig from '@modubiz/eslint-config';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
   },
   ...modubizConfig,
   // Override projectService AFTER the base config to add allowDefaultProject
