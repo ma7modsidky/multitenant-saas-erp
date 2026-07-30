@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration": "vitest run --project integration --reporter=verbose",
+    "test:integration": "vitest run --config ../../vitest.integration.config.ts --reporter=verbose",
     "test:arch": "vitest run --config vitest.arch.config.ts"
   },
   "dependencies": {

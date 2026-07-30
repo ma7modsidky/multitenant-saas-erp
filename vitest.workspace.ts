@@ -121,30 +121,9 @@ export default defineWorkspace([
     },
   },
 
-  // Integration tests (separate suite, uses Testcontainers)
-  {
-    test: {
-      name: 'integration',
-      include: ['**/*.integration.spec.ts', '**/__tests__/integration/**/*.spec.ts'],
-      coverage: {
-        enabled: false,
-      },
-      globals: true,
-      testTimeout: 180000,
-      hookTimeout: 180000,
-      fileParallelism: false,
-    },
-  },
-
-  // Isolation tests (separate suite, RLS verification)
-  {
-    test: {
-      name: 'isolation',
-      include: ['**/__tests__/isolation/**/*.spec.ts'],
-      coverage: {
-        enabled: false,
-      },
-      testTimeout: 60000,
-    },
-  },
+  // Integration and isolation tests are configured in their own config files:
+  //   vitest.integration.config.ts — run via `pnpm test:integration`
+  //   vitest.isolation.config.ts  — run via `pnpm test:isolation`
+  // They are kept out of the workspace to prevent accidental execution during
+  // the default `pnpm test` run (which doesn't have Docker/Testcontainers on CI).
 ]);
