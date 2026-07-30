@@ -15,7 +15,7 @@ export default [
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['eslint.config.*', '__tests__/integration/*.test.ts'],
+          allowDefaultProject: ['eslint.config.*'],
         },
       },
     },
@@ -40,23 +40,7 @@ export default [
       'import/no-default-export': 'off',
     },
   },
-  // Relax strict rules for Phase 1 integration test files (outside src/)
-  {
-    files: ['__tests__/**/*.ts'],
-    rules: {
-      // All src/ relaxed rules apply here too
-      'no-restricted-syntax': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      '@typescript-eslint/no-non-null-assertion': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/require-await': 'off',
-    },
-  },
+
   // Relax strict rules for Phase 1 source files
   // TODO: Remove these overrides and fix source code in Phase 2
   // Pre-existing violations from initial implementation — will be fixed incrementally

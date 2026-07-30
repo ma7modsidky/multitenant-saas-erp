@@ -14,9 +14,9 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
 import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import { TransactionManager } from '../../src/core/database/transaction-manager.js';
-import { UnitOfWork } from '../../src/core/database/unit-of-work.js';
-import { TenantContext, type TenantContextData } from '../../src/core/tenancy/tenant-context.js';
+import { TransactionManager } from '../apps/api/src/core/database/transaction-manager.js';
+import { UnitOfWork } from '../apps/api/src/core/database/unit-of-work.js';
+import { TenantContext, type TenantContextData } from '../apps/api/src/core/tenancy/tenant-context.js';
 
 // ─── Test container ─────────────────────────────────────────────────────────
 
