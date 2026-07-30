@@ -1,14 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  type SQL,
-  and,
-  asc,
-  desc,
-  eq,
-  getTableColumns,
-  isNull,
-  sql as drizzleSql,
-} from 'drizzle-orm';
+import { type SQL, and, asc, desc, eq, getTableColumns, isNull, sql as drizzleSql } from 'drizzle-orm';
 import { type PgColumn } from 'drizzle-orm/pg-core';
 import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
@@ -115,10 +106,7 @@ export abstract class RepositoryBase<
    * @param id - The record ID
    * @param tx - Optional transaction-scoped db
    */
-  async findById(
-    id: string,
-    tx?: TxOrDb,
-  ): Promise<Record<string, unknown> | undefined> {
+  async findById(id: string, tx?: TxOrDb): Promise<Record<string, unknown> | undefined> {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const db = this.getDb(tx);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
@@ -154,11 +142,7 @@ export abstract class RepositoryBase<
     } = {},
     tx?: TxOrDb,
   ): Promise<PaginationOutput<Record<string, unknown>>> {
-    const {
-      conditions = [],
-      pagination = { limit: 50 },
-      includeSoftDeleted = false,
-    } = options;
+    const { conditions = [], pagination = { limit: 50 }, includeSoftDeleted = false } = options;
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const db = this.getDb(tx);
@@ -181,9 +165,7 @@ export abstract class RepositoryBase<
     // Apply sorting
     const orderByFn = pagination.sortOrder === 'desc' ? desc : asc;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const sortColumn = pagination.sortBy
-      ? (this.table as never)[pagination.sortBy]
-      : undefined;
+    const sortColumn = pagination.sortBy ? (this.table as never)[pagination.sortBy] : undefined;
 
     // Build query with optional sorting
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -215,10 +197,7 @@ export abstract class RepositoryBase<
    * @param tx - Optional transaction-scoped db
    * @returns The created record
    */
-  async create(
-    data: Record<string, unknown>,
-    tx?: TxOrDb,
-  ): Promise<Record<string, unknown>> {
+  async create(data: Record<string, unknown>, tx?: TxOrDb): Promise<Record<string, unknown>> {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const db = this.getDb(tx);
     const ctx = TenantContext.getCurrent();
@@ -253,11 +232,7 @@ export abstract class RepositoryBase<
    * @param tx - Optional transaction-scoped db
    * @returns The updated record, or undefined if not found
    */
-  async update(
-    id: string,
-    data: Record<string, unknown>,
-    tx?: TxOrDb,
-  ): Promise<Record<string, unknown> | undefined> {
+  async update(id: string, data: Record<string, unknown>, tx?: TxOrDb): Promise<Record<string, unknown> | undefined> {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const db = this.getDb(tx);
     const ctx = TenantContext.getCurrent();
@@ -301,8 +276,7 @@ export abstract class RepositoryBase<
 
     if (!this.deletedAtColumn) {
       throw new Error(
-        'Table does not support soft delete. ' +
-          'Set the deletedAtColumn property in the repository subclass.',
+        'Table does not support soft delete. ' + 'Set the deletedAtColumn property in the repository subclass.',
       );
     }
 
@@ -331,14 +305,12 @@ export abstract class RepositoryBase<
     const db = this.getDb(tx);
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    await (db as PostgresJsDatabase)
-      .delete(this.table as never)
-      .where(
-        and(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          eq((this.table as never)['id'], id),
-          ...this.baseConditions(),
-        ),
-      );
+    await (db as PostgresJsDatabase).delete(this.table as never).where(
+      and(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        eq((this.table as never)['id'], id),
+        ...this.baseConditions(),
+      ),
+    );
   }
 }

@@ -106,9 +106,7 @@ export class JwtTokenService {
     const refreshToken = randomUUID() + '-' + randomUUID();
     const refreshTokenHash = this.hashToken(refreshToken);
 
-    const expiresAt = new Date(
-      Date.now() + this.parseTtl(this.config.jwtRefreshTtl),
-    ).toISOString();
+    const expiresAt = new Date(Date.now() + this.parseTtl(this.config.jwtRefreshTtl)).toISOString();
 
     const session: Session = {
       id: sessionId,
@@ -142,10 +140,9 @@ export class JwtTokenService {
    * @returns Decoded and verified payload
    */
   async verifyRefreshTokenJwt(refreshToken: string): Promise<JwtRefreshPayload> {
-    const payload = await this.jwtService.verifyAsync<JwtRefreshPayload>(
-      refreshToken,
-      { secret: this.config.jwtRefreshSecret },
-    );
+    const payload = await this.jwtService.verifyAsync<JwtRefreshPayload>(refreshToken, {
+      secret: this.config.jwtRefreshSecret,
+    });
 
     if (!payload.sub || !payload.sessionId || !payload.tokenFamily) {
       throw new Error('AUTH_INVALID_REFRESH_TOKEN_PAYLOAD');
@@ -171,11 +168,7 @@ export class JwtTokenService {
    * @returns New access and refresh tokens
    * @throws Error if token is invalid, expired, or reused
    */
-  async refreshAccessToken(
-    refreshToken: string,
-    device?: string,
-    ip?: string,
-  ): Promise<TokenRefreshResult> {
+  async refreshAccessToken(refreshToken: string, device?: string, ip?: string): Promise<TokenRefreshResult> {
     const tokenHash = this.hashToken(refreshToken);
     const session = await this.sessionStore.findByRefreshTokenHash(tokenHash);
 
@@ -242,10 +235,7 @@ export class JwtTokenService {
     if (!session) return;
 
     // Revoke the entire family to lock out the attacker (and force re-auth)
-    await this.sessionStore.revokeFamily(
-      session.tokenFamily,
-      'TOKEN_REUSE',
-    );
+    await this.sessionStore.revokeFamily(session.tokenFamily, 'TOKEN_REUSE');
   }
 
   /**
@@ -298,11 +288,16 @@ export class JwtTokenService {
     const unit = match[2]!;
 
     switch (unit) {
-      case 's': return value * 1000;
-      case 'm': return value * 60 * 1000;
-      case 'h': return value * 60 * 60 * 1000;
-      case 'd': return value * 24 * 60 * 60 * 1000;
-      default: return 30 * 24 * 60 * 60 * 1000;
+      case 's':
+        return value * 1000;
+      case 'm':
+        return value * 60 * 1000;
+      case 'h':
+        return value * 60 * 60 * 1000;
+      case 'd':
+        return value * 24 * 60 * 60 * 1000;
+      default:
+        return 30 * 24 * 60 * 60 * 1000;
     }
   }
 }

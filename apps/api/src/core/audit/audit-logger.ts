@@ -3,7 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 /**
  * Audit action types.
  */
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'SOFT_DELETE' | 'RESTORE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'IMPORT' | 'OTHER';
+export type AuditAction =
+  'CREATE' | 'UPDATE' | 'DELETE' | 'SOFT_DELETE' | 'RESTORE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'IMPORT' | 'OTHER';
 
 /**
  * An audit log entry recording a mutating operation.

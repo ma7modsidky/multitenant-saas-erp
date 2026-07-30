@@ -98,7 +98,12 @@ describe('InMemorySessionStore', () => {
     });
 
     it('does nothing when all sessions in family are already revoked', async () => {
-      const session = makeSession({ id: 's1', tokenFamily: 'fam-1', revokedAt: new Date().toISOString(), revokeReason: 'ALREADY' });
+      const session = makeSession({
+        id: 's1',
+        tokenFamily: 'fam-1',
+        revokedAt: new Date().toISOString(),
+        revokeReason: 'ALREADY',
+      });
       await store.create(session);
 
       await store.revokeFamily('fam-1', 'TOKEN_REUSE');
@@ -113,7 +118,14 @@ describe('InMemorySessionStore', () => {
   describe('revokeAllForUser', () => {
     it('does not revoke already-revoked sessions again', async () => {
       const session1 = makeSession({ id: 's1', userId: 'user-1', tokenFamily: 'fam-1', refreshTokenHash: 'h1' });
-      const session2 = makeSession({ id: 's2', userId: 'user-1', tokenFamily: 'fam-2', refreshTokenHash: 'h2', revokedAt: new Date().toISOString(), revokeReason: 'OLD' });
+      const session2 = makeSession({
+        id: 's2',
+        userId: 'user-1',
+        tokenFamily: 'fam-2',
+        refreshTokenHash: 'h2',
+        revokedAt: new Date().toISOString(),
+        revokeReason: 'OLD',
+      });
 
       await store.create(session1);
       await store.create(session2);

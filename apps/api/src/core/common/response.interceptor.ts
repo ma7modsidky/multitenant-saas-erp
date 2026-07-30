@@ -1,9 +1,4 @@
-import {
-  type CallHandler,
-  type ExecutionContext,
-  Injectable,
-  type NestInterceptor,
-} from '@nestjs/common';
+import { type CallHandler, type ExecutionContext, Injectable, type NestInterceptor } from '@nestjs/common';
 import { Observable, map } from 'rxjs';
 
 /**
@@ -30,12 +25,7 @@ export interface SuccessResponse<T = unknown> {
  */
 export function formatResponse<T>(data: T): SuccessResponse<T | null> {
   // Already in standard format — pass through
-  if (
-    data !== null &&
-    data !== undefined &&
-    typeof data === 'object' &&
-    'data' in (data as Record<string, unknown>)
-  ) {
+  if (data !== null && data !== undefined && typeof data === 'object' && 'data' in (data as Record<string, unknown>)) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return data as unknown as SuccessResponse<T | null>;
   }
@@ -55,13 +45,8 @@ export function formatResponse<T>(data: T): SuccessResponse<T | null> {
  * @see AppExceptionFilter — error response envelope
  */
 @Injectable()
-export class ResponseInterceptor<T>
-  implements NestInterceptor<T, SuccessResponse<T | null>>
-{
-  intercept(
-    _context: ExecutionContext,
-    next: CallHandler<T>,
-  ): Observable<SuccessResponse<T | null>> {
+export class ResponseInterceptor<T> implements NestInterceptor<T, SuccessResponse<T | null>> {
+  intercept(_context: ExecutionContext, next: CallHandler<T>): Observable<SuccessResponse<T | null>> {
     return next.handle().pipe(map(formatResponse));
   }
 }

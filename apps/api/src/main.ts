@@ -1,9 +1,6 @@
 import { ConfigService } from '@modubiz/config';
 import { NestFactory } from '@nestjs/core';
-import {
-  FastifyAdapter,
-  type NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import pino from 'pino';
 
 import { AppModule } from './app.module.js';
@@ -43,10 +40,7 @@ async function bootstrap(): Promise<void> {
         }),
   };
 
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    new FastifyAdapter({ logger: loggerConfig }),
-  );
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: loggerConfig }));
 
   await app.listen(config.port, '0.0.0.0');
 

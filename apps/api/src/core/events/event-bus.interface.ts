@@ -25,9 +25,7 @@ export interface Event<T = Record<string, unknown>> {
  * Listener function signature for event handlers.
  * Must be idempotent (OPS-2) and must not throw back into the publisher.
  */
-export type EventListener<T = Record<string, unknown>> = (
-  event: Event<T>,
-) => Promise<void> | void;
+export type EventListener<T = Record<string, unknown>> = (event: Event<T>) => Promise<void> | void;
 
 /**
  * IEventBus — abstraction over the event publishing infrastructure.

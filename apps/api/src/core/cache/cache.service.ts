@@ -58,13 +58,7 @@ export class CacheService {
    * Set a value in cache with optional TTL.
    * @param ttlMs — TTL in milliseconds (defaults to 5 minutes)
    */
-  async set<T>(
-    organizationId: string,
-    module: string,
-    key: string,
-    value: T,
-    ttlMs?: number,
-  ): Promise<void> {
+  async set<T>(organizationId: string, module: string, key: string, value: T, ttlMs?: number): Promise<void> {
     const cacheKey = this.buildKey(organizationId, module, key);
     const expiresAt = ttlMs !== undefined ? Date.now() + ttlMs : Date.now() + this.DEFAULT_TTL_MS;
 

@@ -141,9 +141,7 @@ describe('LoggerService', () => {
   });
 
   it('errorStructured with error object does not throw', () => {
-    expect(() =>
-      logger.errorStructured({ err: new Error('test'), orderId: 'ord-1' }, 'Order failed'),
-    ).not.toThrow();
+    expect(() => logger.errorStructured({ err: new Error('test'), orderId: 'ord-1' }, 'Order failed')).not.toThrow();
   });
 
   it('warnStructured does not throw', () => {

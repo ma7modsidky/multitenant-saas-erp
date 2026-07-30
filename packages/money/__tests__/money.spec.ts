@@ -243,15 +243,7 @@ describe('CUR-9: toJSON().amountMinor is a string, never a JS number', () => {
   });
 
   it('CUR-9: large values survive JSON round-trip without precision loss', () => {
-    const largeValues = [
-      '9999999999999999',
-      '1234567890123456',
-      '99999999999',
-      '1',
-      '0',
-      '-1',
-      '-9999999999999999',
-    ];
+    const largeValues = ['9999999999999999', '1234567890123456', '99999999999', '1', '0', '-1', '-9999999999999999'];
 
     for (const amountStr of largeValues) {
       const amount = BigInt(amountStr);

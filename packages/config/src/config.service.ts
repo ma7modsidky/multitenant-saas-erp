@@ -24,9 +24,7 @@ export class ConfigService {
       const message = [
         '❌ Invalid backend environment variables:',
         ...Object.entries(errors.fieldErrors).map(([key, msgs]) => `  ${key}: ${msgs?.join(', ') ?? 'missing'}`),
-        ...(errors.formErrors.length > 0
-          ? ['  _form: ' + errors.formErrors.join('; ')]
-          : []),
+        ...(errors.formErrors.length > 0 ? ['  _form: ' + errors.formErrors.join('; ')] : []),
       ].join('\n');
       throw new Error(message);
     }

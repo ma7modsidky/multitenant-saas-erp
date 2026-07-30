@@ -32,14 +32,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
    * @param context - The execution context
    * @returns True if the request is allowed, throws UnauthorizedException otherwise
    */
-  override canActivate(
-    context: ExecutionContext,
-  ): boolean | Promise<boolean> | Observable<boolean> {
+  override canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
     // Check if the route is marked as public (no auth required)
-    const isPublic = this.reflector.getAllAndOverride<boolean>(
-      TENANCY_METADATA.IS_PUBLIC,
-      [context.getHandler(), context.getClass()],
-    );
+    const isPublic = this.reflector.getAllAndOverride<boolean>(TENANCY_METADATA.IS_PUBLIC, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (isPublic) {
       return true;
@@ -60,10 +58,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     _info: { message?: string },
     context: ExecutionContext,
   ): TUser | null {
-    const isSystemContext = this.reflector.getAllAndOverride<boolean>(
-      TENANCY_METADATA.IS_SYSTEM_CONTEXT,
-      [context.getHandler(), context.getClass()],
-    );
+    const isSystemContext = this.reflector.getAllAndOverride<boolean>(TENANCY_METADATA.IS_SYSTEM_CONTEXT, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // For system-context routes, return null instead of throwing
     if (isSystemContext && (err || !user)) {

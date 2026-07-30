@@ -161,22 +161,12 @@ describe('AUD-3: Sensitive fields are redacted', () => {
 
   it('AUD-3: handles array items that are null or undefined', () => {
     const input = {
-      users: [
-        { name: 'Alice', password: 'alice-secret' },
-        null,
-        undefined,
-        { name: 'Bob', apiKey: 'bob-key' },
-      ],
+      users: [{ name: 'Alice', password: 'alice-secret' }, null, undefined, { name: 'Bob', apiKey: 'bob-key' }],
     };
     const result = redactSensitiveFields(input);
 
     expect(result).toEqual({
-      users: [
-        { name: 'Alice', password: '[REDACTED]' },
-        null,
-        undefined,
-        { name: 'Bob', apiKey: '[REDACTED]' },
-      ],
+      users: [{ name: 'Alice', password: '[REDACTED]' }, null, undefined, { name: 'Bob', apiKey: '[REDACTED]' }],
     });
   });
 });
@@ -267,12 +257,18 @@ describe('AUD-1: AuditLogger records mutating operations', () => {
 
   it('AUD-1: generates unique IDs for each entry', async () => {
     const entry1 = await logger.record({
-      actorId: 'user-1', actorEmail: 'a@b.com', action: 'OTHER',
-      entityType: 'test', entityId: '1',
+      actorId: 'user-1',
+      actorEmail: 'a@b.com',
+      action: 'OTHER',
+      entityType: 'test',
+      entityId: '1',
     });
     const entry2 = await logger.record({
-      actorId: 'user-1', actorEmail: 'a@b.com', action: 'OTHER',
-      entityType: 'test', entityId: '2',
+      actorId: 'user-1',
+      actorEmail: 'a@b.com',
+      action: 'OTHER',
+      entityType: 'test',
+      entityId: '2',
     });
 
     expect(entry1.id).not.toBe(entry2.id);
@@ -281,8 +277,11 @@ describe('AUD-1: AuditLogger records mutating operations', () => {
   it('AUD-1: records the correct timestamp on creation', async () => {
     const before = new Date();
     const entry = await logger.record({
-      actorId: 'user-1', actorEmail: 'a@b.com', action: 'LOGIN',
-      entityType: 'session', entityId: 'sess-1',
+      actorId: 'user-1',
+      actorEmail: 'a@b.com',
+      action: 'LOGIN',
+      entityType: 'session',
+      entityId: 'sess-1',
     });
     const after = new Date();
 
@@ -301,10 +300,38 @@ describe('AuditLogger.query', () => {
     logger = new AuditLogger();
     // Seed some entries
     const entries = [
-      { actorId: 'user-1', actorEmail: 'a@b.com', action: 'CREATE' as const, entityType: 'user', entityId: 'u1', organizationId: 'org-1' },
-      { actorId: 'user-1', actorEmail: 'a@b.com', action: 'UPDATE' as const, entityType: 'user', entityId: 'u1', organizationId: 'org-1' },
-      { actorId: 'user-2', actorEmail: 'b@c.com', action: 'CREATE' as const, entityType: 'org', entityId: 'org-2', organizationId: 'org-2' },
-      { actorId: 'user-1', actorEmail: 'a@b.com', action: 'DELETE' as const, entityType: 'user', entityId: 'u2', organizationId: 'org-1' },
+      {
+        actorId: 'user-1',
+        actorEmail: 'a@b.com',
+        action: 'CREATE' as const,
+        entityType: 'user',
+        entityId: 'u1',
+        organizationId: 'org-1',
+      },
+      {
+        actorId: 'user-1',
+        actorEmail: 'a@b.com',
+        action: 'UPDATE' as const,
+        entityType: 'user',
+        entityId: 'u1',
+        organizationId: 'org-1',
+      },
+      {
+        actorId: 'user-2',
+        actorEmail: 'b@c.com',
+        action: 'CREATE' as const,
+        entityType: 'org',
+        entityId: 'org-2',
+        organizationId: 'org-2',
+      },
+      {
+        actorId: 'user-1',
+        actorEmail: 'a@b.com',
+        action: 'DELETE' as const,
+        entityType: 'user',
+        entityId: 'u2',
+        organizationId: 'org-1',
+      },
     ];
 
     for (const entry of entries) {
@@ -370,14 +397,20 @@ describe('AuditLogger.entryCount', () => {
   it('increments with each entry', async () => {
     const logger = new AuditLogger();
     await logger.record({
-      actorId: 'u1', actorEmail: 'a@b.com', action: 'OTHER',
-      entityType: 'test', entityId: '1',
+      actorId: 'u1',
+      actorEmail: 'a@b.com',
+      action: 'OTHER',
+      entityType: 'test',
+      entityId: '1',
     });
     expect(logger.entryCount).toBe(1);
 
     await logger.record({
-      actorId: 'u1', actorEmail: 'a@b.com', action: 'OTHER',
-      entityType: 'test', entityId: '2',
+      actorId: 'u1',
+      actorEmail: 'a@b.com',
+      action: 'OTHER',
+      entityType: 'test',
+      entityId: '2',
     });
     expect(logger.entryCount).toBe(2);
   });

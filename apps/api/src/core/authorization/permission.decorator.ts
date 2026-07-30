@@ -29,5 +29,4 @@ export const REQUIRED_PERMISSIONS_KEY = 'authorization:requiredPermissions';
  * @see AUTHZ-5 — Permission checks are declarative via @RequiresPermission
  * @see PermissionGuard — reads this metadata at runtime
  */
-export const RequiresPermission = (...permissions: string[]) =>
-  SetMetadata(REQUIRED_PERMISSIONS_KEY, permissions);
+export const RequiresPermission = (...permissions: string[]) => SetMetadata(REQUIRED_PERMISSIONS_KEY, permissions);

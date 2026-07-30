@@ -77,12 +77,7 @@ export function clampLimit(limit: number, max = MAX_PAGINATION_LIMIT): number {
  * @param offset - The offset used (for computing hasMore)
  * @returns PaginationMeta object
  */
-export function buildPaginationMeta<T>(
-  items: T[],
-  total: number,
-  limit: number,
-  offset = 0,
-): PaginationMeta {
+export function buildPaginationMeta<T>(items: T[], total: number, limit: number, offset = 0): PaginationMeta {
   return {
     total,
     hasMore: offset + limit < total,
@@ -100,9 +95,7 @@ export function buildPaginationMeta<T>(
  * @param input - Raw pagination input (from query params)
  * @returns Normalized PaginationInput with safe defaults
  */
-export function normalizePagination(
-  input: Partial<PaginationInput>,
-): PaginationInput {
+export function normalizePagination(input: Partial<PaginationInput>): PaginationInput {
   return {
     limit: clampLimit(input.limit ?? DEFAULT_PAGINATION_LIMIT),
     offset: Math.max(0, input.offset ?? 0),

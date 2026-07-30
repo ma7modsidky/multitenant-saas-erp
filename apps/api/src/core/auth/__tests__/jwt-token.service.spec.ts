@@ -38,9 +38,7 @@ const DEFAULT_ENV = {
 /**
  * Creates a ConfigService with the default env vars, optionally overridden.
  */
-function makeTestConfig(
-  overrides?: Partial<Record<string, string>>,
-): ConfigService {
+function makeTestConfig(overrides?: Partial<Record<string, string>>): ConfigService {
   return new ConfigService({ ...DEFAULT_ENV, ...overrides });
 }
 
@@ -194,9 +192,7 @@ describe('JwtTokenService', () => {
       // Second attempt with the same (now-rotated) token should detect reuse
       // The old hash is still in the index, but the session's current hash
       // has changed → reuse detection revokes the family
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_SESSION_REVOKED');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_SESSION_REVOKED');
     });
 
     it('AUTH-4: also revokes the new token when reuse is detected (family revocation)', async () => {
@@ -206,30 +202,24 @@ describe('JwtTokenService', () => {
       const rotated = await service.refreshAccessToken(refreshToken);
 
       // The old token triggers reuse → family revoked
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_SESSION_REVOKED');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_SESSION_REVOKED');
 
       // Even the NEW token should now be invalid because the session
       // itself was revoked by revokeFamily (AUTH-4 family revocation)
-      await expect(
-        service.refreshAccessToken(rotated.refreshToken),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken(rotated.refreshToken)).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
     });
 
     it('AUTH-4: rejects an invalid refresh token', async () => {
-      await expect(
-        service.refreshAccessToken('invalid-token-that-does-not-exist'),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken('invalid-token-that-does-not-exist')).rejects.toThrow(
+        'AUTH_INVALID_REFRESH_TOKEN',
+      );
     });
 
     it('AUTH-4: rejects a revoked token', async () => {
       const { refreshToken, session } = await service.generateRefreshToken('user-1');
       await service.revokeSession(session.id, 'USER_LOGOUT');
 
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
     });
 
     it('AUTH-4: rejects an expired token', async () => {
@@ -254,15 +244,11 @@ describe('JwtTokenService', () => {
       // Even though refreshAccessToken already detected reuse and revoked
       // the family, handleTokenReuse is safe to call and should not throw.
       // (The family is already revoked from the refreshAccessToken call.)
-      await expect(
-        service.handleTokenReuse(refreshToken),
-      ).resolves.not.toThrow();
+      await expect(service.handleTokenReuse(refreshToken)).resolves.not.toThrow();
     });
 
     it('AUTH-4: is a no-op for unknown tokens', async () => {
-      await expect(
-        service.handleTokenReuse('non-existent-token'),
-      ).resolves.not.toThrow();
+      await expect(service.handleTokenReuse('non-existent-token')).resolves.not.toThrow();
     });
   });
 
@@ -278,9 +264,7 @@ describe('JwtTokenService', () => {
       expect(sessions).toHaveLength(0);
 
       // The token should now be invalid
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
     });
 
     it('AUTH-6: revokes all sessions for a user', async () => {
@@ -288,11 +272,11 @@ describe('JwtTokenService', () => {
       await service.generateRefreshToken('user-1', 'device-2');
       await service.generateRefreshToken('user-1', 'device-3');
 
-      expect((await service.listSessions('user-1'))).toHaveLength(3);
+      expect(await service.listSessions('user-1')).toHaveLength(3);
 
       await service.revokeAllUserSessions('user-1', 'PASSWORD_CHANGED');
 
-      expect((await service.listSessions('user-1'))).toHaveLength(0);
+      expect(await service.listSessions('user-1')).toHaveLength(0);
     });
 
     it('AUTH-5: lists only active (non-revoked) sessions', async () => {
@@ -320,8 +304,8 @@ describe('JwtTokenService', () => {
 
       await service.revokeAllUserSessions('user-1', 'PASSWORD_CHANGED');
 
-      expect((await service.listSessions('user-1'))).toHaveLength(0);
-      expect((await service.listSessions('user-2'))).toHaveLength(1);
+      expect(await service.listSessions('user-1')).toHaveLength(0);
+      expect(await service.listSessions('user-2')).toHaveLength(1);
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       expect((await service.listSessions('user-2'))[0]!.id).toBe(session.id);
     });
@@ -342,9 +326,7 @@ describe('JwtTokenService', () => {
       await service.refreshAccessToken(refreshToken);
 
       // Call handleTokenReuse — should not throw even though family is already revoked
-      await expect(
-        service.handleTokenReuse(refreshToken),
-      ).resolves.not.toThrow();
+      await expect(service.handleTokenReuse(refreshToken)).resolves.not.toThrow();
     });
   });
 
@@ -435,9 +417,7 @@ describe('JwtTokenService', () => {
         { secret: 'wrong-secret-that-is-at-least-32-chars-long!!', expiresIn: '30d' },
       );
 
-      await expect(
-        service.verifyRefreshTokenJwt(token),
-      ).rejects.toThrow();
+      await expect(service.verifyRefreshTokenJwt(token)).rejects.toThrow();
     });
 
     it('rejects an expired token', async () => {
@@ -451,9 +431,7 @@ describe('JwtTokenService', () => {
       // Wait a tiny bit for the token to expire
       await new Promise((r) => setTimeout(r, 100));
 
-      await expect(
-        service.verifyRefreshTokenJwt(token),
-      ).rejects.toThrow();
+      await expect(service.verifyRefreshTokenJwt(token)).rejects.toThrow();
     });
   });
 });

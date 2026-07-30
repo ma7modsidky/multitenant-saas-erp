@@ -21,10 +21,14 @@ describe('InMemoryJobQueue', () => {
     });
 
     it('stores organization context (TEN-6)', async () => {
-      const job = await queue.add('process-report', {}, {
-        organizationId: 'org-123',
-        userId: 'user-456',
-      });
+      const job = await queue.add(
+        'process-report',
+        {},
+        {
+          organizationId: 'org-123',
+          userId: 'user-456',
+        },
+      );
 
       expect(job.organizationId).toBe('org-123');
       expect(job.userId).toBe('user-456');

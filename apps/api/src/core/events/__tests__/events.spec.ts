@@ -51,9 +51,7 @@ function createMockEmitter() {
       return results;
     }),
     removeListener: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
-      const idx = listeners.findIndex(
-        (l) => l.event === event && l.handler === handler,
-      );
+      const idx = listeners.findIndex((l) => l.event === event && l.handler === handler);
       if (idx >= 0) {
         listeners.splice(idx, 1);
       }
@@ -163,13 +161,14 @@ describe('EventEmitter2EventBus', () => {
   describe('publishAll', () => {
     it('publishes multiple events in order', async () => {
       const events: string[] = [];
-      bus.on('event.1', () => { events.push('1'); });
-      bus.on('event.2', () => { events.push('2'); });
+      bus.on('event.1', () => {
+        events.push('1');
+      });
+      bus.on('event.2', () => {
+        events.push('2');
+      });
 
-      await bus.publishAll([
-        createTestEvent({ name: 'event.1' }),
-        createTestEvent({ name: 'event.2' }),
-      ]);
+      await bus.publishAll([createTestEvent({ name: 'event.1' }), createTestEvent({ name: 'event.2' })]);
 
       expect(events).toEqual(['1', '2']);
     });

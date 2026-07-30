@@ -44,9 +44,7 @@ describe('StorageService', () => {
 
   describe('deleteObject', () => {
     it('does not throw', async () => {
-      await expect(
-        storage.deleteObject('org-1', 'org-1/temp/file.txt'),
-      ).resolves.not.toThrow();
+      await expect(storage.deleteObject('org-1', 'org-1/temp/file.txt')).resolves.not.toThrow();
     });
   });
 

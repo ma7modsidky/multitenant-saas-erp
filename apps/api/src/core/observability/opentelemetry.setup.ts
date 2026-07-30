@@ -39,7 +39,8 @@ export async function initializeTelemetry(): Promise<void> {
     const { getNodeAutoInstrumentations } = await import('@opentelemetry/auto-instrumentations-node');
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
     const { Resource } = await import('@opentelemetry/resources');
-    const { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } = await import('@opentelemetry/semantic-conventions');
+    const { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } =
+      await import('@opentelemetry/semantic-conventions');
 
     const serviceName = process.env['OTEL_SERVICE_NAME'] || 'modubiz-api';
     const env = process.env['NODE_ENV'] || 'development';

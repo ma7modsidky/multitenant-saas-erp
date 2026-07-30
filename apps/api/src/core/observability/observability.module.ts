@@ -19,14 +19,8 @@ import { LoggerService } from './observability.logger.js';
  * @see ARCHITECTURE.md §3 — core/observability
  */
 @Module({
-  providers: [
-    LoggerService,
-    CorrelationIdStorage,
-  ],
-  exports: [
-    LoggerService,
-    CorrelationIdStorage,
-  ],
+  providers: [LoggerService, CorrelationIdStorage],
+  exports: [LoggerService, CorrelationIdStorage],
 })
 export class ObservabilityModule implements NestModule {
   /**
@@ -35,8 +29,6 @@ export class ObservabilityModule implements NestModule {
    * middleware, guard, or interceptor runs.
    */
   configure(consumer: MiddlewareConsumer): void {
-    consumer
-      .apply(CorrelationIdMiddleware)
-      .forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }

@@ -23,11 +23,7 @@ export const CORRELATION_ID_HEADER = 'x-correlation-id';
  */
 @Injectable()
 export class CorrelationIdMiddleware implements NestMiddleware {
-  use(
-    req: FastifyRequest,
-    res: FastifyReply,
-    next: () => void,
-  ): void {
+  use(req: FastifyRequest, res: FastifyReply, next: () => void): void {
     // Read forwarded correlation ID or generate a new one
     const forwardedId = req.headers[CORRELATION_ID_HEADER] as string | undefined;
     const correlationId = forwardedId?.trim() || CorrelationIdStorage.generate();

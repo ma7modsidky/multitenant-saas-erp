@@ -38,10 +38,7 @@ const posUser = {
  * Helper to create a mock execution context with a request.user.
  * Returns a context compatible with all three guard types.
  */
-function createMockContext(
-  handler: (...args: unknown[]) => unknown,
-  mockUser: Record<string, unknown> | null,
-) {
+function createMockContext(handler: (...args: unknown[]) => unknown, mockUser: Record<string, unknown> | null) {
   return {
     switchToHttp: () => ({
       getRequest: () => ({
@@ -56,11 +53,13 @@ function createMockContext(
 /**
  * Create an EntitlementGuard with a pre-seeded entitlement store.
  */
-async function createEntitlementGuard(seeds: Array<{
-  orgId: string;
-  moduleKey: string;
-  state: string;
-}>): Promise<EntitlementGuard> {
+async function createEntitlementGuard(
+  seeds: Array<{
+    orgId: string;
+    moduleKey: string;
+    state: string;
+  }>,
+): Promise<EntitlementGuard> {
   const store = new InMemoryEntitlementStore();
   for (const seed of seeds) {
     await store.upsert({
@@ -193,9 +192,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('AUTHZ-6: allows access when the org is entitled with active state', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'active' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'active' }]);
 
     class TestController {
       @RequiresModule('inventory')
@@ -210,9 +207,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('AUTHZ-6: allows access when the org is entitled with trialing state', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'trialing' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'trialing' }]);
 
     class TestController {
       @RequiresModule('inventory')
@@ -227,9 +222,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('BILL-6: allows access when state is past_due (dunning window)', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'past_due' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'past_due' }]);
 
     class TestController {
       @RequiresModule('inventory')
@@ -244,9 +237,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('BILL-3: allows access when state is expired (grace period)', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'expired' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'expired' }]);
 
     class TestController {
       @RequiresModule('inventory')
@@ -261,9 +252,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('AUTHZ-6: denies access when the org is NOT entitled to the module', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'active' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'active' }]);
 
     class TestController {
       @RequiresModule('pos')
@@ -279,9 +268,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('AUTHZ-6: denies access when module is disabled (BILL-7)', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'disabled' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'disabled' }]);
 
     class TestController {
       @RequiresModule('inventory')
@@ -296,9 +283,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('denies access when module is suspended', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'suspended' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'suspended' }]);
 
     class TestController {
       @RequiresModule('inventory')
@@ -343,9 +328,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('reads class-level @RequiresModule metadata', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'active' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'active' }]);
 
     @RequiresModule('inventory')
     class TestController {
@@ -360,9 +343,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('is isolated per module — org entitled to inventory but not pos', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'active' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'active' }]);
 
     class PosController {
       @RequiresModule('pos')
@@ -377,9 +358,7 @@ describe('EntitlementGuard', () => {
   });
 
   it('denies access when module is available (not yet enabled)', async () => {
-    const guard = await createEntitlementGuard([
-      { orgId: 'org-1', moduleKey: 'inventory', state: 'available' },
-    ]);
+    const guard = await createEntitlementGuard([{ orgId: 'org-1', moduleKey: 'inventory', state: 'available' }]);
 
     class TestController {
       @RequiresModule('inventory')

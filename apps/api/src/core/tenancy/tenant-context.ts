@@ -131,10 +131,7 @@ export class TenantContext {
   static requireUserId(): string {
     const userId = this.getUserId();
     if (!userId) {
-      throw new Error(
-        'No tenant context available. ' +
-          'This operation requires an active tenant context.',
-      );
+      throw new Error('No tenant context available. ' + 'This operation requires an active tenant context.');
     }
     return userId;
   }

@@ -114,10 +114,7 @@ export class NotificationsService {
       return notification;
     } catch (error) {
       // NOTIF-1: Never fail the originating operation
-      this.logger.error(
-        `Failed to send notification: ${(error as Error).message}`,
-        (error as Error).stack,
-      );
+      this.logger.error(`Failed to send notification: ${(error as Error).message}`, (error as Error).stack);
       return null;
     }
   }

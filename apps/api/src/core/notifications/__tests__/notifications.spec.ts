@@ -60,12 +60,16 @@ describe('NotificationsService', () => {
 
     it('generates unique IDs', async () => {
       const n1 = await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 't1', bodyKey: 'b1',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 't1',
+        bodyKey: 'b1',
       });
       const n2 = await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 't2', bodyKey: 'b2',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 't2',
+        bodyKey: 'b2',
       });
 
       expect(n1!.id).not.toBe(n2!.id);
@@ -98,15 +102,21 @@ describe('NotificationsService', () => {
 
     it('NOTIF-3: allows different entity IDs', async () => {
       const first = await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 't', bodyKey: 'b',
-        entityType: 'report', entityId: 'report-1',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 't',
+        bodyKey: 'b',
+        entityType: 'report',
+        entityId: 'report-1',
       });
 
       const second = await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 't', bodyKey: 'b',
-        entityType: 'report', entityId: 'report-2',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 't',
+        bodyKey: 'b',
+        entityType: 'report',
+        entityId: 'report-2',
       });
 
       expect(first).not.toBeNull();
@@ -115,15 +125,22 @@ describe('NotificationsService', () => {
 
     it('NOTIF-3: allows different notification types', async () => {
       const first = await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 't', bodyKey: 'b',
-        entityType: 'report', entityId: 'report-1',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 't',
+        bodyKey: 'b',
+        entityType: 'report',
+        entityId: 'report-1',
       });
 
       const second = await service.send({
-        type: 'email', userId: 'u1', email: 'a@b.com',
-        titleKey: 't', bodyKey: 'b',
-        entityType: 'report', entityId: 'report-1',
+        type: 'email',
+        userId: 'u1',
+        email: 'a@b.com',
+        titleKey: 't',
+        bodyKey: 'b',
+        entityType: 'report',
+        entityId: 'report-1',
       });
 
       // Different type, not suppressed
@@ -133,15 +150,21 @@ describe('NotificationsService', () => {
 
     it('NOTIF-3: allows different recipients', async () => {
       const first = await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 't', bodyKey: 'b',
-        entityType: 'report', entityId: 'report-1',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 't',
+        bodyKey: 'b',
+        entityType: 'report',
+        entityId: 'report-1',
       });
 
       const second = await service.send({
-        type: 'in_app', userId: 'u2',
-        titleKey: 't', bodyKey: 'b',
-        entityType: 'report', entityId: 'report-1',
+        type: 'in_app',
+        userId: 'u2',
+        titleKey: 't',
+        bodyKey: 'b',
+        entityType: 'report',
+        entityId: 'report-1',
       });
 
       expect(first).not.toBeNull();
@@ -152,16 +175,22 @@ describe('NotificationsService', () => {
   describe('getForUser', () => {
     it('returns notifications for a specific user', async () => {
       await service.send({
-        type: 'in_app', userId: 'user-1',
-        titleKey: 'n1', bodyKey: 'b1',
+        type: 'in_app',
+        userId: 'user-1',
+        titleKey: 'n1',
+        bodyKey: 'b1',
       });
       await service.send({
-        type: 'in_app', userId: 'user-1',
-        titleKey: 'n2', bodyKey: 'b2',
+        type: 'in_app',
+        userId: 'user-1',
+        titleKey: 'n2',
+        bodyKey: 'b2',
       });
       await service.send({
-        type: 'in_app', userId: 'user-2',
-        titleKey: 'n3', bodyKey: 'b3',
+        type: 'in_app',
+        userId: 'user-2',
+        titleKey: 'n3',
+        bodyKey: 'b3',
       });
 
       const result = await service.getForUser('user-1');
@@ -178,8 +207,10 @@ describe('NotificationsService', () => {
     it('paginates results', async () => {
       for (let i = 0; i < 10; i++) {
         await service.send({
-          type: 'in_app', userId: 'user-1',
-          titleKey: `n${i}`, bodyKey: `b${i}`,
+          type: 'in_app',
+          userId: 'user-1',
+          titleKey: `n${i}`,
+          bodyKey: `b${i}`,
         });
       }
 
@@ -190,12 +221,16 @@ describe('NotificationsService', () => {
 
     it('returns newest first', async () => {
       await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 'first', bodyKey: 'b1',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 'first',
+        bodyKey: 'b1',
       });
       await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 'second', bodyKey: 'b2',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 'second',
+        bodyKey: 'b2',
       });
 
       const result = await service.getForUser('u1');
@@ -206,9 +241,7 @@ describe('NotificationsService', () => {
 
   describe('markRead', () => {
     it('does not throw', async () => {
-      await expect(
-        service.markRead('any-id'),
-      ).resolves.not.toThrow();
+      await expect(service.markRead('any-id')).resolves.not.toThrow();
     });
   });
 
@@ -219,14 +252,18 @@ describe('NotificationsService', () => {
 
     it('increments with each sent notification', async () => {
       await service.send({
-        type: 'in_app', userId: 'u1',
-        titleKey: 't1', bodyKey: 'b1',
+        type: 'in_app',
+        userId: 'u1',
+        titleKey: 't1',
+        bodyKey: 'b1',
       });
       expect(service.totalSent).toBe(1);
 
       await service.send({
-        type: 'in_app', userId: 'u2',
-        titleKey: 't2', bodyKey: 'b2',
+        type: 'in_app',
+        userId: 'u2',
+        titleKey: 't2',
+        bodyKey: 'b2',
       });
       expect(service.totalSent).toBe(2);
     });

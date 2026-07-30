@@ -38,16 +38,12 @@ describe('TenantContext', () => {
   });
 
   it('isolates nested context scopes', async () => {
-    const outer = await TenantContext.run(
-      { ...defaultContext, userId: 'outer' },
-      async () => {
-        const inner = await TenantContext.run(
-          { ...defaultContext, userId: 'inner' },
-          async () => TenantContext.getCurrent(),
-        );
-        return { outerCtx: TenantContext.getCurrent(), innerCtx: inner };
-      },
-    );
+    const outer = await TenantContext.run({ ...defaultContext, userId: 'outer' }, async () => {
+      const inner = await TenantContext.run({ ...defaultContext, userId: 'inner' }, async () =>
+        TenantContext.getCurrent(),
+      );
+      return { outerCtx: TenantContext.getCurrent(), innerCtx: inner };
+    });
 
     expect(outer.outerCtx?.userId).toBe('outer');
     expect(outer.innerCtx?.userId).toBe('inner');
@@ -78,16 +74,12 @@ describe('TenantContext', () => {
   });
 
   it('requireOrganizationId() throws outside a context scope', () => {
-    expect(() => TenantContext.requireOrganizationId()).toThrow(
-      'No tenant context available',
-    );
+    expect(() => TenantContext.requireOrganizationId()).toThrow('No tenant context available');
   });
 
   it('requireOrganizationId() throws for system context without orgId', async () => {
     await TenantContext.run(systemContext, async () => {
-      expect(() => TenantContext.requireOrganizationId()).toThrow(
-        'No organization ID in tenant context',
-      );
+      expect(() => TenantContext.requireOrganizationId()).toThrow('No organization ID in tenant context');
     });
   });
 
@@ -102,9 +94,7 @@ describe('TenantContext', () => {
   });
 
   it('requireUserId() throws outside a context scope', () => {
-    expect(() => TenantContext.requireUserId()).toThrow(
-      'No tenant context available',
-    );
+    expect(() => TenantContext.requireUserId()).toThrow('No tenant context available');
   });
 
   // ─── Roles, permissions, locale ───────────────────────────────────────
@@ -121,10 +111,7 @@ describe('TenantContext', () => {
 
   it('getPermissions() returns the user permissions', async () => {
     await TenantContext.run(defaultContext, async () => {
-      expect(TenantContext.getPermissions()).toEqual([
-        'inventory:product:read',
-        'inventory:stock:adjust',
-      ]);
+      expect(TenantContext.getPermissions()).toEqual(['inventory:product:read', 'inventory:stock:adjust']);
     });
   });
 
@@ -143,12 +130,9 @@ describe('TenantContext', () => {
   });
 
   it('getLocale() returns locale from system context', async () => {
-    await TenantContext.run(
-      { ...systemContext, locale: 'ar' },
-      async () => {
-        expect(TenantContext.getLocale()).toBe('ar');
-      },
-    );
+    await TenantContext.run({ ...systemContext, locale: 'ar' }, async () => {
+      expect(TenantContext.getLocale()).toBe('ar');
+    });
   });
 });
 
@@ -173,32 +157,20 @@ describe('@PublicRoute and @SystemContext decorators', () => {
 
   it('@PublicRoute sets IS_PUBLIC metadata', () => {
     const controller = new TestController();
-    const isPublic = Reflect.getMetadata(
-      TENANCY_METADATA.IS_PUBLIC,
-      controller.handlePublic,
-    );
+    const isPublic = Reflect.getMetadata(TENANCY_METADATA.IS_PUBLIC, controller.handlePublic);
     expect(isPublic).toBe(true);
   });
 
   it('@SystemContext sets IS_SYSTEM_CONTEXT metadata', () => {
     const controller = new TestController();
-    const isSystem = Reflect.getMetadata(
-      TENANCY_METADATA.IS_SYSTEM_CONTEXT,
-      controller.handleSystem,
-    );
+    const isSystem = Reflect.getMetadata(TENANCY_METADATA.IS_SYSTEM_CONTEXT, controller.handleSystem);
     expect(isSystem).toBe(true);
   });
 
   it('normal routes have no tenancy metadata', () => {
     const controller = new TestController();
-    const isPublic = Reflect.getMetadata(
-      TENANCY_METADATA.IS_PUBLIC,
-      controller.handleNormal,
-    );
-    const isSystem = Reflect.getMetadata(
-      TENANCY_METADATA.IS_SYSTEM_CONTEXT,
-      controller.handleNormal,
-    );
+    const isPublic = Reflect.getMetadata(TENANCY_METADATA.IS_PUBLIC, controller.handleNormal);
+    const isSystem = Reflect.getMetadata(TENANCY_METADATA.IS_SYSTEM_CONTEXT, controller.handleNormal);
     expect(isPublic).toBeUndefined();
     expect(isSystem).toBeUndefined();
   });

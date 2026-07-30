@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import {
-  type EntitlementEntry,
-  type EntitlementState,
-  type IEntitlementStore,
-} from './entitlement-store.interface.js';
+import { type EntitlementEntry, type EntitlementState, type IEntitlementStore } from './entitlement-store.interface.js';
 
 /**
  * InMemoryEntitlementStore — Phase 1.6 in-memory stub.
@@ -23,10 +19,7 @@ export class InMemoryEntitlementStore implements IEntitlementStore {
     return `${organizationId}:${moduleKey}`;
   }
 
-  async findByOrgAndModule(
-    organizationId: string,
-    moduleKey: string,
-  ): Promise<EntitlementEntry | undefined> {
+  async findByOrgAndModule(organizationId: string, moduleKey: string): Promise<EntitlementEntry | undefined> {
     return this.store.get(this.key(organizationId, moduleKey));
   }
 
@@ -47,11 +40,7 @@ export class InMemoryEntitlementStore implements IEntitlementStore {
     this.store.set(this.key(entry.organizationId, entry.moduleKey), { ...entry });
   }
 
-  async updateState(
-    organizationId: string,
-    moduleKey: string,
-    state: EntitlementState,
-  ): Promise<void> {
+  async updateState(organizationId: string, moduleKey: string, state: EntitlementState): Promise<void> {
     const existing = this.store.get(this.key(organizationId, moduleKey));
     if (existing) {
       this.store.set(this.key(organizationId, moduleKey), {

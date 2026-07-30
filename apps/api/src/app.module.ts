@@ -27,7 +27,22 @@ import { NotificationsModule } from './core/notifications/notifications.module.j
  * @see ARCHITECTURE.md §3 — The composition root exception
  */
 @Module({
-  imports: [CommonModule, ObservabilityModule, EventsModule, DatabaseModule, TenancyModule, EntitlementsModule, AuthModule, AuthorizationModule, AuditModule, I18nModule, CacheModule, JobsModule, StorageModule, NotificationsModule],
+  imports: [
+    CommonModule,
+    ObservabilityModule,
+    EventsModule,
+    DatabaseModule,
+    TenancyModule,
+    EntitlementsModule,
+    AuthModule,
+    AuthorizationModule,
+    AuditModule,
+    I18nModule,
+    CacheModule,
+    JobsModule,
+    StorageModule,
+    NotificationsModule,
+  ],
   controllers: [],
   providers: [],
 })

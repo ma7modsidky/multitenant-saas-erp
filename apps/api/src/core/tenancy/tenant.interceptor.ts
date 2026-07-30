@@ -1,9 +1,4 @@
-import {
-  type CallHandler,
-  type ExecutionContext,
-  Injectable,
-  type NestInterceptor,
-} from '@nestjs/common';
+import { type CallHandler, type ExecutionContext, Injectable, type NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 
@@ -56,20 +51,20 @@ export class TenantInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     // Check if this route is marked as public (no auth, no tenant)
-    const isPublic = this.reflector.getAllAndOverride<boolean>(
-      TENANCY_METADATA.IS_PUBLIC,
-      [context.getHandler(), context.getClass()],
-    );
+    const isPublic = this.reflector.getAllAndOverride<boolean>(TENANCY_METADATA.IS_PUBLIC, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (isPublic) {
       return next.handle();
     }
 
     // Check if this route is marked as system context (auth optional, no tenant)
-    const isSystemContext = this.reflector.getAllAndOverride<boolean>(
-      TENANCY_METADATA.IS_SYSTEM_CONTEXT,
-      [context.getHandler(), context.getClass()],
-    );
+    const isSystemContext = this.reflector.getAllAndOverride<boolean>(TENANCY_METADATA.IS_SYSTEM_CONTEXT, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // Extract user from the request (set by JwtAuthGuard in Phase 1.3)
     const request = context.switchToHttp().getRequest();

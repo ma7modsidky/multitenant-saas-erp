@@ -1,9 +1,4 @@
-import {
-  type CallHandler,
-  type ExecutionContext,
-  Injectable,
-  type NestInterceptor,
-} from '@nestjs/common';
+import { type CallHandler, type ExecutionContext, Injectable, type NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, tap } from 'rxjs';
 
@@ -45,10 +40,7 @@ export class AuditInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const metadata = this.reflector.get<AuditMetadata | undefined>(
-      AUDIT_METADATA_KEY,
-      context.getHandler(),
-    );
+    const metadata = this.reflector.get<AuditMetadata | undefined>(AUDIT_METADATA_KEY, context.getHandler());
 
     if (!metadata) {
       return next.handle();
@@ -70,21 +62,21 @@ export class AuditInterceptor implements NestInterceptor {
         next: () => {
           // Record audit entry after successful completion.
           // Use conditional spread for optional fields to satisfy exactOptionalPropertyTypes.
-          this.auditLogger.record({
-            actorId,
-            actorEmail,
-            action: metadata.action,
-            entityType: metadata.entityType,
-            entityId: (request.params?.id as string | undefined) ?? 'unknown',
-            ...(correlationId !== undefined ? { correlationId } : {}),
-            ...(ipAddress !== undefined ? { ipAddress } : {}),
-            ...(metadata.captureAfter && request.body
-              ? { after: request.body as Record<string, unknown> }
-              : {}),
-          }).catch((err: Error) => {
-            // Audit logging must never fail the originating operation (NOTIF-1 pattern)
-            console.error('Failed to record audit entry:', err.message);
-          });
+          this.auditLogger
+            .record({
+              actorId,
+              actorEmail,
+              action: metadata.action,
+              entityType: metadata.entityType,
+              entityId: (request.params?.id as string | undefined) ?? 'unknown',
+              ...(correlationId !== undefined ? { correlationId } : {}),
+              ...(ipAddress !== undefined ? { ipAddress } : {}),
+              ...(metadata.captureAfter && request.body ? { after: request.body as Record<string, unknown> } : {}),
+            })
+            .catch((err: Error) => {
+              // Audit logging must never fail the originating operation (NOTIF-1 pattern)
+              console.error('Failed to record audit entry:', err.message);
+            });
         },
       }),
     );

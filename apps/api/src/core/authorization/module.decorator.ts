@@ -33,5 +33,4 @@ export const REQUIRED_MODULE_KEY = 'authorization:requiredModule';
  * @see AUTHZ-6 — Entitlement is checked before permission
  * @see EntitlementGuard — reads this metadata at runtime
  */
-export const RequiresModule = (moduleKey: string) =>
-  SetMetadata(REQUIRED_MODULE_KEY, moduleKey);
+export const RequiresModule = (moduleKey: string) => SetMetadata(REQUIRED_MODULE_KEY, moduleKey);

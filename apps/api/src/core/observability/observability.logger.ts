@@ -189,7 +189,7 @@ export class LoggerService implements NestLoggerService {
 
     // If first param is an object, treat it as structured context
     if (optionalParams.length > 0 && typeof optionalParams[0] === 'object' && optionalParams[0] !== null) {
-      context = { ...optionalParams[0] as LogContext };
+      context = { ...(optionalParams[0] as LogContext) };
       optionalParams = optionalParams.slice(1);
     }
 

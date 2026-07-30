@@ -14,14 +14,7 @@
  * @see DATA_MODEL.md §4.3 — Entitlement states
  * @see BUSINESS_RULES.md §4 — Subscription, trial, and entitlement rules
  */
-export type EntitlementState =
-  | 'available'
-  | 'trialing'
-  | 'active'
-  | 'past_due'
-  | 'expired'
-  | 'suspended'
-  | 'disabled';
+export type EntitlementState = 'available' | 'trialing' | 'active' | 'past_due' | 'expired' | 'suspended' | 'disabled';
 
 /**
  * A module entitlement entry for an organization.
@@ -85,10 +78,7 @@ export interface IEntitlementStore {
    * Find an entitlement by organization and module key.
    * Returns undefined if no entitlement record exists.
    */
-  findByOrgAndModule(
-    organizationId: string,
-    moduleKey: string,
-  ): Promise<EntitlementEntry | undefined>;
+  findByOrgAndModule(organizationId: string, moduleKey: string): Promise<EntitlementEntry | undefined>;
 
   /**
    * Find all entitlements for an organization.
@@ -104,9 +94,5 @@ export interface IEntitlementStore {
   /**
    * Update the state of an entitlement.
    */
-  updateState(
-    organizationId: string,
-    moduleKey: string,
-    state: EntitlementState,
-  ): Promise<void>;
+  updateState(organizationId: string, moduleKey: string, state: EntitlementState): Promise<void>;
 }

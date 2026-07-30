@@ -38,11 +38,7 @@ export const HANDLE_EVENT_KEY = 'events:handleEvent';
  * @see OPS-3 — Handlers must not throw back into the publisher
  */
 export const HandleEvent = (eventName: string): MethodDecorator => {
-  return (
-    target: object,
-    propertyKey: string | symbol,
-    descriptor: PropertyDescriptor,
-  ): PropertyDescriptor => {
+  return (target: object, propertyKey: string | symbol, descriptor: PropertyDescriptor): PropertyDescriptor => {
     // Store metadata for programmatic discovery
     SetMetadata(HANDLE_EVENT_KEY, eventName)(target, propertyKey, descriptor);
 

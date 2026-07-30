@@ -1,10 +1,4 @@
-import {
-  type ArgumentsHost,
-  Catch,
-  type ExceptionFilter,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { type FastifyReply } from 'fastify';
 
 import { CorrelationIdStorage } from '../observability/correlation-id.storage.js';
@@ -68,8 +62,7 @@ export class AppExceptionFilter implements ExceptionFilter {
     const correlationId = CorrelationIdStorage.get() ?? 'unknown';
 
     // Determine HTTP status and error code
-    const { httpStatus, code, params, details } =
-      this.normalizeException(exception);
+    const { httpStatus, code, params, details } = this.normalizeException(exception);
 
     // Build the error response body
     const body: ErrorResponse = {
@@ -174,10 +167,7 @@ export class AppExceptionFilter implements ExceptionFilter {
   /**
    * Map HTTP status to a stable error code.
    */
-  private httpStatusToCode(
-    status: number,
-    fallback?: string,
-  ): string {
+  private httpStatusToCode(status: number, fallback?: string): string {
     if (fallback) return fallback;
 
     const statusCodeMap: Record<number, string> = {

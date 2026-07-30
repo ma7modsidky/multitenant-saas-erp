@@ -60,11 +60,6 @@ import { InMemorySessionStore } from './session-store.js';
       useClass: InMemorySessionStore,
     },
   ],
-  exports: [
-    PasswordService,
-    JwtTokenService,
-    JwtAccessStrategy,
-    'SESSION_STORE',
-  ],
+  exports: [PasswordService, JwtTokenService, JwtAccessStrategy, 'SESSION_STORE'],
 })
 export class AuthModule {}

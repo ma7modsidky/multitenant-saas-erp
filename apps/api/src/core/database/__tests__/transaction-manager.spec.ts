@@ -42,10 +42,7 @@ describe('TransactionManager', () => {
         async (cb: any) => cb(mockTx),
       );
 
-      const result = await TenantContext.run(
-        makeContext(),
-        async () => manager.run(async () => 'done'),
-      );
+      const result = await TenantContext.run(makeContext(), async () => manager.run(async () => 'done'));
 
       expect(result).toBe('done');
       expect(mockDb.transaction).toHaveBeenCalledOnce();
@@ -59,10 +56,7 @@ describe('TransactionManager', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
-      await TenantContext.run(
-        makeContext({ organizationId: 'org-abc-123' }),
-        async () => manager.run(async () => {}),
-      );
+      await TenantContext.run(makeContext({ organizationId: 'org-abc-123' }), async () => manager.run(async () => {}));
 
       expect(mockTx.execute).toHaveBeenCalledTimes(2);
     });
@@ -75,10 +69,7 @@ describe('TransactionManager', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
-      await TenantContext.run(
-        makeContext({ userId: 'user-xyz' }),
-        async () => manager.run(async () => {}),
-      );
+      await TenantContext.run(makeContext({ userId: 'user-xyz' }), async () => manager.run(async () => {}));
 
       expect(mockTx.execute).toHaveBeenCalledTimes(2);
     });
@@ -91,10 +82,7 @@ describe('TransactionManager', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
-      await TenantContext.run(
-        makeContext(),
-        async () => manager.run(async () => {}),
-      );
+      await TenantContext.run(makeContext(), async () => manager.run(async () => {}));
 
       expect(mockTx.execute).toHaveBeenCalledTimes(2);
       expect(mockDb.transaction).toHaveBeenCalledTimes(1);
@@ -108,9 +96,8 @@ describe('TransactionManager', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
 
-      const result = await TenantContext.run(
-        makeContext(),
-        async () => manager.run(async () => ({ id: 'result-1', value: 42 })),
+      const result = await TenantContext.run(makeContext(), async () =>
+        manager.run(async () => ({ id: 'result-1', value: 42 })),
       );
 
       expect(result).toEqual({ id: 'result-1', value: 42 });
@@ -122,9 +109,7 @@ describe('TransactionManager', () => {
       const mockDb = createMockDb();
       const manager = new TransactionManager(mockDb);
 
-      await expect(manager.run(async () => {})).rejects.toThrow(
-        'Cannot run transaction without tenant context',
-      );
+      await expect(manager.run(async () => {})).rejects.toThrow('Cannot run transaction without tenant context');
     });
 
     it('does not open a transaction when tenant context is missing', async () => {
@@ -143,10 +128,7 @@ describe('TransactionManager', () => {
 
   describe('TenantContext (from core/tenancy via re-export)', () => {
     it('provides tenant data within the context scope', async () => {
-      const result = await TenantContext.run(
-        makeContext(),
-        async () => TenantContext.getCurrent(),
-      );
+      const result = await TenantContext.run(makeContext(), async () => TenantContext.getCurrent());
 
       expect(result).toMatchObject({
         userId: 'user-1',
@@ -159,28 +141,21 @@ describe('TransactionManager', () => {
     });
 
     it('isolates nested context scopes', async () => {
-      const outer = await TenantContext.run(
-        makeContext({ userId: 'outer', organizationId: 'org-outer' }),
-        async () => {
-          const inner = await TenantContext.run(
-            makeContext({ userId: 'inner', organizationId: 'org-inner' }),
-            async () => TenantContext.getCurrent(),
-          );
-          return { outerContext: TenantContext.getCurrent(), innerContext: inner };
-        },
-      );
+      const outer = await TenantContext.run(makeContext({ userId: 'outer', organizationId: 'org-outer' }), async () => {
+        const inner = await TenantContext.run(makeContext({ userId: 'inner', organizationId: 'org-inner' }), async () =>
+          TenantContext.getCurrent(),
+        );
+        return { outerContext: TenantContext.getCurrent(), innerContext: inner };
+      });
 
       expect(outer.outerContext?.userId).toBe('outer');
       expect(outer.innerContext?.userId).toBe('inner');
     });
 
     it('getOrganizationId() returns the org id', async () => {
-      await TenantContext.run(
-        makeContext(),
-        async () => {
-          expect(TenantContext.getOrganizationId()).toBe('org-1');
-        },
-      );
+      await TenantContext.run(makeContext(), async () => {
+        expect(TenantContext.getOrganizationId()).toBe('org-1');
+      });
     });
 
     it('getOrganizationId() returns undefined outside a context scope', () => {
@@ -188,12 +163,9 @@ describe('TransactionManager', () => {
     });
 
     it('getUserId() returns the user id', async () => {
-      await TenantContext.run(
-        makeContext(),
-        async () => {
-          expect(TenantContext.getUserId()).toBe('user-1');
-        },
-      );
+      await TenantContext.run(makeContext(), async () => {
+        expect(TenantContext.getUserId()).toBe('user-1');
+      });
     });
 
     it('getUserId() returns undefined outside a context scope', () => {

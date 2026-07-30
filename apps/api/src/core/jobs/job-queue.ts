@@ -40,12 +40,16 @@ export interface Job<T = Record<string, unknown>> {
  */
 export interface IJobQueue {
   /** Add a job to the queue */
-  add(type: string, payload: Record<string, unknown>, options?: {
-    organizationId?: string;
-    userId?: string;
-    delay?: number;
-    priority?: number;
-  }): Promise<Job>;
+  add(
+    type: string,
+    payload: Record<string, unknown>,
+    options?: {
+      organizationId?: string;
+      userId?: string;
+      delay?: number;
+      priority?: number;
+    },
+  ): Promise<Job>;
 
   /** Get the next pending job (for processor implementation) */
   getNext(type?: string): Promise<Job | undefined>;
@@ -74,12 +78,16 @@ export class InMemoryJobQueue implements IJobQueue {
   private readonly jobs: Job[] = [];
   private nextId = 1;
 
-  async add(type: string, payload: Record<string, unknown>, options?: {
-    organizationId?: string;
-    userId?: string;
-    delay?: number;
-    priority?: number;
-  }): Promise<Job> {
+  async add(
+    type: string,
+    payload: Record<string, unknown>,
+    options?: {
+      organizationId?: string;
+      userId?: string;
+      delay?: number;
+      priority?: number;
+    },
+  ): Promise<Job> {
     // Use conditional spread for optional fields to satisfy exactOptionalPropertyTypes
     const job: Job = {
       id: String(this.nextId++),

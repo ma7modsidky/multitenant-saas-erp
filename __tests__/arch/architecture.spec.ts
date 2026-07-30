@@ -58,8 +58,13 @@ function findImports(filePattern: string): Map<string, string[]> {
 function findProcessEnvViolations(filePattern: string): string[] {
   const files = globSync(filePattern, {
     ignore: [
-      '**/node_modules/**', '**/dist/**', '**/.next/**', '**/coverage/**',
-      '**/*.spec.ts', '**/*.test.ts', '**/__tests__/**',
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.next/**',
+      '**/coverage/**',
+      '**/*.spec.ts',
+      '**/*.test.ts',
+      '**/__tests__/**',
     ],
   });
 

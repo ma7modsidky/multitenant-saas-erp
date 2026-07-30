@@ -126,7 +126,9 @@ describe('TEN-3: No tenant context ⇒ zero rows, never all rows', () => {
     let id: string | undefined;
     await TenantContext.run(orgA, async () => {
       await manager.run(async (tx) => {
-        const [row] = await tx.execute(sql`INSERT INTO test_items (organization_id, name) VALUES (${orgA.organizationId}, 'ten3b') RETURNING id`);
+        const [row] = await tx.execute(
+          sql`INSERT INTO test_items (organization_id, name) VALUES (${orgA.organizationId}, 'ten3b') RETURNING id`,
+        );
         id = row!.id as string;
       });
     });
@@ -147,7 +149,9 @@ describe('TEN-3: No tenant context ⇒ zero rows, never all rows', () => {
     let id: string | undefined;
     await TenantContext.run(orgA, async () => {
       await manager.run(async (tx) => {
-        const [row] = await tx.execute(sql`INSERT INTO test_items (organization_id, name) VALUES (${orgA.organizationId}, 'ten3c') RETURNING id`);
+        const [row] = await tx.execute(
+          sql`INSERT INTO test_items (organization_id, name) VALUES (${orgA.organizationId}, 'ten3c') RETURNING id`,
+        );
         id = row!.id as string;
       });
     });
@@ -171,7 +175,9 @@ describe('TEN-1: RLS WITH CHECK', () => {
   it('TEN-1: insert with matching org_id succeeds', async () => {
     await TenantContext.run(orgA, async () => {
       await manager.run(async (tx) => {
-        await expect(tx.execute(sql`INSERT INTO test_items (organization_id, name) VALUES (${orgA.organizationId}, 'ten1a')`)).resolves.not.toThrow();
+        await expect(
+          tx.execute(sql`INSERT INTO test_items (organization_id, name) VALUES (${orgA.organizationId}, 'ten1a')`),
+        ).resolves.not.toThrow();
       });
     });
   });
@@ -180,7 +186,9 @@ describe('TEN-1: RLS WITH CHECK', () => {
     await TenantContext.run(orgA, async () => {
       await expect(
         manager.run(async (tx) => {
-          await tx.execute(sql`INSERT INTO test_items (organization_id, name) VALUES (${orgB.organizationId}, 'ten1b')`);
+          await tx.execute(
+            sql`INSERT INTO test_items (organization_id, name) VALUES (${orgB.organizationId}, 'ten1b')`,
+          );
         }),
       ).rejects.toThrow();
     });
@@ -211,7 +219,9 @@ describe('TransactionManager sets session variables', () => {
   it('throws TenantContext required error', async () => {
     await TenantContext.runWithCleanContext(async () => {
       await expect(
-        manager.run(async (tx) => { await tx.execute(sql`SELECT 1`); }),
+        manager.run(async (tx) => {
+          await tx.execute(sql`SELECT 1`);
+        }),
       ).rejects.toThrow(/Cannot run transaction without tenant context/i);
     });
   });

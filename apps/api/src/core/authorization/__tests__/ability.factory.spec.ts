@@ -17,11 +17,7 @@ describe('createAbility', () => {
   });
 
   it('handles multiple permissions', () => {
-    const ability = createAbility([
-      'inventory:product:read',
-      'inventory:product:write',
-      'inventory:stock:adjust',
-    ]);
+    const ability = createAbility(['inventory:product:read', 'inventory:product:write', 'inventory:stock:adjust']);
 
     expect(ability.can('read', 'inventory:product')).toBe(true);
     expect(ability.can('write', 'inventory:product')).toBe(true);
@@ -58,11 +54,7 @@ describe('createAbility', () => {
   });
 
   it('skips invalid permission formats silently', () => {
-    const ability = createAbility([
-      'invalid',
-      'too:many:parts:here',
-      'inventory:product:read',
-    ]);
+    const ability = createAbility(['invalid', 'too:many:parts:here', 'inventory:product:read']);
 
     // The valid permission should still work
     expect(ability.can('read', 'inventory:product')).toBe(true);
@@ -78,11 +70,7 @@ describe('createAbility', () => {
   });
 
   it('handles permission with all three action types per module prefix', () => {
-    const ability = createAbility([
-      'inventory:product:read',
-      'inventory:stock:read',
-      'inventory:product:write',
-    ]);
+    const ability = createAbility(['inventory:product:read', 'inventory:stock:read', 'inventory:product:write']);
 
     expect(ability.can('read', 'inventory:product')).toBe(true);
     expect(ability.can('write', 'inventory:product')).toBe(true);
@@ -94,31 +82,19 @@ describe('createAbility', () => {
 
 describe('checkPermission', () => {
   it('AUTHZ-5: returns true when the user has the permission', () => {
-    const result = checkPermission(
-      ['inventory:product:read', 'inventory:product:write'],
-      'read',
-      'inventory:product',
-    );
+    const result = checkPermission(['inventory:product:read', 'inventory:product:write'], 'read', 'inventory:product');
 
     expect(result).toBe(true);
   });
 
   it('AUTHZ-5: returns false when the user lacks the permission', () => {
-    const result = checkPermission(
-      ['inventory:product:read'],
-      'delete',
-      'inventory:product',
-    );
+    const result = checkPermission(['inventory:product:read'], 'delete', 'inventory:product');
 
     expect(result).toBe(false);
   });
 
   it('returns true for manage permission', () => {
-    const result = checkPermission(
-      ['crm:contact:manage'],
-      'delete',
-      'crm:contact',
-    );
+    const result = checkPermission(['crm:contact:manage'], 'delete', 'crm:contact');
 
     expect(result).toBe(true);
   });

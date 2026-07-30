@@ -1,9 +1,4 @@
-import {
-  type CanActivate,
-  type ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { type CanActivate, type ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import { EntitlementService } from '../entitlements/entitlement.service.js';
@@ -59,10 +54,10 @@ export class EntitlementGuard implements CanActivate {
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Read @RequiresModule() metadata
-    const requiredModule = this.reflector.getAllAndOverride<string>(
-      REQUIRED_MODULE_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredModule = this.reflector.getAllAndOverride<string>(REQUIRED_MODULE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // No module requirement — always allowed
     if (!requiredModule) {
@@ -88,10 +83,7 @@ export class EntitlementGuard implements CanActivate {
     }
 
     // Delegate to EntitlementService for the actual entitlement check
-    const isEntitled = await this.entitlementService.isEntitled(
-      user.organizationId,
-      requiredModule,
-    );
+    const isEntitled = await this.entitlementService.isEntitled(user.organizationId, requiredModule);
 
     if (!isEntitled) {
       throw new ForbiddenException('MODULE_NOT_ENTITLED');

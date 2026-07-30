@@ -27,10 +27,7 @@ export class EventEmitter2EventBus implements IEventBus {
    * Maps original listeners to their wrapped handlers so that off() can
    * correctly remove the wrapped version from EventEmitter2.
    */
-  private readonly listenerMap = new Map<
-    EventListener,
-    (...args: unknown[]) => Promise<void>
-  >();
+  private readonly listenerMap = new Map<EventListener, (...args: unknown[]) => Promise<void>>();
 
   constructor(private readonly eventEmitter: EventEmitter2) {}
 
@@ -53,10 +50,7 @@ export class EventEmitter2EventBus implements IEventBus {
     } catch (error) {
       // Listeners must never throw back to the publisher (OPS-3).
       // Catch and log any errors from handlers.
-      this.logger.error(
-        `Error in handler for event "${name}": ${(error as Error).message}`,
-        (error as Error).stack,
-      );
+      this.logger.error(`Error in handler for event "${name}": ${(error as Error).message}`, (error as Error).stack);
     }
   }
 
@@ -91,10 +85,7 @@ export class EventEmitter2EventBus implements IEventBus {
         const eventData = args[0] as Record<string, unknown>;
         await listener(eventData as unknown as Event);
       } catch (error) {
-        this.logger.error(
-          `Error in listener for "${eventName}": ${(error as Error).message}`,
-          (error as Error).stack,
-        );
+        this.logger.error(`Error in listener for "${eventName}": ${(error as Error).message}`, (error as Error).stack);
       }
     };
 

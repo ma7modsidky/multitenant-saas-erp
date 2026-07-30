@@ -18,10 +18,7 @@ import {
  * @see BILL-3 — Trial expiry grace period
  * @see BILL-6 — Payment failure dunning window
  */
-export const ACCESSIBLE_STATES: EntitlementState[] = [
-  ...ENTITLED_STATES_FULL,
-  ...ENTITLED_STATES_READONLY,
-];
+export const ACCESSIBLE_STATES: EntitlementState[] = [...ENTITLED_STATES_FULL, ...ENTITLED_STATES_READONLY];
 
 /**
  * EntitlementService — runtime authority for module access (BILL-4).
@@ -63,14 +60,8 @@ export class EntitlementService {
    * @param moduleKey - The module key (e.g. 'inventory', 'pos')
    * @returns True if the organization is entitled to the module
    */
-  async isEntitled(
-    organizationId: string,
-    moduleKey: string,
-  ): Promise<boolean> {
-    const entitlement = await this.store.findByOrgAndModule(
-      organizationId,
-      moduleKey,
-    );
+  async isEntitled(organizationId: string, moduleKey: string): Promise<boolean> {
+    const entitlement = await this.store.findByOrgAndModule(organizationId, moduleKey);
 
     if (!entitlement) {
       return false;
@@ -89,14 +80,8 @@ export class EntitlementService {
    * @param moduleKey - The module key
    * @returns True if the organization has full access
    */
-  async hasFullAccess(
-    organizationId: string,
-    moduleKey: string,
-  ): Promise<boolean> {
-    const entitlement = await this.store.findByOrgAndModule(
-      organizationId,
-      moduleKey,
-    );
+  async hasFullAccess(organizationId: string, moduleKey: string): Promise<boolean> {
+    const entitlement = await this.store.findByOrgAndModule(organizationId, moduleKey);
 
     if (!entitlement) {
       return false;
@@ -112,10 +97,7 @@ export class EntitlementService {
    * @param moduleKey - The module key
    * @returns The entitlement entry, or undefined if none exists
    */
-  async getEntitlement(
-    organizationId: string,
-    moduleKey: string,
-  ): Promise<EntitlementEntry | undefined> {
+  async getEntitlement(organizationId: string, moduleKey: string): Promise<EntitlementEntry | undefined> {
     return this.store.findByOrgAndModule(organizationId, moduleKey);
   }
 
@@ -125,9 +107,7 @@ export class EntitlementService {
    * @param organizationId - The organization's UUID
    * @returns Array of entitlement entries
    */
-  async getOrganizationEntitlements(
-    organizationId: string,
-  ): Promise<EntitlementEntry[]> {
+  async getOrganizationEntitlements(organizationId: string): Promise<EntitlementEntry[]> {
     return this.store.findByOrg(organizationId);
   }
 
@@ -139,15 +119,8 @@ export class EntitlementService {
    * @param state - The state to check for
    * @returns True if the entitlement exists in the given state
    */
-  async hasState(
-    organizationId: string,
-    moduleKey: string,
-    state: EntitlementState,
-  ): Promise<boolean> {
-    const entitlement = await this.store.findByOrgAndModule(
-      organizationId,
-      moduleKey,
-    );
+  async hasState(organizationId: string, moduleKey: string, state: EntitlementState): Promise<boolean> {
+    const entitlement = await this.store.findByOrgAndModule(organizationId, moduleKey);
 
     return entitlement?.state === state;
   }

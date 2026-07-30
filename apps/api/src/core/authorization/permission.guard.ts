@@ -1,9 +1,4 @@
-import {
-  type CanActivate,
-  type ExecutionContext,
-  Injectable,
-  ForbiddenException,
-} from '@nestjs/common';
+import { type CanActivate, type ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import { createAbility, type AppActions, type AppSubjects } from './ability.factory.js';
@@ -52,10 +47,10 @@ export class PermissionGuard implements CanActivate {
    */
   canActivate(context: ExecutionContext): boolean {
     // Read @RequiresPermission() metadata
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
-      REQUIRED_PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(REQUIRED_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // No permission requirement — always allowed
     if (!requiredPermissions || requiredPermissions.length === 0) {

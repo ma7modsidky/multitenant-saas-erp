@@ -218,9 +218,7 @@ describe('AUTH-4: Refresh token rotation and reuse detection', () => {
       await service.refreshAccessToken(refreshToken);
 
       // Second attempt with same token = reuse detected → family revoked
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_SESSION_REVOKED');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_SESSION_REVOKED');
     });
 
     it('AUTH-4: after reuse detection, even the new token is invalid', async () => {
@@ -230,29 +228,23 @@ describe('AUTH-4: Refresh token rotation and reuse detection', () => {
       const rotated = await service.refreshAccessToken(refreshToken);
 
       // Old token triggers reuse → family revoked
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_SESSION_REVOKED');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_SESSION_REVOKED');
 
       // New token should also be invalid now
-      await expect(
-        service.refreshAccessToken(rotated.refreshToken),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken(rotated.refreshToken)).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
     });
 
     it('rejects an invalid refresh token', async () => {
-      await expect(
-        service.refreshAccessToken('invalid-token-that-does-not-exist'),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken('invalid-token-that-does-not-exist')).rejects.toThrow(
+        'AUTH_INVALID_REFRESH_TOKEN',
+      );
     });
 
     it('rejects a revoked token', async () => {
       const { refreshToken, session } = await service.generateRefreshToken('user-1');
       await service.revokeSession(session.id, 'USER_LOGOUT');
 
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
     });
   });
 
@@ -272,18 +264,16 @@ describe('AUTH-4: Refresh token rotation and reuse detection', () => {
       const sessions = await service.listSessions('user-1');
       expect(sessions).toHaveLength(0);
 
-      await expect(
-        service.refreshAccessToken(refreshToken),
-      ).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
+      await expect(service.refreshAccessToken(refreshToken)).rejects.toThrow('AUTH_INVALID_REFRESH_TOKEN');
     });
 
     it('AUTH-6: revokes all sessions on password change', async () => {
       await service.generateRefreshToken('user-1', 'device-1');
       await service.generateRefreshToken('user-1', 'device-2');
-      expect((await service.listSessions('user-1'))).toHaveLength(2);
+      expect(await service.listSessions('user-1')).toHaveLength(2);
 
       await service.revokeAllUserSessions('user-1', 'PASSWORD_CHANGED');
-      expect((await service.listSessions('user-1'))).toHaveLength(0);
+      expect(await service.listSessions('user-1')).toHaveLength(0);
     });
   });
 });

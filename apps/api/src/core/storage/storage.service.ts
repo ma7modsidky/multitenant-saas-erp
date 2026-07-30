@@ -74,11 +74,7 @@ export class StorageService {
    * @param key — The storage key of the object
    * @param expiresInSeconds — URL expiry (default: 3600)
    */
-  async getDownloadUrl(
-    organizationId: string,
-    key: string,
-    expiresInSeconds = 3600,
-  ): Promise<DownloadUrl> {
+  async getDownloadUrl(organizationId: string, key: string, expiresInSeconds = 3600): Promise<DownloadUrl> {
     this.logger.debug(`Download URL generated: ${key} (expires in ${expiresInSeconds}s)`);
 
     return {

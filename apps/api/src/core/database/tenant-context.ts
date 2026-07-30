@@ -6,7 +6,4 @@
  * This re-export ensures backward compatibility for code that
  * imported from `./database/tenant-context.js`.
  */
-export {
-  TenantContext,
-  type TenantContextData,
-} from '../tenancy/tenant-context.js';
+export { TenantContext, type TenantContextData } from '../tenancy/tenant-context.js';

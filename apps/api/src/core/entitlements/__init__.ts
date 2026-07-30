@@ -8,8 +8,5 @@ export {
   DENIED_STATES,
   ALL_ENTITLEMENT_STATES,
 } from './entitlement-store.interface.js';
-export type {
-  EntitlementState,
-  EntitlementEntry,
-} from './entitlement-store.interface.js';
+export type { EntitlementState, EntitlementEntry } from './entitlement-store.interface.js';
 export type { IEntitlementStore } from './entitlement-store.interface.js';

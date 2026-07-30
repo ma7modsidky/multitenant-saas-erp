@@ -120,7 +120,9 @@ describe('UnitOfWork event lifecycle', () => {
     await TenantContext.run(testCtx, async () => {
       // Run the transaction
       await manager.run(async (tx) => {
-        await tx.execute(sql`INSERT INTO test_events_ledger (event_name, payload) VALUES ('test.v1', '{"id":"1"}'::jsonb)`);
+        await tx.execute(
+          sql`INSERT INTO test_events_ledger (event_name, payload) VALUES ('test.v1', '{"id":"1"}'::jsonb)`,
+        );
         // Collect events during the transaction
         unitOfWork.addEvent({ name: 'test.v1', payload: { id: '1' }, aggregateId: 'agg-1' });
       });
@@ -142,7 +144,9 @@ describe('UnitOfWork event lifecycle', () => {
         (async () => {
           await manager.run(async (tx) => {
             // Do NOT addEvent here — simulate failure before any event is collected
-            await tx.execute(sql`INSERT INTO test_events_ledger (event_name, payload) VALUES ('rollback.v1', '{"id":"2"}'::jsonb)`);
+            await tx.execute(
+              sql`INSERT INTO test_events_ledger (event_name, payload) VALUES ('rollback.v1', '{"id":"2"}'::jsonb)`,
+            );
             throw new Error('Simulated failure');
           });
         })(),

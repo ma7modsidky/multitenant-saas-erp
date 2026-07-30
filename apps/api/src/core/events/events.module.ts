@@ -51,11 +51,6 @@ import { type IOutboxStore, InMemoryOutboxStore } from './outbox-store.js';
     EventEmitter2EventBus,
     InMemoryOutboxStore,
   ],
-  exports: [
-    'EVENT_BUS',
-    'OUTBOX_STORE',
-    EventEmitter2EventBus,
-    InMemoryOutboxStore,
-  ],
+  exports: ['EVENT_BUS', 'OUTBOX_STORE', EventEmitter2EventBus, InMemoryOutboxStore],
 })
 export class EventsModule {}

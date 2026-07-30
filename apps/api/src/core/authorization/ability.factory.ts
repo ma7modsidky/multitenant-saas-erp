@@ -107,11 +107,7 @@ export function createAbility(permissions: string[]): AppAbility {
  * // hasPermission === true
  * ```
  */
-export function checkPermission(
-  userPermissions: string[],
-  action: AppActions,
-  subject: AppSubjects,
-): boolean {
+export function checkPermission(userPermissions: string[], action: AppActions, subject: AppSubjects): boolean {
   const ability = createAbility(userPermissions);
   return ability.can(action, subject);
 }
