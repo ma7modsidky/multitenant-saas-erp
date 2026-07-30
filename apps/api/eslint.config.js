@@ -15,7 +15,7 @@ export default [
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['eslint.config.*', '__tests__/integration/*.spec.ts'],
+          allowDefaultProject: ['eslint.config.*', '__tests__/integration/*.test.ts'],
         },
       },
     },

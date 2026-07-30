@@ -8,7 +8,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     name: 'integration',
-    include: ['**/*.integration.spec.ts', '**/__tests__/integration/**/*.spec.ts'],
+    include: ['**/*.integration.test.ts', '**/__tests__/integration/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     coverage: {
       enabled: false,
