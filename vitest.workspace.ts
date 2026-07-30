@@ -15,15 +15,13 @@ export default defineWorkspace([
   {
     test: {
       name: 'root',
-      include: ['**/*.spec.ts', '**/*.spec.tsx'],
-      exclude: [
-        '**/*.integration.spec.ts',
-        '**/*.e2e.spec.ts',
-        '**/__tests__/integration/**',
-        '**/__tests__/e2e/**',
-        '**/node_modules/**',
-        '**/dist/**',
+      include: [
+        'apps/api/src/**/*.spec.ts',
+        'apps/web/**/*.spec.ts',
+        'apps/web/**/*.spec.tsx',
+        'packages/**/*.spec.ts',
       ],
+      exclude: ['**/node_modules/**', '**/dist/**', '**/*.e2e.spec.ts'],
       coverage: {
         provider: 'v8',
         enabled: true,
