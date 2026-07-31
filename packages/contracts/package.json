@@ -4,11 +4,29 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./events": "./src/events/index.ts",
-    "./ports": "./src/ports/index.ts",
-    "./permissions": "./src/permissions/index.ts",
-    "./module": "./src/module/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "default": "./dist/events/index.js"
+    },
+    "./ports": {
+      "types": "./dist/ports/index.d.ts",
+      "default": "./dist/ports/index.js"
+    },
+    "./permissions": {
+      "types": "./dist/permissions/index.d.ts",
+      "default": "./dist/permissions/index.js"
+    },
+    "./module": {
+      "types": "./dist/module/index.d.ts",
+      "default": "./dist/module/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
   },
   "dependencies": {
     "zod": "^3.24.1"

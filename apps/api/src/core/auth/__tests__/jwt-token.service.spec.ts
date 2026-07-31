@@ -65,6 +65,7 @@ describe('JwtTokenService', () => {
       const token = await service.generateAccessToken({
         sub: 'user-1',
         email: 'test@example.com',
+        sessionId: 'session-1',
         organizationId: 'org-1',
         roles: ['ADMIN'],
         permissions: ['inventory:product:read'],
@@ -82,6 +83,7 @@ describe('JwtTokenService', () => {
       const token = await service.generateAccessToken({
         sub: 'user-1',
         email: 'test@example.com',
+        sessionId: 'session-1',
         organizationId: 'org-1',
         roles: ['ADMIN'],
         permissions: [],
@@ -96,12 +98,32 @@ describe('JwtTokenService', () => {
       expect(decoded.organizationId).toBe('org-1');
     });
 
+    it('AUTH-5: includes the sessionId in the token', async () => {
+      const config = makeTestConfig();
+      const jwtService = new JwtService();
+      const token = await service.generateAccessToken({
+        sub: 'user-1',
+        email: 'test@example.com',
+        sessionId: 'session-abc',
+        organizationId: 'org-1',
+        roles: [],
+        permissions: [],
+      });
+
+      const decoded = await jwtService.verifyAsync(token, {
+        secret: config.jwtAccessSecret,
+      });
+
+      expect(decoded.sessionId).toBe('session-abc');
+    });
+
     it('AUTH-4: includes roles and permissions in the token', async () => {
       const config = makeTestConfig();
       const jwtService = new JwtService();
       const token = await service.generateAccessToken({
         sub: 'user-1',
         email: 'test@example.com',
+        sessionId: undefined,
         roles: ['ADMIN', 'MANAGER'],
         permissions: ['inventory:product:read', 'inventory:stock:adjust'],
         organizationId: undefined,

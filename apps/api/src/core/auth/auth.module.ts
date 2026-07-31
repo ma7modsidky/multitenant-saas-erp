@@ -46,11 +46,6 @@ import { InMemorySessionStore } from './session-store.js';
     }),
   ],
   providers: [
-    // ConfigService — Zod-validated env config
-    {
-      provide: ConfigService,
-      useFactory: () => new ConfigService(),
-    },
     PasswordService,
     JwtTokenService,
     JwtAccessStrategy,

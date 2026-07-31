@@ -48,7 +48,7 @@ export class DrizzleModuleRegistryRepository implements ModuleRegistryRepository
     await db.execute(sql`
       INSERT INTO core_module_catalog (key, version, name, description, icon, depends_on, table_prefix, stripe_price_key, trial_days, created_at, updated_at)
       VALUES (${data.key}, ${data.version}, ${data.name}, ${data.description}, ${data.icon},
-              ARRAY[${sql.join(data.dependsOn.map((d) => sql`${d}`), sql.raw(','))}], ${data.tablePrefix}, ${data.stripePriceKey}, ${data.trialDays}, NOW(), NOW())
+              ARRAY[${sql.join(data.dependsOn.map((d) => sql`${d}`), sql.raw(','))}]::text[], ${data.tablePrefix}, ${data.stripePriceKey}, ${data.trialDays}, NOW(), NOW())
       ON CONFLICT (key) DO UPDATE SET
         version = EXCLUDED.version,
         name = EXCLUDED.name,

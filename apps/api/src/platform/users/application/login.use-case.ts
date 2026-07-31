@@ -79,20 +79,23 @@ export class LoginUseCase {
     user.recordSuccessfulLogin();
     await this.userRepo.update(user.id, { failedLoginAttempts: 0, lockedUntil: null });
 
-    // Generate tokens (AUTH-4)
-    const accessToken = await this.jwtTokenService.generateAccessToken({
-      sub: user.id,
-      email: user.email,
-      organizationId: undefined,
-      roles: [],
-      permissions: [],
-    });
-
-    const { refreshToken } = await this.jwtTokenService.generateRefreshToken(
+    // Generate refresh token first so the session exists and its ID can be
+    // embedded in the access token (AUTH-5 current-session marking).
+    const { refreshToken, session } = await this.jwtTokenService.generateRefreshToken(
       user.id,
       input.device,
       input.ip,
     );
+
+    // Generate tokens (AUTH-4)
+    const accessToken = await this.jwtTokenService.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+      sessionId: session.id,
+      organizationId: undefined,
+      roles: [],
+      permissions: [],
+    });
 
     return { accessToken, refreshToken, user };
   }

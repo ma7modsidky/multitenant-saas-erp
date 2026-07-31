@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
+import { getLocale } from 'next-intl/server';
 import './globals.css';
 
 const inter = Inter({
@@ -24,16 +25,19 @@ export const metadata: Metadata = {
 
 /**
  * Root layout — sets up fonts and global HTML structure.
- * The `dir` attribute is set by the `[locale]` group layout.
- * The `lang` attribute is set by next-intl automatically.
+ * `lang` and `dir` are derived from the active locale so RTL locales
+ * (e.g. Arabic) render correctly.
  */
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const dir = locale.startsWith('ar') ? 'rtl' : 'ltr';
+
   return (
-    <html lang="en" dir="ltr" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang={locale} dir={dir} className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

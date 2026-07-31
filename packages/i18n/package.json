@@ -4,11 +4,29 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./messages/en": "./src/messages/en/index.ts",
-    "./messages/ar": "./src/messages/ar/index.ts",
-    "./messages/fr": "./src/messages/fr/index.ts",
-    "./messages/es": "./src/messages/es/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./messages/en": {
+      "types": "./dist/messages/en/index.d.ts",
+      "default": "./dist/messages/en/index.js"
+    },
+    "./messages/ar": {
+      "types": "./dist/messages/ar/index.d.ts",
+      "default": "./dist/messages/ar/index.js"
+    },
+    "./messages/fr": {
+      "types": "./dist/messages/fr/index.d.ts",
+      "default": "./dist/messages/fr/index.js"
+    },
+    "./messages/es": {
+      "types": "./dist/messages/es/index.d.ts",
+      "default": "./dist/messages/es/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
   },
   "dependencies": {},
   "devDependencies": {

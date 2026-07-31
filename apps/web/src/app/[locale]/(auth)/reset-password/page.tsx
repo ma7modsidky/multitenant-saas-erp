@@ -1,29 +1,57 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import Link from 'next/link';
-import { useState } from 'react';
 import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Suspense, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { ApiError } from '@/lib/api';
+import { completePasswordReset } from '@/lib/auth';
 
-export default function ResetPasswordPage() {
+
+function ResetPasswordForm() {
   const t = useTranslations();
+  const searchParams = useSearchParams();
+  const email = searchParams.get('email') ?? '';
+  const token = searchParams.get('token') ?? '';
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError('auth.errors.passwordMismatch');
+      return;
+    }
     setIsLoading(true);
-    // TODO: Connect to auth API
-    setTimeout(() => {
-      setIsLoading(false);
+    setError(null);
+    try {
+      await completePasswordReset({ email, token, newPassword });
       setSuccess(true);
-    }, 1000);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(
+          err.code === 'AUTH_INVALID_TOKEN' || err.code === 'AUTH_TOKEN_EXPIRED'
+            ? 'auth.errors.invalidResetToken'
+            : err.code === 'NETWORK_ERROR'
+              ? 'auth.errors.network'
+              : 'auth.errors.unknown',
+        );
+      } else {
+        setError('auth.errors.unknown');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (success) {
@@ -61,7 +89,7 @@ export default function ResetPasswordPage() {
 
         <Card>
           <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="new-password">{t('auth.newPassword')}</Label>
                 <div className="relative">
@@ -75,6 +103,8 @@ export default function ResetPasswordPage() {
                     minLength={12}
                     autoComplete="new-password"
                     autoFocus
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
                   />
                   <button
                     type="button"
@@ -100,11 +130,19 @@ export default function ResetPasswordPage() {
                     required
                     minLength={12}
                     autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                 </div>
               </div>
 
               <p className="text-xs text-muted-foreground">{t('auth.passwordMinLength')}</p>
+
+              {error && (
+                <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {t(error)}
+                </p>
+              )}
 
               <Button type="submit" className="w-full" loading={isLoading}>
                 {t('auth.resetPassword')}
@@ -114,5 +152,13 @@ export default function ResetPasswordPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

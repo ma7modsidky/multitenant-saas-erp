@@ -4,13 +4,20 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
   },
   "dependencies": {
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@modubiz/tsconfig": "workspace:*",
+    "@types/node": "^22.10.2",
     "typescript": "^5.7.2"
   }
 }

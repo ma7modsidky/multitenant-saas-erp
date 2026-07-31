@@ -7,6 +7,13 @@ import { defineRouting } from 'next-intl/routing';
 export const locales = ['en', 'ar', 'fr', 'es'] as const;
 
 /**
+ * Narrow a string to a supported locale.
+ */
+export function isLocale(code: string): boolean {
+  return locales.some((locale) => locale === code);
+}
+
+/**
  * Locale prefix strategy:
  * - Always show the locale in the URL (e.g., /en/settings, /ar/settings)
  * - No redirect from root (visitors always get redirected to their preferred locale)

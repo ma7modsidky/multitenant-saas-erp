@@ -8,6 +8,7 @@ import { withoutTenantContext } from '../without-tenant-context.js';
 
 const defaultContext = {
   userId: 'user-1',
+  sessionId: 'session-1',
   organizationId: 'org-1',
   roles: ['ADMIN', 'MANAGER'],
   permissions: ['inventory:product:read', 'inventory:stock:adjust'],
@@ -16,6 +17,7 @@ const defaultContext = {
 
 const systemContext = {
   userId: 'system',
+  sessionId: undefined,
   organizationId: undefined,
   roles: [],
   permissions: [],
@@ -132,6 +134,22 @@ describe('TenantContext', () => {
   it('getLocale() returns locale from system context', async () => {
     await TenantContext.run({ ...systemContext, locale: 'ar' }, async () => {
       expect(TenantContext.getLocale()).toBe('ar');
+    });
+  });
+
+  it('getSessionId() returns the session id (AUTH-5)', async () => {
+    await TenantContext.run(defaultContext, async () => {
+      expect(TenantContext.getSessionId()).toBe('session-1');
+    });
+  });
+
+  it('getSessionId() returns undefined outside context', () => {
+    expect(TenantContext.getSessionId()).toBeUndefined();
+  });
+
+  it('getSessionId() returns undefined for system context', async () => {
+    await TenantContext.run(systemContext, async () => {
+      expect(TenantContext.getSessionId()).toBeUndefined();
     });
   });
 });

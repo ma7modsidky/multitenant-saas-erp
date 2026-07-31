@@ -1,3 +1,4 @@
+import { AppProviders } from '@/components/providers';
 import { ShellLayout } from '@/components/shell/shell-layout';
 
 /**
@@ -7,10 +8,10 @@ import { ShellLayout } from '@/components/shell/shell-layout';
  * This route group does NOT include auth pages (login, signup, etc.)
  * which have their own simpler layout without the shell.
  */
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return <ShellLayout>{children}</ShellLayout>;
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AppProviders>
+      <ShellLayout>{children}</ShellLayout>
+    </AppProviders>
+  );
 }

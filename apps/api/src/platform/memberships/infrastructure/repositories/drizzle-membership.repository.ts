@@ -64,6 +64,35 @@ export class DrizzleMembershipRepository implements MembershipRepository {
     return rows.map((r) => this.rowToMembership(r));
   }
 
+  async findOrgsByUserId(userId: string, tx?: TxOrDb): Promise<Array<{
+    organizationId: string;
+    organizationName: string;
+    organizationSlug: string;
+    roleId: string;
+    status: string;
+    joinedAt: Date;
+  }>> {
+    const db = this.getDb(tx);
+    const rows = await db.execute<Record<string, unknown>>(
+      sql`
+        SELECT m.organization_id, o.name AS organization_name, o.slug AS organization_slug,
+               m.role_id, m.status, m.joined_at
+        FROM core_memberships m
+        JOIN core_organizations o ON o.id = m.organization_id
+        WHERE m.user_id = ${userId} AND m.deleted_at IS NULL AND o.deleted_at IS NULL
+        ORDER BY m.joined_at ASC
+      `,
+    );
+    return rows.map((r) => ({
+      organizationId: r.organization_id as string,
+      organizationName: r.organization_name as string,
+      organizationSlug: r.organization_slug as string,
+      roleId: r.role_id as string,
+      status: r.status as string,
+      joinedAt: r.joined_at as Date,
+    }));
+  }
+
   async findByOrgId(organizationId: string, tx?: TxOrDb): Promise<MembershipData[]> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(

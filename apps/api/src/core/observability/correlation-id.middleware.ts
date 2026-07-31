@@ -1,5 +1,6 @@
 import { type NestMiddleware, Injectable } from '@nestjs/common';
 import { type FastifyRequest, type FastifyReply } from 'fastify';
+import type { ServerResponse } from 'node:http';
 
 import { CorrelationIdStorage } from './correlation-id.storage.js';
 
@@ -28,8 +29,16 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     const forwardedId = req.headers[CORRELATION_ID_HEADER] as string | undefined;
     const correlationId = forwardedId?.trim() || CorrelationIdStorage.generate();
 
-    // Set the response header so the client can correlate
-    void res.header(CORRELATION_ID_HEADER, correlationId);
+    // Set the response header so the client can correlate.
+    // Nest's FastifyAdapter serves routes through @fastify/middie, so the
+    // response passed to middlewares may be the raw Node ServerResponse
+    // rather than a FastifyReply. Handle both shapes.
+    const reply = res as FastifyReply;
+    if (typeof reply.header === 'function') {
+      reply.header(CORRELATION_ID_HEADER, correlationId);
+    } else {
+      (res as unknown as ServerResponse).setHeader(CORRELATION_ID_HEADER, correlationId);
+    }
 
     // Run the request pipeline within the correlation ID context.
     // This ensures all async operations (guards, interceptors, handlers)

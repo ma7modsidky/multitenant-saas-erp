@@ -1,5 +1,6 @@
-import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { type FastifyReply } from 'fastify';
+import type { ServerResponse } from 'node:http';
 
 import { CorrelationIdStorage } from '../observability/correlation-id.storage.js';
 
@@ -57,6 +58,8 @@ interface NormalizedException {
  */
 @Catch()
 export class AppExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AppExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<FastifyReply>();
@@ -75,7 +78,17 @@ export class AppExceptionFilter implements ExceptionFilter {
       },
     };
 
-    void response.status(httpStatus).send(body);
+    // Nest's FastifyAdapter serves routes through @fastify/middie, so the
+    // response passed to filters may be the raw Node ServerResponse rather
+    // than a FastifyReply. Handle both shapes.
+    if (typeof response.status === 'function') {
+      void response.status(httpStatus).send(body);
+    } else {
+      const raw = response as unknown as ServerResponse;
+      raw.statusCode = httpStatus;
+      raw.setHeader('Content-Type', 'application/json');
+      raw.end(JSON.stringify(body));
+    }
   }
 
   /**
@@ -93,6 +106,7 @@ export class AppExceptionFilter implements ExceptionFilter {
     }
 
     // Unexpected errors — never leak details (ERR-5, ERR-6)
+    this.logger.error(exception instanceof Error ? exception.stack : String(exception));
     return {
       httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
       code: 'INTERNAL_ERROR',

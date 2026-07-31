@@ -126,6 +126,7 @@ export class UsersController {
   @Get('me/sessions')
   async listSessions(): Promise<{ data: SessionResponse[] }> {
     const userId = TenantContext.requireUserId();
+    const currentSessionId = TenantContext.getSessionId();
     const sessions = await this.sessionManagementUseCase.listSessions(userId);
 
     return {
@@ -135,7 +136,7 @@ export class UsersController {
         ip: s.ip ?? undefined,
         createdAt: s.createdAt,
         expiresAt: s.expiresAt,
-        current: false,
+        current: s.id === currentSessionId,
       })),
     };
   }

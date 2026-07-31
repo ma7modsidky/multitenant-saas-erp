@@ -54,7 +54,7 @@ export class CurrencyMismatchError extends Error {
  * @see CODING_STANDARDS.md §1 — No unsafe casts
  */
 export class Money {
-  private constructor(
+  protected constructor(
     readonly amountMinor: bigint,
     readonly currency: CurrencyCode,
   ) {}
@@ -214,7 +214,7 @@ export class Money {
   convertTo(currency: CurrencyCode, rate: FxRate): ConvertedMoney {
     const targetCurrency = currency.toUpperCase();
     if (this.currency === targetCurrency) {
-      return new ConvertedMoney(this.amountMinor, targetCurrency, 1n);
+      return new ConvertedMoney(this.amountMinor, targetCurrency, 1);
     }
 
     // amountMinor * rate / 1 (rate is a float number)

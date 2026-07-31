@@ -1,26 +1,66 @@
+import { NextResponse, type NextRequest } from 'next/server';
 import createMiddleware from 'next-intl/middleware';
 
-import { locales, localePrefix, pathnames } from './i18n/routing';
+import { localePrefix, isLocale, locales, pathnames } from './i18n/routing';
+import { AUTH_COOKIE } from './lib/auth/session';
 
 /**
- * next-intl middleware
- * Handles locale detection and redirects for all routes.
+ * Auth guard + next-intl locale middleware.
  *
- * Locale resolution order:
- *   1. Explicit locale in URL path (e.g., /en/settings, /ar/settings)
- *   2. User's preferred locale from cookie
- *   3. Browser Accept-Language header
- *   4. Default locale ('en')
- *
- * @see I18N-1 — Locale resolution order
+ * - Auth pages (login/signup/forgot/reset) are off-limits once signed in.
+ * - The locale root, /settings, /m/* and /dashboard require a session
+ *   (mirrored by the non-sensitive `modubiz_authed` cookie; the real check
+ *   still happens against the API on the client).
+ * - Locale resolution is delegated to next-intl for everything else.
  */
-export default createMiddleware({
+
+const AUTH_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password'];
+// Invitation acceptance is accessible without prior auth (invited users may not have an account).
+const INVITATION_ROUTE_PREFIX = '/invitations/';
+
+function isProtected(route: string): boolean {
+  return route === '' || route === '/dashboard' || route.startsWith('/settings') || route.startsWith('/m/');
+}
+
+function resolveLocale(request: NextRequest): string {
+  const pathname = request.nextUrl.pathname;
+  const first = pathname.split('/')[1] ?? '';
+  if (isLocale(first)) return first;
+  const cookie = request.cookies.get('NEXT_LOCALE')?.value;
+  if (cookie && isLocale(cookie)) return cookie;
+  return 'en';
+}
+
+const intlMiddleware = createMiddleware({
   locales,
   defaultLocale: 'en',
   localePrefix,
   pathnames,
   localeDetection: true,
 });
+
+export default function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const segments = pathname.split('/').filter(Boolean);
+  const first = segments[0] ?? '';
+  const isLocalePath = isLocale(first);
+  const route = isLocalePath ? `/${segments.slice(1).join('/')}` : pathname;
+  const locale = resolveLocale(request);
+
+  const isAuthed = request.cookies.get(AUTH_COOKIE)?.value === '1';
+  const isAuthRoute = AUTH_ROUTES.includes(route);
+  const isInvitationRoute = route.startsWith(INVITATION_ROUTE_PREFIX);
+
+  if (isAuthed && isAuthRoute) {
+    return NextResponse.redirect(new URL(`/${locale}`, request.url));
+  }
+
+  if (!isAuthed && !isAuthRoute && !isInvitationRoute && isProtected(route)) {
+    return NextResponse.redirect(new URL(`/${locale}/login`, request.url));
+  }
+
+  return intlMiddleware(request);
+}
 
 export const config = {
   // Match all routes except static files and Next.js internals

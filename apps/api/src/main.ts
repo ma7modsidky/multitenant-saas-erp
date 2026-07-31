@@ -42,6 +42,14 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: loggerConfig }));
 
+  // CORS — explicit allowlist only (see CODING_STANDARDS.md §12).
+  // The web app runs on a different origin than the API in development,
+  // so we allow the configured web base URL.
+  app.enableCors({
+    origin: [config.webBaseUrl],
+    credentials: true,
+  });
+
   await app.listen(config.port, '0.0.0.0');
 
   // Use pino directly for startup log since LoggerService isn't initialized yet

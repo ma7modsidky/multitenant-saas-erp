@@ -16,6 +16,8 @@ import { TenantContext, type TenantContextData } from './tenant-context.js';
 export interface AuthenticatedUser {
   /** User's unique identifier */
   sub: string;
+  /** Session ID the access token was issued for */
+  sessionId?: string;
   /** Active organization ID */
   organizationId?: string;
   /** User's email address */
@@ -88,6 +90,7 @@ export class TenantInterceptor implements NestInterceptor {
     // Build the tenant context data
     const tenantData: TenantContextData = {
       userId: user.sub,
+      sessionId: user.sessionId,
       organizationId: user.organizationId,
       roles: user.roles ?? [],
       permissions: user.permissions ?? [],

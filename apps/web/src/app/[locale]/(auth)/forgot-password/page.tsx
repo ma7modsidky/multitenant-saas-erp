@@ -1,29 +1,47 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import Link from 'next/link';
-import { useState } from 'react';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { ApiError } from '@/lib/api';
+import { requestPasswordReset } from '@/lib/auth';
+
 
 export default function ForgotPasswordPage() {
   const t = useTranslations();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // TODO: Connect to auth API
-    setTimeout(() => {
-      setIsLoading(false);
+    setError(null);
+    try {
+      await requestPasswordReset({ email });
       setSent(true);
-    }, 1000);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.code === 'NETWORK_ERROR') {
+          setError('auth.errors.network');
+        } else if (err.code === 'INTERNAL_ERROR') {
+          setError('auth.errors.server');
+        } else {
+          setError('auth.errors.unknown');
+        }
+      } else {
+        setError('auth.errors.unknown');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (sent) {
@@ -67,7 +85,7 @@ export default function ForgotPasswordPage() {
 
         <Card>
           <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="forgot-email">{t('auth.email')}</Label>
                 <div className="relative">
@@ -88,6 +106,11 @@ export default function ForgotPasswordPage() {
               <Button type="submit" className="w-full" loading={isLoading}>
                 {t('auth.resetPassword')}
               </Button>
+              {error && (
+                <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {t(error)}
+                </p>
+              )}
             </form>
           </CardContent>
           <CardFooter className="justify-center border-t pt-4">

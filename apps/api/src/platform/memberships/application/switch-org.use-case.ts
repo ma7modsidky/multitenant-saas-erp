@@ -28,19 +28,22 @@ export class SwitchOrgUseCase {
       throw new ForbiddenError(NOT_A_MEMBER, 'User is not a member of this organization (TEN-4)');
     }
 
+    // Generate a new session first so its ID can be embedded in the access
+    // token (AUTH-5 current-session marking).
+    const { refreshToken, session } = await this.jwtTokenService.generateRefreshToken(
+      input.userId,
+      'org-switch',
+    );
+
     // Generate new tokens scoped to the new organization
     const accessToken = await this.jwtTokenService.generateAccessToken({
       sub: input.userId,
       email: '',
+      sessionId: session.id,
       organizationId: input.newOrganizationId,
       roles: [membership.roleId],
       permissions: [],
     });
-
-    const { refreshToken } = await this.jwtTokenService.generateRefreshToken(
-      input.userId,
-      'org-switch',
-    );
 
     return { accessToken, refreshToken };
   }

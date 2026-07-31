@@ -1,8 +1,8 @@
-import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { LoginForm } from '@/components/auth/auth-form';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 
 export default async function LoginPage() {
   const t = await getTranslations();

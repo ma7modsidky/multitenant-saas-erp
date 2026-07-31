@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 
+import { EntitlementsModule } from '../entitlements/entitlements.module.js';
+
 import { EntitlementGuard } from './entitlement.guard.js';
 import { JwtAuthGuard } from './jwtauth.guard.js';
 import { PermissionGuard } from './permission.guard.js';
@@ -27,6 +29,7 @@ import { PermissionGuard } from './permission.guard.js';
  * @see ARCHITECTURE.md §5 — Request lifecycle
  */
 @Module({
+  imports: [EntitlementsModule],
   providers: [
     // JwtAuthGuard — runs first, authenticates the request
     {

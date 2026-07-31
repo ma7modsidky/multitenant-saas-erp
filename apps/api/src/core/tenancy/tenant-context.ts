@@ -16,6 +16,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export interface TenantContextData {
   /** Authenticated user's ID */
   userId: string;
+  /** Session ID the access token was issued for (AUTH-5 current-session marking) */
+  sessionId: string | undefined;
   /** Active organization ID (undefined for system-context routes) */
   organizationId: string | undefined;
   /** User's role keys within the active organization */
@@ -121,6 +123,14 @@ export class TenantContext {
    */
   static getUserId(): string | undefined {
     return this.getCurrent()?.userId;
+  }
+
+  /**
+   * Get the session ID the current access token was issued for.
+   * Returns undefined if no tenant context is available.
+   */
+  static getSessionId(): string | undefined {
+    return this.getCurrent()?.sessionId;
   }
 
   /**

@@ -1,0 +1,110 @@
+'use client';
+
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { disableBillingModule, getBilling } from '@/lib/api/resources';
+import { useSession } from '@/lib/auth/session-context';
+
+
+const STATE_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  active: 'default',
+  trialing: 'secondary',
+  past_due: 'destructive',
+  none: 'outline',
+};
+
+export default function BillingSettingsPage() {
+  const t = useTranslations();
+  const queryClient = useQueryClient();
+  const { organizationId } = useSession();
+
+  const { data: billing } = useQuery({
+    queryKey: ['entitlements', organizationId],
+    queryFn: () => {
+      if (organizationId === null) throw new Error('No organization selected');
+      return getBilling(organizationId);
+    },
+    enabled: organizationId !== null,
+  });
+
+  if (organizationId === null) return null;
+
+  const subscription = billing?.subscription ?? null;
+  const entitlements = billing?.entitlements ?? [];
+
+  const handleDisable = async (moduleKey: string) => {
+    if (!window.confirm(t('billing.confirmDisable'))) return;
+    await disableBillingModule(organizationId, moduleKey);
+    await queryClient.invalidateQueries({ queryKey: ['entitlements'] });
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{t('settings.sections.billing')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('settings.descriptions.billing')}</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('billing.subscriptionTitle')}</CardTitle>
+          <CardDescription>{t('billing.subscriptionSubtitle')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {subscription ? (
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">{t('billing.status')}</dt>
+                <dd className="mt-1 text-sm font-medium">{subscription.status}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">{t('billing.currency')}</dt>
+                <dd className="mt-1 text-sm font-medium">{subscription.billingCurrency}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-medium text-muted-foreground">{t('billing.periodEnd')}</dt>
+                <dd className="mt-1 text-sm font-medium">
+                  {subscription.currentPeriodEnd
+                    ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
+                    : t('billing.noPeriodEnd')}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t('billing.noSubscription')}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('billing.entitlementsTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="divide-y">
+            {entitlements.map((ent) => (
+              <li key={ent.moduleKey} className="flex items-center justify-between gap-4 py-3">
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-medium">{t(`modules.${ent.moduleKey}.name`)}</p>
+                  <Badge variant={STATE_VARIANTS[ent.state] ?? 'outline'}>{ent.state}</Badge>
+                </div>
+                {ent.state !== 'none' && (
+                  <Button variant="outline" size="sm" onClick={() => void handleDisable(ent.moduleKey)}>
+                    {t('billing.disable')}
+                  </Button>
+                )}
+              </li>
+            ))}
+            {entitlements.length === 0 && (
+              <li className="py-6 text-center text-sm text-muted-foreground">{t('billing.noEntitlements')}</li>
+            )}
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

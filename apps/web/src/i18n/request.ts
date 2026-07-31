@@ -1,9 +1,20 @@
+import type { AbstractIntlMessages } from 'next-intl';
 import { getRequestConfig } from 'next-intl/server';
 
 import { routing } from './routing';
 
-// Message catalog type
-type Messages = Record<string, string>;
+type Locale = (typeof routing.locales)[number];
+
+// Static subpath imports. next-intl relies on the package `exports` map,
+// which only exposes exact paths (`./messages/en`, ...), so a dynamic
+// `import(`@modubiz/i18n/messages/${locale}`)` cannot be resolved by
+// webpack and would silently fall back to English.
+const catalogs: Record<Locale, () => Promise<{ default: AbstractIntlMessages }>> = {
+  en: () => import('@modubiz/i18n/messages/en'),
+  ar: () => import('@modubiz/i18n/messages/ar'),
+  fr: () => import('@modubiz/i18n/messages/fr'),
+  es: () => import('@modubiz/i18n/messages/es'),
+};
 
 /**
  * next-intl request configuration.
@@ -11,21 +22,13 @@ type Messages = Record<string, string>;
  */
 export default getRequestConfig(async ({ requestLocale }) => {
   // This typically corresponds to the `[locale]` segment
-  let locale = await requestLocale;
+  const rawLocale = await requestLocale;
 
   // Ensure a valid locale is used
-  if (!locale || !routing.locales.includes(locale as (typeof routing.locales)[number])) {
-    locale = routing.defaultLocale;
-  }
+  const locale: Locale = rawLocale && routing.locales.includes(rawLocale as Locale) ? (rawLocale as Locale) : routing.defaultLocale;
 
   // Load messages from @modubiz/i18n workspace package
-  let messages: Messages;
-  try {
-    messages = (await import(`@modubiz/i18n/messages/${locale}`)).default as Messages;
-  } catch {
-    // Fallback to English if locale messages are not found
-    messages = (await import(`@modubiz/i18n/messages/en`)).default as Messages;
-  }
+  const messages = (await catalogs[locale]()).default;
 
   return {
     locale,

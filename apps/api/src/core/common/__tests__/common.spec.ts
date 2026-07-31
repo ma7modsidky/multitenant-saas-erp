@@ -90,6 +90,12 @@ describe('AppError hierarchy', () => {
       expect(error.code).toBe('UNAUTHORIZED');
       expect(error.httpStatus).toBe(401);
     });
+
+    it('accepts a configurable error code', () => {
+      const error = new UnauthorizedError('AUTH_INVALID_CREDENTIALS');
+      expect(error.code).toBe('AUTH_INVALID_CREDENTIALS');
+      expect(error.httpStatus).toBe(401);
+    });
   });
 });
 

@@ -155,7 +155,7 @@ await db.transaction(async (tx) => {
 
 | Table                 | Purpose                                                                    | RLS                                                |
 | --------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
-| `core_users`          | Identity: email, password hash, name, preferred locale, verification state | No (row visibility governed by membership queries) |
+| `core_users`          | Identity: email, password hash, name, preferred locale, verification state, login lockout (`failed_login_attempts`, `locked_until`) | No (row visibility governed by membership queries) |
 | `core_sessions`       | Refresh-token sessions: hash, device, ip, expiry, revocation               | No                                                 |
 | `core_organizations`  | Tenants                                                                    | No (visibility via membership)                     |
 | `core_currencies`     | ISO 4217 reference: code, exponent, symbol                                 | No (read-only reference)                           |

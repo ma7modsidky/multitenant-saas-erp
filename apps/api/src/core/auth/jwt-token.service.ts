@@ -13,6 +13,8 @@ import { type SessionStore, type Session } from './session-store.interface.js';
 export interface JwtAccessPayload {
   sub: string;
   email: string;
+  /** Session ID the token was issued for (AUTH-5 current-session marking) */
+  sessionId: string | undefined;
   organizationId: string | undefined;
   roles: string[];
   permissions: string[];
@@ -202,6 +204,7 @@ export class JwtTokenService {
     const accessToken = await this.generateAccessToken({
       sub: session.userId,
       email: '',
+      sessionId: session.id,
       organizationId: undefined,
       roles: [],
       permissions: [],

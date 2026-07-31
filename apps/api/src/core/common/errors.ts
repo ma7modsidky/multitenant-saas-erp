@@ -128,9 +128,14 @@ export class ValidationError extends AppError {
  */
 export class UnauthorizedError extends AppError {
   override readonly httpStatus = 401;
-  override readonly code = 'UNAUTHORIZED';
+  override readonly code: string;
 
-  constructor(message?: string, params?: Record<string, unknown>) {
+  constructor(
+    code = 'UNAUTHORIZED',
+    message?: string,
+    params?: Record<string, unknown>,
+  ) {
     super(message ?? 'Authentication required', params);
+    this.code = code;
   }
 }

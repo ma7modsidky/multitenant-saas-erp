@@ -11,6 +11,20 @@ export interface MembershipRepository {
   /** Find all memberships for a user across orgs. */
   findByUserId(userId: string, tx?: TxOrDb): Promise<MembershipData[]>;
 
+  /**
+   * Find all organizations a user belongs to, with org profile info.
+   * Backs the organization switcher (GET /v1/users/me/organizations).
+   * Rows are limited to the user's own memberships (user_own_memberships RLS policy).
+   */
+  findOrgsByUserId(userId: string, tx?: TxOrDb): Promise<Array<{
+    organizationId: string;
+    organizationName: string;
+    organizationSlug: string;
+    roleId: string;
+    status: string;
+    joinedAt: Date;
+  }>>;
+
   /** Find all memberships for an organization. */
   findByOrgId(organizationId: string, tx?: TxOrDb): Promise<MembershipData[]>;
 

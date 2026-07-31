@@ -5,6 +5,7 @@ import { AuthModule } from './core/auth/auth.module.js';
 import { AuthorizationModule } from './core/authorization/authorization.module.js';
 import { CacheModule } from './core/cache/cache.module.js';
 import { CommonModule } from './core/common/common.module.js';
+import { ConfigModule } from './core/config/config.module.js';
 import { DatabaseModule } from './core/database/database.module.js';
 import { EntitlementsModule } from './core/entitlements/entitlements.module.js';
 import { EventsModule } from './core/events/events.module.js';
@@ -37,6 +38,7 @@ import { UsersModule } from './platform/users/users.module.js';
  */
 @Module({
   imports: [
+    ConfigModule,
     CommonModule,
     ObservabilityModule,
     EventsModule,

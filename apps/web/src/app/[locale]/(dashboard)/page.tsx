@@ -1,51 +1,198 @@
-import { getTranslations } from 'next-intl/server';
+'use client';
+
+import { useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, Package, Users, DollarSign, Building2, TrendingUp, Puzzle } from 'lucide-react';
 import Link from 'next/link';
-import { ArrowRight, TrendingUp, Users, Package, DollarSign } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useTranslations , useLocale } from 'next-intl';
+import { useState } from 'react';
 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
-export default async function DashboardPage() {
-  const t = await getTranslations();
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ApiError } from '@/lib/api';
+import { createOrganization } from '@/lib/api/resources';
+import { useSession } from '@/lib/auth/session-context';
+import { useEntitlements, useNavigation } from '@/lib/entitlements';
 
-  const modules = [
-    {
-      key: 'crm',
-      href: '/m/crm',
-      icon: Users,
-      gradient: 'from-blue-500 to-blue-600',
-    },
-    {
-      key: 'inventory',
-      href: '/m/inventory',
-      icon: Package,
-      gradient: 'from-emerald-500 to-emerald-600',
-    },
-    {
-      key: 'pos',
-      href: '/m/pos',
-      icon: DollarSign,
-      gradient: 'from-amber-500 to-amber-600',
-    },
-  ] as const;
+const MODULE_ICONS: Record<string, typeof Package> = {
+  crm: Users,
+  inventory: Package,
+  pos: DollarSign,
+};
+
+function errorKey(code: string): string {
+  switch (code) {
+    case 'ORG_SLUG_TAKEN':
+      return 'org.errors.slugTaken';
+    case 'NETWORK_ERROR':
+      return 'auth.errors.network';
+    case 'INTERNAL_ERROR':
+      return 'auth.errors.server';
+    default:
+      return 'auth.errors.unknown';
+  }
+}
+
+function CreateOrganizationForm({ onCreated }: { onCreated: (orgId: string) => Promise<void> }) {
+  const t = useTranslations();
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [countryCode, setCountryCode] = useState('US');
+  const [baseCurrency, setBaseCurrency] = useState('USD');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const org = await createOrganization({ name, slug, countryCode, baseCurrency });
+      await onCreated(org.id);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(errorKey(err.code));
+      } else {
+        setError('auth.errors.unknown');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="org-name">{t('org.name')}</Label>
+        <Input
+          id="org-name"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (slug === '' || slug === name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')) {
+              setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+            }
+          }}
+          required
+          autoComplete="organization"
+          autoFocus
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="org-slug">{t('org.slug')}</Label>
+        <Input
+          id="org-slug"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, ''))}
+          required
+          pattern="^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+          minLength={2}
+        />
+        <p className="text-xs text-muted-foreground">{t('org.slugHint')}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="org-country">{t('org.country')}</Label>
+          <Input
+            id="org-country"
+            value={countryCode}
+            onChange={(e) => setCountryCode(e.target.value.toUpperCase())}
+            required
+            maxLength={2}
+            pattern="^[A-Z]{2}$"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="org-currency">{t('org.currency')}</Label>
+          <Input
+            id="org-currency"
+            value={baseCurrency}
+            onChange={(e) => setBaseCurrency(e.target.value.toUpperCase())}
+            required
+            maxLength={3}
+            pattern="^[A-Z]{3}$"
+          />
+        </div>
+      </div>
+      {error && (
+        <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {t(error)}
+        </p>
+      )}
+      <Button type="submit" className="w-full" loading={isSubmitting}>
+        {t('org.create')}
+      </Button>
+    </form>
+  );
+}
+
+export default function DashboardPage() {
+  const t = useTranslations();
+  const locale = useLocale();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { status, organizationId, switchOrg } = useSession();
+  const { data: navigation } = useNavigation(organizationId !== null);
+  const { data: billing } = useEntitlements();
+
+  const handleCreated = async (orgId: string) => {
+    await switchOrg(orgId);
+    await queryClient.invalidateQueries();
+    router.refresh();
+  };
+
+  if (status === 'loading') {
+    return <div className="animate-pulse space-y-4">{t('shell.loading')}</div>;
+  }
+
+  if (organizationId === null) {
+    return (
+      <div className="mx-auto max-w-md space-y-6 py-8">
+        <div className="text-center">
+          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+            <Building2 className="size-5" aria-hidden="true" />
+          </div>
+          <h1 className="mt-4 text-xl font-bold tracking-tight">{t('org.onboardingTitle')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('org.onboardingSubtitle')}</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <CreateOrganizationForm onCreated={handleCreated} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const quickModules = (navigation ?? []).map((group) => {
+    const first = group.items[0];
+    return {
+      moduleKey: group.moduleKey,
+      labelKey: group.labelKey,
+      href: first ? `/${locale}${first.href}` : `/${locale}`,
+      icon: MODULE_ICONS[group.moduleKey] ?? Puzzle,
+    };
+  });
+
+  const activeModules = billing?.entitlements?.filter((e) => ['active', 'trialing', 'past_due'].includes(e.state)).length ?? 0;
 
   const stats = [
-    { label: 'Active Users', value: '12', icon: Users, change: '+2 this week' },
-    { label: 'Products', value: '1,234', icon: Package, change: '+28 this month' },
-    { label: 'Revenue (MTD)', value: 'KES 0', icon: TrendingUp, change: 'Start selling' },
-    { label: 'Active Deals', value: '8', icon: DollarSign, change: 'KES 45,000 pipeline' },
+    { label: t('dashboard.stats.activeModules'), value: String(activeModules), icon: Puzzle, change: t('dashboard.stats.modulesHint') },
+    { label: t('dashboard.stats.products'), value: '0', icon: Package, change: t('dashboard.stats.startInventory') },
+    { label: t('dashboard.stats.revenueMtd'), value: '0', icon: TrendingUp, change: t('dashboard.stats.startSelling') },
+    { label: t('dashboard.stats.activeDeals'), value: '0', icon: DollarSign, change: t('dashboard.stats.dealsHint') },
   ];
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Welcome header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{t('nav.dashboard')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Welcome to ModuBiz. Here&apos;s an overview of your business.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.welcome')}</p>
       </div>
 
-      {/* Stats grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -64,61 +211,62 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      {/* Module quick-access section */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">{t('nav.modulesLabel')}</h2>
           <Link
-            href="/settings/modules"
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+            href={`/${locale}/settings/modules`}
+            className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             {t('nav.modules')}
             <ArrowRight className="size-3.5" />
           </Link>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {modules.map((mod) => {
-            const Icon = mod.icon;
-            return (
-              <Link key={mod.key} href={mod.href}>
-                <Card className="group cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                  <CardContent className="p-5">
-                    <div className="flex items-start gap-4">
-                      <div
-                        className={`flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${mod.gradient} text-white shadow-sm`}
-                      >
-                        <Icon className="size-5" aria-hidden="true" />
+        {quickModules.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t('dashboard.noModulesTitle')}</CardTitle>
+              <CardDescription>{t('dashboard.noModulesHint')}</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {quickModules.map((mod) => {
+              const Icon = mod.icon;
+              return (
+                <Link key={mod.moduleKey} href={mod.href}>
+                  <Card className="group cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                    <CardContent className="p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Icon className="size-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold transition-colors group-hover:text-primary">{t(mod.labelKey)}</h3>
+                          <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">
+                            {t(`modules.${mod.moduleKey}.description`)}
+                          </p>
+                        </div>
+                        <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground opacity-0 -translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold group-hover:text-primary transition-colors">
-                          {t(`modules.${mod.key}.name`)}
-                        </h3>
-                        <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">
-                          {t(`modules.${mod.key}.description`)}
-                        </p>
-                      </div>
-                      <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground opacity-0 -translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Recent activity placeholder */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recent Activity</CardTitle>
-          <CardDescription>Your recent actions across all modules</CardDescription>
+          <CardTitle className="text-base">{t('dashboard.recentActivity')}</CardTitle>
+          <CardDescription>{t('dashboard.recentActivitySubtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              No recent activity yet. Start using modules to see your activity here.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('dashboard.noActivity')}</p>
           </div>
         </CardContent>
       </Card>

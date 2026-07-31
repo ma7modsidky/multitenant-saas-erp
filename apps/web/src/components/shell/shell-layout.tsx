@@ -1,10 +1,12 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useState, type ReactNode } from 'react';
+
+import { cn } from '../cn';
 
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
-import { cn } from '../cn';
 
 interface ShellLayoutProps {
   children: ReactNode;
@@ -20,6 +22,7 @@ interface ShellLayoutProps {
  * content offset can react to it.
  */
 export function ShellLayout({ children }: ShellLayoutProps) {
+  const t = useTranslations();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -60,7 +63,7 @@ export function ShellLayout({ children }: ShellLayoutProps) {
         {/* Footer */}
         <footer className="border-t py-3 px-6">
           <p className="text-center text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} ModuBiz. All rights reserved.
+            &copy; {new Date().getFullYear()} ModuBiz. {t('shell.copyright')}
           </p>
         </footer>
       </div>

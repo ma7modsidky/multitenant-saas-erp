@@ -14,6 +14,7 @@ import { AuthGuard } from '@nestjs/passport';
 
 import { ForbiddenError, NotFoundError } from '../../../core/common/errors.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
+import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import {
   InviteUserUseCase,
@@ -55,7 +56,45 @@ export class MembershipsController {
     private readonly removeMemberUseCase: RemoveMemberUseCase,
     private readonly updateMemberRoleUseCase: UpdateMembershipRoleUseCase,
     private readonly switchOrgUseCase: SwitchOrgUseCase,
+    private readonly txManager: TransactionManager,
   ) {}
+
+  /**
+   * GET /v1/users/me/organizations
+   * List all organizations the current user belongs to (organization switcher).
+   *
+   * Reads the user's own memberships across orgs (TEN-4) via the
+   * `user_own_memberships` RLS policy; the active org is flagged `current`.
+   */
+  @Get('users/me/organizations')
+  async listMyOrganizations(): Promise<{ data: Array<{
+    organizationId: string;
+    organizationName: string;
+    organizationSlug: string;
+    roleId: string;
+    status: string;
+    joinedAt: string;
+    current: boolean;
+  }> }> {
+    const userId = TenantContext.requireUserId();
+    const currentOrgId = TenantContext.getOrganizationId();
+
+    const orgs = await this.txManager.run(async (tx) => {
+      return this.membershipRepo.findOrgsByUserId(userId, tx);
+    });
+
+    return {
+      data: orgs.map((o) => ({
+        organizationId: o.organizationId,
+        organizationName: o.organizationName,
+        organizationSlug: o.organizationSlug,
+        roleId: o.roleId,
+        status: o.status,
+        joinedAt: o.joinedAt.toISOString(),
+        current: o.organizationId === currentOrgId,
+      })),
+    };
+  }
 
   /**
    * GET /v1/organizations/:orgId/members

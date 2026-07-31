@@ -7,12 +7,13 @@ import { TransactionManager } from '../transaction-manager.js';
 // ─── Test data helper ────────────────────────────────────────────────────
 
 const makeContext = (overrides: Partial<{ userId: string; organizationId: string }> = {}) => ({
-  userId: overrides.userId ?? 'user-1',
-  organizationId: overrides.organizationId ?? 'org-1',
-  roles: [] as string[],
-  permissions: [] as string[],
-  locale: 'en',
-});
+    userId: overrides.userId ?? 'user-1',
+    sessionId: undefined,
+    organizationId: overrides.organizationId ?? 'org-1',
+    roles: [] as string[],
+    permissions: [] as string[],
+    locale: 'en',
+  });
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { MembershipsModule } from '../memberships/memberships.module.js';
+import { RolesModule } from '../roles/roles.module.js';
 import { OrganizationsController } from './api/index.js';
 import {
   CreateOrganizationUseCase,
@@ -24,6 +26,7 @@ import { ORGANIZATION_REPOSITORY } from './ports/index.js';
  * @see BUSINESS_RULES.md — AUTH-10, CUR-1, GDPR-2
  */
 @Module({
+  imports: [MembershipsModule, RolesModule],
   controllers: [OrganizationsController],
   providers: [
     // Repository — registered by token so use cases depend on the interface

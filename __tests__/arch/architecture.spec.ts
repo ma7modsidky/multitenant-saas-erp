@@ -104,6 +104,13 @@ function findProcessEnvViolations(filePattern: string): string[] {
           continue;
         }
 
+        // NEXT_PUBLIC_* vars are public by definition and are the standard
+        // Next.js mechanism for exposing build-time config to client bundles.
+        // They cannot live in packages/config (server-side only).
+        if (varName.startsWith('NEXT_PUBLIC_')) {
+          continue;
+        }
+
         violations.push(`${file}:${i + 1}: process.env.${varName}`);
       }
     }

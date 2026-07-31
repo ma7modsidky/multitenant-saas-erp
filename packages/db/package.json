@@ -4,10 +4,25 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./migrate": "./src/migrate.ts",
-    "./seed": "./src/seed.ts",
-    "./rls": "./src/rls.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./migrate": {
+      "types": "./dist/migrate.d.ts",
+      "default": "./dist/migrate.js"
+    },
+    "./seed": {
+      "types": "./dist/seed.d.ts",
+      "default": "./dist/seed.js"
+    },
+    "./rls": {
+      "types": "./dist/rls.d.ts",
+      "default": "./dist/rls.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
   },
   "dependencies": {
     "drizzle-orm": "^0.36.4",
