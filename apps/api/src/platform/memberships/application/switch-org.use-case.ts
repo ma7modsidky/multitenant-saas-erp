@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { JwtTokenService } from '../../../core/auth/jwt-token.service.js';
 import { ForbiddenError } from '../../../core/common/errors.js';
+import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { NOT_A_MEMBER } from '../domain/errors.js';
 import { MEMBERSHIP_REPOSITORY, type MembershipRepository } from '../ports/index.js';
 
@@ -18,11 +19,18 @@ export class SwitchOrgUseCase {
     @Inject(MEMBERSHIP_REPOSITORY)
     private readonly membershipRepo: MembershipRepository,
     private readonly jwtTokenService: JwtTokenService,
+    private readonly txManager: TransactionManager,
   ) {}
 
   async execute(input: { userId: string; newOrganizationId: string }): Promise<{ accessToken: string; refreshToken: string }> {
-    // Verify the user has an active membership in the target org
-    const membership = await this.membershipRepo.findByUserAndOrg(input.userId, input.newOrganizationId);
+    // Verify the user has an active membership in the target org.
+    // Must run inside a transaction so set_config('app.current_user_id') is
+    // bound, enabling the user_own_memberships RLS SELECT policy to match
+    // even when the active token carries no organizationId (e.g., right after
+    // signup when the user hasn't switched into any org yet).
+    const membership = await this.txManager.run(async (tx) =>
+      this.membershipRepo.findByUserAndOrg(input.userId, input.newOrganizationId, tx),
+    );
 
     if (!membership) {
       throw new ForbiddenError(NOT_A_MEMBER, 'User is not a member of this organization (TEN-4)');

@@ -52,8 +52,14 @@ export class LoginUseCase {
 
     // AUTH-8: Always return generic error — never reveal if email exists
     if (!userData) {
-      // Fake verify to prevent timing attacks
-      await this.passwordService.verify('$argon2id$v=19$m=65536,t=3,p=4$FAKE', input.password);
+      // Fake verify to prevent timing attacks (keeps response time constant).
+      // argon2.verify() can throw if the hash is structurally invalid; we catch
+      // any thrown error and proceed to throw AUTH_INVALID_CREDENTIALS regardless.
+      await this.passwordService.verify(
+        // A structurally valid argon2id hash whose password will never match
+        '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA$RdescudvJCsgt3ub+b+dWRWJTmaaJObG',
+        input.password,
+      ).catch(() => undefined);
       throw new UnauthorizedError(AUTH_INVALID_CREDENTIALS);
     }
 

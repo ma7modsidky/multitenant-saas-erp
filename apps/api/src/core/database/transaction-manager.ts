@@ -59,9 +59,12 @@ export class TransactionManager {
     }
 
     return this.db.transaction(async (tx) => {
-      // Bind tenant context to the transaction via session variables
-      // The third argument (true) makes this transaction-local
-      await tx.execute(sql`SELECT set_config('app.current_organization_id', ${ctx.organizationId}, true)`);
+      // Bind tenant context to the transaction via session variables.
+      // The third argument (true) makes this transaction-local.
+      // set_config(text, text, bool) requires text — coerce undefined to empty
+      // string so Postgres never receives NULL for the value parameter.
+      const orgId = ctx.organizationId ?? '';
+      await tx.execute(sql`SELECT set_config('app.current_organization_id', ${orgId}, true)`);
       await tx.execute(sql`SELECT set_config('app.current_user_id', ${ctx.userId}, true)`);
 
       // Run the callback with the transaction-scoped db

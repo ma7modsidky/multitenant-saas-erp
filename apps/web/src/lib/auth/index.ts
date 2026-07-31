@@ -118,10 +118,10 @@ export async function updateProfile(input: { name?: string; preferredLocale?: st
 }
 
 /**
- * Change the password (POST /v1/users/me/password).
+ * Change the password (POST /v1/users/me/change-password).
  */
 export function changePassword(input: { currentPassword: string; newPassword: string }): Promise<{ message: string }> {
-  return apiFetch<{ message: string }>('/v1/users/me/password', {
+  return apiFetch<{ message: string }>('/v1/users/me/change-password', {
     method: 'POST',
     body: JSON.stringify(input),
   });
