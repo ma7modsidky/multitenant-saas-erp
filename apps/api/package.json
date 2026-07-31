@@ -17,6 +17,7 @@
     "@casl/ability": "^6.7.0",
     "@modubiz/config": "workspace:*",
     "@modubiz/db": "workspace:*",
+    "@modubiz/contracts": "workspace:*",
     "@modubiz/i18n": "workspace:*",
     "@nestjs/common": "11.0.3",
     "@nestjs/core": "11.0.3",

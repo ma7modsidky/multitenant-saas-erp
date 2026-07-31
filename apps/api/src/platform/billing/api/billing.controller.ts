@@ -1,0 +1,124 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+  UsePipes,
+  Headers,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import type { IncomingMessage } from 'node:http';
+
+import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
+import { TenantContext } from '../../../core/tenancy/tenant-context.js';
+import { PublicRoute } from '../../../core/tenancy/system-context.decorator.js';
+import {
+  CreateSubscriptionUseCase,
+  EnableModuleTrialUseCase,
+  DisableModuleUseCase,
+  HandleWebhookUseCase,
+  ReconcileEntitlementsUseCase,
+  GetBillingUseCase,
+} from '../application/index.js';
+import {
+  createSubscriptionSchema,
+  enableModuleTrialSchema,
+  disableModuleSchema,
+  type EnableModuleTrialDto,
+  type DisableModuleDto,
+  type BillingResponse,
+} from './dto/index.js';
+
+@Controller('v1')
+@UseGuards(AuthGuard('jwt'))
+export class BillingController {
+  constructor(
+    private readonly createSubscriptionUseCase: CreateSubscriptionUseCase,
+    private readonly enableModuleTrialUseCase: EnableModuleTrialUseCase,
+    private readonly disableModuleUseCase: DisableModuleUseCase,
+    private readonly reconcileEntitlementsUseCase: ReconcileEntitlementsUseCase,
+    private readonly getBillingUseCase: GetBillingUseCase,
+    private readonly handleWebhookUseCase: HandleWebhookUseCase,
+  ) {}
+
+  @Get('organizations/:orgId/billing')
+  async getBilling(@Param('orgId') orgId: string): Promise<{ data: BillingResponse }> {
+    const result = await this.getBillingUseCase.execute({ organizationId: orgId });
+    return { data: result };
+  }
+
+  @Post('organizations/:orgId/billing/subscription')
+  @UsePipes(new ZodValidationPipe(createSubscriptionSchema))
+  async createSubscription(
+    @Param('orgId') orgId: string,
+    @Body() dto: { organizationName: string; email: string; billingCurrency: string; priceKeys?: string[] },
+  ): Promise<{ data: { subscriptionId: string } }> {
+    const result = await this.createSubscriptionUseCase.execute({
+      ...dto,
+      organizationId: orgId,
+    });
+    return { data: result };
+  }
+
+  @Post('organizations/:orgId/billing/trial')
+  @UsePipes(new ZodValidationPipe(enableModuleTrialSchema))
+  async enableTrial(
+    @Param('orgId') orgId: string,
+    @Body() dto: EnableModuleTrialDto,
+  ): Promise<{ data: { message: string } }> {
+    const userId = TenantContext.requireUserId();
+    await this.enableModuleTrialUseCase.execute({
+      organizationId: orgId,
+      moduleKey: dto.moduleKey,
+      userId,
+      skipTrial: dto.skipTrial,
+    });
+    return { data: { message: `Module '${dto.moduleKey}' enabled.` } };
+  }
+
+  @Post('organizations/:orgId/billing/disable')
+  @UsePipes(new ZodValidationPipe(disableModuleSchema))
+  async disableModule(
+    @Param('orgId') orgId: string,
+    @Body() dto: DisableModuleDto,
+  ): Promise<{ data: { message: string } }> {
+    await this.disableModuleUseCase.execute({
+      organizationId: orgId,
+      moduleKey: dto.moduleKey,
+    });
+    return { data: { message: `Module '${dto.moduleKey}' disabled.` } };
+  }
+
+  @Post('organizations/:orgId/billing/reconcile')
+  async reconcile(@Param('orgId') orgId: string): Promise<{ data: { updated: number; alerts: string[] } }> {
+    const result = await this.reconcileEntitlementsUseCase.execute({ organizationId: orgId });
+    return { data: result };
+  }
+
+  /**
+   * POST /v1/billing/webhook
+   * Stripe webhook endpoint — no auth (signature verification is auth).
+   */
+  @PublicRoute()
+  @Post('billing/webhook')
+  async handleWebhook(
+    @Req() req: IncomingMessage,
+    @Headers('stripe-signature') signature: string,
+  ): Promise<{ received: boolean }> {
+    // @ts-expect-error — body may be a string or Buffer depending on the body parser
+    const body = req.body as string | undefined;
+    const payload = typeof body === 'string' ? body : JSON.stringify(body ?? {});
+
+    const result = await this.handleWebhookUseCase.execute({
+      payload,
+      signature: signature ?? '',
+      secret: 'whsec_test', // TODO: inject from ConfigService
+    });
+
+    return result;
+  }
+}

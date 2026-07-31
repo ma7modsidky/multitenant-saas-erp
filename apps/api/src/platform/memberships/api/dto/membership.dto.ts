@@ -1,0 +1,63 @@
+import { z } from 'zod';
+
+/**
+ * Schema for inviting a user.
+ */
+export const inviteUserSchema = z.object({
+  email: z.string().email('Invalid email address').max(255),
+  roleId: z.string().uuid('Role ID must be a valid UUID'),
+}).strict();
+
+export type InviteUserDto = z.infer<typeof inviteUserSchema>;
+
+/**
+ * Schema for updating a member's role.
+ */
+export const updateMemberRoleSchema = z.object({
+  roleId: z.string().uuid('Role ID must be a valid UUID'),
+}).strict();
+
+export type UpdateMemberRoleDto = z.infer<typeof updateMemberRoleSchema>;
+
+/**
+ * Schema for switching organization.
+ */
+export const switchOrgSchema = z.object({
+  organizationId: z.string().uuid('Organization ID must be a valid UUID'),
+}).strict();
+
+export type SwitchOrgDto = z.infer<typeof switchOrgSchema>;
+
+/**
+ * Schema for accepting an invitation (by token).
+ */
+export const acceptInvitationSchema = z.object({
+  invitationId: z.string().uuid('Invitation ID must be a valid UUID'),
+}).strict();
+
+export type AcceptInvitationDto = z.infer<typeof acceptInvitationSchema>;
+
+/**
+ * Member response DTO.
+ */
+export interface MemberResponse {
+  id: string;
+  userId: string;
+  email?: string;
+  name?: string;
+  roleId: string;
+  status: string;
+  joinedAt: string;
+}
+
+/**
+ * Invitation response DTO.
+ */
+export interface InvitationResponse {
+  id: string;
+  email: string;
+  roleId: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+}

@@ -14,6 +14,15 @@ import { NotificationsModule } from './core/notifications/notifications.module.j
 import { ObservabilityModule } from './core/observability/observability.module.js';
 import { StorageModule } from './core/storage/storage.module.js';
 import { TenancyModule } from './core/tenancy/tenancy.module.js';
+import { AuditLogModule } from './platform/audit-log/audit-log.module.js';
+import { BillingModule } from './platform/billing/billing.module.js';
+import { FxRatesModule } from './platform/fx-rates/fx-rates.module.js';
+import { MembershipsModule } from './platform/memberships/memberships.module.js';
+import { ModuleRegistryModule } from './platform/module-registry/module-registry.module.js';
+import { OrganizationsModule } from './platform/organizations/organizations.module.js';
+import { RolesModule } from './platform/roles/roles.module.js';
+import { SearchModule } from './platform/search/search.module.js';
+import { UsersModule } from './platform/users/users.module.js';
 
 /**
  * AppModule — the composition root of the modular monolith.
@@ -42,6 +51,16 @@ import { TenancyModule } from './core/tenancy/tenancy.module.js';
     JobsModule,
     StorageModule,
     NotificationsModule,
+    // Platform modules
+    OrganizationsModule,
+    UsersModule,
+    MembershipsModule,
+    RolesModule,
+    BillingModule,
+    ModuleRegistryModule,
+    AuditLogModule,
+    SearchModule,
+    FxRatesModule,
   ],
   controllers: [],
   providers: [],

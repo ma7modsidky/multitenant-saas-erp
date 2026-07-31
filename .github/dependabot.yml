@@ -17,7 +17,7 @@ updates:
       time: '09:00'
       timezone: 'UTC'
     versioning-strategy: increase-if-necessary
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
       root-dev-deps:
         patterns:
@@ -42,7 +42,7 @@ updates:
       time: '09:00'
       timezone: 'UTC'
     versioning-strategy: increase-if-necessary
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
       nestjs:
         patterns:
@@ -71,7 +71,7 @@ updates:
       time: '09:00'
       timezone: 'UTC'
     versioning-strategy: increase-if-necessary
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
       nextjs:
         patterns:
@@ -101,11 +101,11 @@ updates:
           - 'typescript'
           - 'eslint'
           - 'vitest'
-          - 'postcss'
-          - 'autoprefixer'
-        update-types:
-          - 'minor'
-          - 'patch'
+          - 'posted'...
+          - 'prettier'
+          - 'turbo'
+...
+<diff truncated>
     labels:
       - 'dependencies'
       - 'web'
