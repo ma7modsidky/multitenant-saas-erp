@@ -20,12 +20,11 @@ import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 
 import { PermissionGuard } from '../../apps/api/src/core/authorization/permission.guard.js';
 import { TransactionManager } from '../../apps/api/src/core/database/transaction-manager.js';
 import { TenantContext, type TenantContextData } from '../../apps/api/src/core/tenancy/tenant-context.js';
-import { runMigrations } from '../../packages/db/src/migrate.js';
+import { applyAllMigrations } from './helpers/migrations.js';
 import { AuditLogController } from '../../apps/api/src/platform/audit-log/api/audit-log.controller.js';
 import { QueryAuditLogUseCase } from '../../apps/api/src/platform/audit-log/application/query-audit-log.use-case.js';
 import { DrizzleAuditLogRepository } from '../../apps/api/src/platform/audit-log/infrastructure/repositories/drizzle-audit-log.repository.js';
@@ -36,8 +35,6 @@ import { CreateOrganizationUseCase } from '../../apps/api/src/platform/organizat
 
 const APP_ROLE = 'modubiz_app';
 const APP_PASSWORD = 'modubiz_app_password';
-// Resolve relative to this file so it works regardless of the CWD the runner uses.
-const MIGRATIONS_DIR = fileURLToPath(new URL('../../packages/db/migrations/core', import.meta.url));
 
 let container: StartedTestContainer;
 let db: PostgresJsDatabase;
@@ -73,8 +70,8 @@ beforeAll(async () => {
       GRANT USAGE, SELECT ON SEQUENCES TO ${APP_ROLE};
   `);
 
-  // Apply the real core migrations as the owner role.
-  await runMigrations(ownerConnString, MIGRATIONS_DIR);
+  // Apply the real core + module migrations as the owner role.
+  await applyAllMigrations(ownerConnString);
 
   await ownerSql.unsafe(`
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE};

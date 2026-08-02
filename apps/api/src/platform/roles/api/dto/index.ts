@@ -1,9 +1,16 @@
-export { createRoleSchema, updateRoleSchema, assignRoleSchema, transferOwnershipSchema } from './role.dto.js';
-export type {
+export {
+  createRoleSchema,
+  updateRoleSchema,
+  assignRoleSchema,
+  transferOwnershipSchema,
   CreateRoleDto,
   UpdateRoleDto,
   AssignRoleDto,
   TransferOwnershipDto,
   RoleResponse,
   RoleMatrixResponse,
+  RolesEnvelopeResponse,
+  RoleMatrixEnvelopeResponse,
+  RoleCreatedEnvelopeResponse,
+  RoleMessageEnvelopeResponse,
 } from './role.dto.js';

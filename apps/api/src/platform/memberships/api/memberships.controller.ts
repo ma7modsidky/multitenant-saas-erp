@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { Audit } from '../../../core/audit/__init__.js';
 import { RequiresPermission } from '../../../core/authorization/__init__.js';
@@ -21,15 +22,22 @@ import {
   type MembershipRepository,
   type InvitationRepository,
 } from '../ports/index.js';
+
 import {
   inviteUserSchema,
   updateMemberRoleSchema,
   switchOrgSchema,
-  type InviteUserDto,
-  type UpdateMemberRoleDto,
-  type SwitchOrgDto,
-  type MemberResponse,
-  type InvitationResponse,
+  InviteUserDto,
+  UpdateMemberRoleDto,
+  SwitchOrgDto,
+  MemberResponse,
+  InvitationResponse,
+  MyOrganizationsEnvelopeResponse,
+  MembersEnvelopeResponse,
+  InvitationsEnvelopeResponse,
+  InvitationCreatedEnvelopeResponse,
+  SwitchOrgEnvelopeResponse,
+  MembershipMessageEnvelopeResponse,
 } from './dto/index.js';
 
 /**
@@ -63,6 +71,7 @@ export class MembershipsController {
    * `user_own_memberships` RLS policy; the active org is flagged `current`.
    */
   @Get('users/me/organizations')
+  @ApiOkResponse({ type: MyOrganizationsEnvelopeResponse })
   async listMyOrganizations(): Promise<{
     data: Array<{
       organizationId: string;
@@ -101,6 +110,7 @@ export class MembershipsController {
    * List all members of an organization with their profile info.
    */
   @Get('organizations/:orgId/members')
+  @ApiOkResponse({ type: MembersEnvelopeResponse })
   async listMembers(@Param('orgId') orgId: string): Promise<{ data: MemberResponse[] }> {
     const memberships = await this.txManager.run((tx) => this.membershipRepo.findMembersByOrgId(orgId, tx));
 
@@ -122,6 +132,7 @@ export class MembershipsController {
    * List all invitations for an organization.
    */
   @Get('organizations/:orgId/invitations')
+  @ApiOkResponse({ type: InvitationsEnvelopeResponse })
   async listInvitations(@Param('orgId') orgId: string): Promise<{ data: InvitationResponse[] }> {
     const invitations = await this.txManager.run((tx) => this.invitationRepo.findByOrgId(orgId, tx));
 
@@ -143,6 +154,7 @@ export class MembershipsController {
    * Invite a user by email.
    */
   @Post('organizations/:orgId/invitations')
+  @ApiCreatedResponse({ type: InvitationCreatedEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(inviteUserSchema))
   @RequiresPermission('platform:members:invite')
   @Audit({ action: 'CREATE', entityType: 'invitation' })
@@ -165,6 +177,7 @@ export class MembershipsController {
    * Accept an invitation (AUTH-3, AUTH-9).
    */
   @Post('invitations/:id/accept')
+  @ApiCreatedResponse({ type: MembershipMessageEnvelopeResponse })
   // Accepting creates a membership (AUD-1) — record it as the membership
   // creation so the audit page's entity filters classify it correctly.
   // NOTE: the invitee's access token carries NO organizationId (login mints
@@ -190,6 +203,7 @@ export class MembershipsController {
    * Update a member's role (AUTHZ-1, AUTHZ-2, AUTHZ-3).
    */
   @Patch('memberships/:id/role')
+  @ApiOkResponse({ type: MembershipMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateMemberRoleSchema))
   @RequiresPermission('platform:members:assign-role')
   @Audit({ action: 'UPDATE', entityType: 'membership' })
@@ -219,6 +233,7 @@ export class MembershipsController {
    * Remove a member (AUTHZ-1, AUTHZ-7).
    */
   @Delete('memberships/:id')
+  @ApiOkResponse({ type: MembershipMessageEnvelopeResponse })
   @RequiresPermission('platform:members:remove')
   @Audit({ action: 'SOFT_DELETE', entityType: 'membership' })
   async removeMember(@Param('id') id: string): Promise<{ data: { message: string } }> {
@@ -243,6 +258,7 @@ export class MembershipsController {
    * Revoke a pending invitation (AUTH-9, AUTHZ-8).
    */
   @Post('organizations/:orgId/invitations/:id/revoke')
+  @ApiCreatedResponse({ type: MembershipMessageEnvelopeResponse })
   @RequiresPermission('platform:members:invite')
   @Audit({ action: 'UPDATE', entityType: 'invitation' })
   async revokeInvitation(@Param('id') id: string): Promise<{ data: { message: string } }> {
@@ -263,6 +279,7 @@ export class MembershipsController {
    * Switch the active organization (TEN-4).
    */
   @Post('auth/switch-org')
+  @ApiCreatedResponse({ type: SwitchOrgEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(switchOrgSchema))
   async switchOrg(@Body() dto: SwitchOrgDto): Promise<{ data: { accessToken: string; refreshToken: string } }> {
     const userId = TenantContext.requireUserId();

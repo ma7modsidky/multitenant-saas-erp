@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 /**
@@ -11,7 +12,10 @@ export const inviteUserSchema = z
   })
   .strict();
 
-export type InviteUserDto = z.infer<typeof inviteUserSchema>;
+/**
+ * Request DTO for inviting a user.
+ */
+export class InviteUserDto extends createZodDto(inviteUserSchema) {}
 
 /**
  * Schema for updating a member's role.
@@ -22,7 +26,10 @@ export const updateMemberRoleSchema = z
   })
   .strict();
 
-export type UpdateMemberRoleDto = z.infer<typeof updateMemberRoleSchema>;
+/**
+ * Request DTO for updating a member's role.
+ */
+export class UpdateMemberRoleDto extends createZodDto(updateMemberRoleSchema) {}
 
 /**
  * Schema for switching organization.
@@ -33,31 +40,102 @@ export const switchOrgSchema = z
   })
   .strict();
 
-export type SwitchOrgDto = z.infer<typeof switchOrgSchema>;
+/**
+ * Request DTO for switching organization.
+ */
+export class SwitchOrgDto extends createZodDto(switchOrgSchema) {}
+
+/**
+ * Member response payload.
+ */
+export const memberResponseSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  email: z.string(),
+  name: z.string(),
+  roleId: z.string(),
+  status: z.string(),
+  joinedAt: z.string(),
+});
 
 /**
  * Member response DTO.
  */
-export interface MemberResponse {
-  id: string;
-  userId: string;
-  email: string;
-  name: string;
-  roleId: string;
-  status: string;
-  joinedAt: string;
-}
+export class MemberResponse extends createZodDto(memberResponseSchema) {}
+
+/**
+ * Invitation response payload.
+ */
+export const invitationResponseSchema = z.object({
+  id: z.string(),
+  /** Invitee display name (nullable for pre-0012 invitations). */
+  name: z.string().nullable(),
+  email: z.string(),
+  roleId: z.string(),
+  status: z.string(),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+});
 
 /**
  * Invitation response DTO.
  */
-export interface InvitationResponse {
-  id: string;
-  /** Invitee display name (nullable for pre-0012 invitations). */
-  name: string | null;
-  email: string;
-  roleId: string;
-  status: string;
-  expiresAt: string;
-  createdAt: string;
-}
+export class InvitationResponse extends createZodDto(invitationResponseSchema) {}
+
+// ─── Response envelopes (match the `{ data }` wire format) ────────────────
+
+/** `{ data: Array<{...}> }` — my organizations (organization switcher). */
+export const myOrganizationsEnvelopeSchema = z.object({
+  data: z.array(
+    z.object({
+      organizationId: z.string(),
+      organizationName: z.string(),
+      organizationSlug: z.string(),
+      roleId: z.string(),
+      status: z.string(),
+      organizationStatus: z.string(),
+      joinedAt: z.string(),
+      current: z.boolean(),
+    }),
+  ),
+});
+
+export class MyOrganizationsEnvelopeResponse extends createZodDto(myOrganizationsEnvelopeSchema) {}
+
+/** `{ data: MemberResponse[] }` — list members. */
+export const membersEnvelopeSchema = z.object({
+  data: z.array(memberResponseSchema),
+});
+
+export class MembersEnvelopeResponse extends createZodDto(membersEnvelopeSchema) {}
+
+/** `{ data: InvitationResponse[] }` — list invitations. */
+export const invitationsEnvelopeSchema = z.object({
+  data: z.array(invitationResponseSchema),
+});
+
+export class InvitationsEnvelopeResponse extends createZodDto(invitationsEnvelopeSchema) {}
+
+/** `{ data: { invitationId } }` — invite. */
+export const invitationCreatedEnvelopeSchema = z.object({
+  data: z.object({ invitationId: z.string() }),
+});
+
+export class InvitationCreatedEnvelopeResponse extends createZodDto(invitationCreatedEnvelopeSchema) {}
+
+/** `{ data: { accessToken; refreshToken } }` — switch org. */
+export const switchOrgEnvelopeSchema = z.object({
+  data: z.object({
+    accessToken: z.string(),
+    refreshToken: z.string(),
+  }),
+});
+
+export class SwitchOrgEnvelopeResponse extends createZodDto(switchOrgEnvelopeSchema) {}
+
+/** `{ data: { message } }` — accept / revoke / update role / remove member. */
+export const membershipMessageEnvelopeSchema = z.object({
+  data: z.object({ message: z.string() }),
+});
+
+export class MembershipMessageEnvelopeResponse extends createZodDto(membershipMessageEnvelopeSchema) {}

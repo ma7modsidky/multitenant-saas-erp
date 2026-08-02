@@ -1,6 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
+import { Audit } from '../../../core/audit/__init__.js';
+import { RequiresPermission } from '../../../core/authorization/__init__.js';
+import { NotFoundError } from '../../../core/common/errors.js';
+import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
+import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import {
   CreateOrganizationUseCase,
   GetOrganizationUseCase,
@@ -9,22 +15,23 @@ import {
   CancelDeletionUseCase,
   UpdateOrganizationSettingsUseCase,
 } from '../application/index.js';
-import { Audit } from '../../../core/audit/__init__.js';
-import { RequiresPermission } from '../../../core/authorization/__init__.js';
-import { NotFoundError } from '../../../core/common/errors.js';
-import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
-import { TenantContext } from '../../../core/tenancy/tenant-context.js';
+
 import {
   createOrganizationSchema,
   updateOrganizationSchema,
   updateOrganizationSettingsSchema,
   organizationToResponse,
   settingsToResponse,
-  type CreateOrganizationDto,
-  type UpdateOrganizationDto,
-  type UpdateOrganizationSettingsDto,
-  type OrganizationResponse,
-  type OrganizationSettingsResponse,
+  CreateOrganizationDto,
+  UpdateOrganizationDto,
+  UpdateOrganizationSettingsDto,
+  OrganizationResponse,
+  OrganizationSettingsResponse,
+  OrganizationEnvelopeResponse,
+  OrganizationDetailResponse,
+  OrganizationDeleteResponse,
+  SettingsEnvelopeResponse,
+  SettingsUpdateEnvelopeResponse,
 } from './dto/index.js';
 
 /**
@@ -73,6 +80,7 @@ export class OrganizationsController {
    * becomes the organization's OWNER through membership creation.
    */
   @Post()
+  @ApiCreatedResponse({ type: OrganizationEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(createOrganizationSchema))
   async create(@Body() dto: CreateOrganizationDto): Promise<{ data: OrganizationResponse }> {
     const result = await this.createOrgUseCase.execute(dto);
@@ -87,6 +95,7 @@ export class OrganizationsController {
    * Get organization details and settings.
    */
   @Get(':id')
+  @ApiOkResponse({ type: OrganizationDetailResponse })
   async getById(@Param('id') id: string): Promise<{
     data: OrganizationResponse;
     settings: OrganizationSettingsResponse | null;
@@ -104,6 +113,7 @@ export class OrganizationsController {
    * Get the current user's active organization.
    */
   @Get('me')
+  @ApiOkResponse({ type: OrganizationDetailResponse })
   async getCurrent(): Promise<{
     data: OrganizationResponse;
     settings: OrganizationSettingsResponse | null;
@@ -130,6 +140,7 @@ export class OrganizationsController {
    * silently persisted even though the UI showed a generic error).
    */
   @Patch(':id')
+  @ApiOkResponse({ type: OrganizationEnvelopeResponse })
   @RequiresPermission('platform:settings:manage')
   @UsePipes(new ZodValidationPipe(updateOrganizationSchema))
   @Audit({ action: 'UPDATE', entityType: 'organization' })
@@ -156,6 +167,7 @@ export class OrganizationsController {
    * Soft-delete organization with 30-day grace period (GDPR-2).
    */
   @Delete(':id')
+  @ApiOkResponse({ type: OrganizationDeleteResponse })
   @RequiresPermission('platform:organization:delete')
   @Audit({ action: 'SOFT_DELETE', entityType: 'organization' })
   async delete(@Param('id') id: string): Promise<{
@@ -176,6 +188,7 @@ export class OrganizationsController {
    * Cancel a pending deletion and restore the organization.
    */
   @Post(':id/cancel-deletion')
+  @ApiCreatedResponse({ type: OrganizationEnvelopeResponse })
   @RequiresPermission('platform:organization:delete')
   @Audit({ action: 'UPDATE', entityType: 'organization' })
   async cancelDeletion(@Param('id') id: string): Promise<{ data: OrganizationResponse }> {
@@ -191,6 +204,7 @@ export class OrganizationsController {
    * Get organization settings.
    */
   @Get(':id/settings')
+  @ApiOkResponse({ type: SettingsEnvelopeResponse })
   async getSettings(@Param('id') id: string): Promise<{ data: OrganizationSettingsResponse | null }> {
     const result = await this.getOrgUseCase.execute({ organizationId: this.assertSessionOrg(id) });
 
@@ -204,6 +218,7 @@ export class OrganizationsController {
    * Update organization settings.
    */
   @Patch(':id/settings')
+  @ApiOkResponse({ type: SettingsUpdateEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateOrganizationSettingsSchema))
   @RequiresPermission('platform:settings:manage')
   @Audit({ action: 'UPDATE', entityType: 'organization_settings' })

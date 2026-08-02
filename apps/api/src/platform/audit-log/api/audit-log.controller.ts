@@ -1,9 +1,11 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiOkResponse } from '@nestjs/swagger';
 
 import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { QueryAuditLogUseCase } from '../application/index.js';
-import { type AuditLogQueryResponse } from './dto/index.js';
+
+import { AuditLogQueryResponse, AuditLogQueryEnvelopeResponse } from './dto/index.js';
 
 @Controller('v1')
 @UseGuards(AuthGuard('jwt'))
@@ -15,6 +17,7 @@ export class AuditLogController {
    * Query audit log entries with optional filters.
    */
   @Get('organizations/:orgId/audit-log')
+  @ApiOkResponse({ type: AuditLogQueryEnvelopeResponse })
   @RequiresPermission('platform:audit:view')
   async queryAuditLog(
     @Param('orgId') orgId: string,

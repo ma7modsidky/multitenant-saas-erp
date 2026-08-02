@@ -1,9 +1,19 @@
 import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiOkResponse } from '@nestjs/swagger';
 
 import { GetFxRateUseCase, SnapshotFxRatesUseCase } from '../application/index.js';
 import { FX_RATES_REPOSITORY, type FxRatesRepository } from '../ports/index.js';
-import { type FxRateResponse, type FxRatesListResponse, type CurrencyResponse } from './dto/index.js';
+
+import {
+  FxRateResponse,
+  FxRatesListResponse,
+  CurrencyResponse,
+  CurrenciesEnvelopeResponse,
+  FxRatesEnvelopeResponse,
+  FxRateEnvelopeResponse,
+  FxSnapshotEnvelopeResponse,
+} from './dto/index.js';
 
 @Controller('v1')
 @UseGuards(AuthGuard('jwt'))
@@ -16,12 +26,14 @@ export class FxRatesController {
   ) {}
 
   @Get('currencies')
+  @ApiOkResponse({ type: CurrenciesEnvelopeResponse })
   async listCurrencies(): Promise<{ data: CurrencyResponse[] }> {
     const currencies = await this.repo.listCurrencies();
     return { data: currencies };
   }
 
   @Get('fx-rates/:baseCurrency')
+  @ApiOkResponse({ type: FxRatesEnvelopeResponse })
   async getRatesForBase(@Param('baseCurrency') baseCurrency: string): Promise<{ data: FxRatesListResponse }> {
     const rates = await this.repo.getLatestRatesForBase(baseCurrency.toUpperCase());
     return {
@@ -33,6 +45,7 @@ export class FxRatesController {
   }
 
   @Get('fx-rates/:baseCurrency/:quoteCurrency')
+  @ApiOkResponse({ type: FxRateEnvelopeResponse })
   async getRate(
     @Param('baseCurrency') baseCurrency: string,
     @Param('quoteCurrency') quoteCurrency: string,
@@ -47,6 +60,7 @@ export class FxRatesController {
   }
 
   @Get('fx-rates/snapshot')
+  @ApiOkResponse({ type: FxSnapshotEnvelopeResponse })
   async triggerSnapshot(): Promise<{ data: { pairsStored: number; source: string } }> {
     const result = await this.snapshotFxRatesUseCase.execute();
     return { data: result };

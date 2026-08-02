@@ -2,9 +2,9 @@ export { ModuleRegistryController } from './module-registry.controller.js';
 export {
   enableModuleSchema,
   disableModuleSchema,
-  type EnableModuleDto,
-  type DisableModuleDto,
-  type ModuleCatalogResponse,
-  type NavigationResponse,
-  type DashboardWidgetsResponse,
+  EnableModuleDto,
+  DisableModuleDto,
+  ModuleCatalogResponse,
+  NavigationResponse,
+  DashboardWidgetsResponse,
 } from './dto/index.js';

@@ -1,8 +1,10 @@
 import { Body, Controller, Post, UsePipes, Headers } from '@nestjs/common';
+import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { PublicRoute } from '../../../core/tenancy/system-context.decorator.js';
 import { SignupUseCase, LoginUseCase, RefreshTokenUseCase, PasswordResetUseCase } from '../application/index.js';
+
 import {
   signupSchema,
   loginSchema,
@@ -10,12 +12,15 @@ import {
   requestPasswordResetSchema,
   completePasswordResetSchema,
   buildAuthResponse,
-  type SignupDto,
-  type LoginDto,
-  type RefreshTokenDto,
-  type RequestPasswordResetDto,
-  type CompletePasswordResetDto,
-  type AuthResponse,
+  SignupDto,
+  LoginDto,
+  RefreshTokenDto,
+  RequestPasswordResetDto,
+  CompletePasswordResetDto,
+  AuthResponse,
+  AuthMessageEnvelopeResponse,
+  AuthEnvelopeResponse,
+  TokenPairEnvelopeResponse,
 } from './dto/index.js';
 
 /**
@@ -41,6 +46,7 @@ export class AuthController {
    * Register a new user account.
    */
   @Post('signup')
+  @ApiCreatedResponse({ type: AuthMessageEnvelopeResponse })
   @PublicRoute()
   @UsePipes(new ZodValidationPipe(signupSchema))
   async signup(@Body() dto: SignupDto): Promise<{ data: { message: string } }> {
@@ -63,6 +69,7 @@ export class AuthController {
    * Authenticate with email and password.
    */
   @Post('login')
+  @ApiCreatedResponse({ type: AuthEnvelopeResponse })
   @PublicRoute()
   @UsePipes(new ZodValidationPipe(loginSchema))
   async login(
@@ -91,6 +98,7 @@ export class AuthController {
    * Refresh an access token using a refresh token (rotation, AUTH-4).
    */
   @Post('refresh')
+  @ApiCreatedResponse({ type: TokenPairEnvelopeResponse })
   @PublicRoute()
   @UsePipes(new ZodValidationPipe(refreshTokenSchema))
   async refresh(@Body() dto: RefreshTokenDto): Promise<{ data: { accessToken: string; refreshToken: string } }> {
@@ -106,6 +114,7 @@ export class AuthController {
    * Request a password reset email.
    */
   @Post('request-password-reset')
+  @ApiCreatedResponse({ type: AuthMessageEnvelopeResponse })
   @PublicRoute()
   @UsePipes(new ZodValidationPipe(requestPasswordResetSchema))
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto): Promise<{ data: { message: string } }> {
@@ -123,6 +132,7 @@ export class AuthController {
    * Complete a password reset with the token from the email (AUTH-9).
    */
   @Post('complete-password-reset')
+  @ApiCreatedResponse({ type: AuthMessageEnvelopeResponse })
   @PublicRoute()
   @UsePipes(new ZodValidationPipe(completePasswordResetSchema))
   async completePasswordReset(@Body() dto: CompletePasswordResetDto): Promise<{ data: { message: string } }> {

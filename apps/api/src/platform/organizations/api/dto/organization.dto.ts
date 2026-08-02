@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 /**
@@ -30,7 +31,10 @@ export const createOrganizationSchema = z
   })
   .strict();
 
-export type CreateOrganizationDto = z.infer<typeof createOrganizationSchema>;
+/**
+ * Request DTO for creating an organization (also used for OpenAPI reflection).
+ */
+export class CreateOrganizationDto extends createZodDto(createOrganizationSchema) {}
 
 /**
  * Zod schema for updating an organization.
@@ -54,7 +58,10 @@ export const updateOrganizationSchema = z
   })
   .strict();
 
-export type UpdateOrganizationDto = z.infer<typeof updateOrganizationSchema>;
+/**
+ * Request DTO for updating an organization.
+ */
+export class UpdateOrganizationDto extends createZodDto(updateOrganizationSchema) {}
 
 /**
  * Zod schema for updating organization settings.
@@ -68,46 +75,100 @@ export const updateOrganizationSettingsSchema = z
       .length(3)
       .regex(/^[A-Z]{3}$/)
       .optional(),
-    numberPreferences: z.record(z.unknown()).optional(),
-    datePreferences: z.record(z.unknown()).optional(),
+    numberPreferences: z.record(z.string(), z.unknown()).optional(),
+    datePreferences: z.record(z.string(), z.unknown()).optional(),
     receiptFooter: z.string().max(500).nullable().optional(),
   })
   .strict();
 
-export type UpdateOrganizationSettingsDto = z.infer<typeof updateOrganizationSettingsSchema>;
+/**
+ * Request DTO for updating organization settings.
+ */
+export class UpdateOrganizationSettingsDto extends createZodDto(updateOrganizationSettingsSchema) {}
 
 /**
- * Organization response DTO (camelCase for API consumers).
+ * Organization response payload (camelCase for API consumers).
  */
-export interface OrganizationResponse {
-  id: string;
-  name: string;
-  slug: string;
-  countryCode: string;
-  timezone: string;
-  baseCurrency: string;
-  defaultLocale: string;
-  status: string;
-  deletionScheduledAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+export const organizationResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  countryCode: z.string(),
+  timezone: z.string(),
+  baseCurrency: z.string(),
+  defaultLocale: z.string(),
+  status: z.string(),
+  deletionScheduledAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+/**
+ * Organization response DTO (used for typing and OpenAPI reflection).
+ */
+export class OrganizationResponse extends createZodDto(organizationResponseSchema) {}
+
+/**
+ * Organization settings response payload.
+ */
+export const organizationSettingsResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  locale: z.string(),
+  timezone: z.string(),
+  baseCurrency: z.string(),
+  numberPreferences: z.record(z.string(), z.unknown()),
+  datePreferences: z.record(z.string(), z.unknown()),
+  receiptFooter: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 
 /**
  * Organization settings response DTO.
  */
-export interface OrganizationSettingsResponse {
-  id: string;
-  organizationId: string;
-  locale: string;
-  timezone: string;
-  baseCurrency: string;
-  numberPreferences: Record<string, unknown>;
-  datePreferences: Record<string, unknown>;
-  receiptFooter: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+export class OrganizationSettingsResponse extends createZodDto(organizationSettingsResponseSchema) {}
+
+// ─── Response envelopes (match the `{ data }` wire format) ────────────────
+
+/** `{ data: OrganizationResponse }` — create / update / cancel-deletion. */
+export const organizationEnvelopeSchema = z.object({
+  data: organizationResponseSchema,
+});
+
+export class OrganizationEnvelopeResponse extends createZodDto(organizationEnvelopeSchema) {}
+
+/** `{ data: OrganizationResponse; settings: OrganizationSettingsResponse | null }` — get by id / me. */
+export const organizationDetailEnvelopeSchema = z.object({
+  data: organizationResponseSchema,
+  settings: organizationSettingsResponseSchema.nullable(),
+});
+
+export class OrganizationDetailResponse extends createZodDto(organizationDetailEnvelopeSchema) {}
+
+/** `{ data: { deletionScheduledAt; message } }` — soft-delete. */
+export const organizationDeleteEnvelopeSchema = z.object({
+  data: z.object({
+    deletionScheduledAt: z.string(),
+    message: z.string(),
+  }),
+});
+
+export class OrganizationDeleteResponse extends createZodDto(organizationDeleteEnvelopeSchema) {}
+
+/** `{ data: OrganizationSettingsResponse | null }` — get settings. */
+export const settingsEnvelopeSchema = z.object({
+  data: organizationSettingsResponseSchema.nullable(),
+});
+
+export class SettingsEnvelopeResponse extends createZodDto(settingsEnvelopeSchema) {}
+
+/** `{ data: OrganizationSettingsResponse }` — update settings. */
+export const settingsUpdateEnvelopeSchema = z.object({
+  data: organizationSettingsResponseSchema,
+});
+
+export class SettingsUpdateEnvelopeResponse extends createZodDto(settingsUpdateEnvelopeSchema) {}
 
 /**
  * Map Organization domain entity to API response.

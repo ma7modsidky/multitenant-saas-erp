@@ -1,5 +1,11 @@
 export { createDbClient, createMigrationClient } from './drizzle-config.js';
-export { runMigrations, rollbackMigration } from './migrate.js';
+export {
+  runMigrations,
+  rollbackMigration,
+  runAllMigrations,
+  discoverModuleMigrationDirs,
+  type ModuleMigrationDir,
+} from './migrate.js';
 export { seedDatabase } from './seed.js';
 export {
   generateRlsPolicy,

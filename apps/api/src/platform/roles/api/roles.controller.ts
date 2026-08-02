@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { Audit } from '../../../core/audit/__init__.js';
 import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
-import { ROLE_REPOSITORY, type RoleRepository } from '../ports/index.js';
 import {
   CreateRoleUseCase,
   UpdateRoleUseCase,
@@ -15,17 +15,23 @@ import {
   TransferOwnershipUseCase,
   GetRoleMatrixUseCase,
 } from '../application/index.js';
+import { ROLE_REPOSITORY, type RoleRepository } from '../ports/index.js';
+
 import {
   createRoleSchema,
   updateRoleSchema,
   assignRoleSchema,
   transferOwnershipSchema,
-  type CreateRoleDto,
-  type UpdateRoleDto,
-  type AssignRoleDto,
-  type TransferOwnershipDto,
-  type RoleResponse,
-  type RoleMatrixResponse,
+  CreateRoleDto,
+  UpdateRoleDto,
+  AssignRoleDto,
+  TransferOwnershipDto,
+  RoleResponse,
+  RoleMatrixResponse,
+  RolesEnvelopeResponse,
+  RoleMatrixEnvelopeResponse,
+  RoleCreatedEnvelopeResponse,
+  RoleMessageEnvelopeResponse,
 } from './dto/index.js';
 
 @Controller('v1')
@@ -44,6 +50,7 @@ export class RolesController {
   ) {}
 
   @Get('organizations/:orgId/roles')
+  @ApiOkResponse({ type: RolesEnvelopeResponse })
   async listRoles(@Param('orgId') orgId: string): Promise<{ data: RoleResponse[] }> {
     const roles = await this.txManager.run((tx) => this.roleRepo.findByOrgId(orgId, tx));
 
@@ -73,6 +80,7 @@ export class RolesController {
   }
 
   @Get('organizations/:orgId/roles/matrix')
+  @ApiOkResponse({ type: RoleMatrixEnvelopeResponse })
   async getRoleMatrix(@Param('orgId') orgId: string): Promise<{ data: RoleMatrixResponse }> {
     const result = await this.getRoleMatrixUseCase.execute({ organizationId: orgId });
     return {
@@ -86,6 +94,7 @@ export class RolesController {
   }
 
   @Post('organizations/:orgId/roles')
+  @ApiCreatedResponse({ type: RoleCreatedEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(createRoleSchema))
   @RequiresPermission('platform:roles:manage')
   @Audit({ action: 'CREATE', entityType: 'role' })
@@ -114,6 +123,7 @@ export class RolesController {
   }
 
   @Patch('roles/:id')
+  @ApiOkResponse({ type: RoleMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateRoleSchema))
   @RequiresPermission('platform:roles:manage')
   @Audit({ action: 'UPDATE', entityType: 'role' })
@@ -142,6 +152,7 @@ export class RolesController {
   }
 
   @Delete('roles/:id')
+  @ApiOkResponse({ type: RoleMessageEnvelopeResponse })
   @RequiresPermission('platform:roles:manage')
   @Audit({ action: 'SOFT_DELETE', entityType: 'role' })
   async deleteRole(@Param('id') id: string): Promise<{ data: { message: string } }> {
@@ -158,6 +169,7 @@ export class RolesController {
   }
 
   @Post('memberships/:id/assign-role')
+  @ApiCreatedResponse({ type: RoleMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(assignRoleSchema))
   @RequiresPermission('platform:members:assign-role')
   @Audit({ action: 'UPDATE', entityType: 'membership' })
@@ -176,6 +188,7 @@ export class RolesController {
   }
 
   @Post('organizations/:orgId/transfer-ownership')
+  @ApiCreatedResponse({ type: RoleMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(transferOwnershipSchema))
   @RequiresPermission('platform:ownership:transfer')
   @Audit({ action: 'UPDATE', entityType: 'membership' })

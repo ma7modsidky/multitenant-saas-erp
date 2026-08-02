@@ -17,11 +17,10 @@ import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 
 import { TransactionManager } from '../../apps/api/src/core/database/transaction-manager.js';
 import { TenantContext, type TenantContextData } from '../../apps/api/src/core/tenancy/tenant-context.js';
-import { runMigrations } from '../../packages/db/src/migrate.js';
+import { applyAllMigrations } from './helpers/migrations.js';
 import { DrizzleOrganizationRepository } from '../../apps/api/src/platform/organizations/infrastructure/repositories/drizzle-organization.repository.js';
 import { DrizzleRoleRepository } from '../../apps/api/src/platform/roles/infrastructure/repositories/drizzle-role.repository.js';
 import { DrizzleMembershipRepository } from '../../apps/api/src/platform/memberships/infrastructure/repositories/drizzle-membership.repository.js';
@@ -48,8 +47,6 @@ function sessionRevokerStub(): { revokeAllUserSessions: () => Promise<void>; rev
 
 const APP_ROLE = 'modubiz_app';
 const APP_PASSWORD = 'modubiz_app_password';
-// Resolve relative to this file so it works regardless of the CWD the runner uses.
-const MIGRATIONS_DIR = fileURLToPath(new URL('../../packages/db/migrations/core', import.meta.url));
 
 let container: StartedTestContainer;
 let db: PostgresJsDatabase;
@@ -87,8 +84,8 @@ beforeAll(async () => {
       GRANT USAGE, SELECT ON SEQUENCES TO ${APP_ROLE};
   `);
 
-  // Apply the real core migrations as the owner role.
-  await runMigrations(ownerConnString, MIGRATIONS_DIR);
+  // Apply the real core + module migrations as the owner role.
+  await applyAllMigrations(ownerConnString);
 
   // Tables already exist, so explicit grants are needed (default privileges
   // only cover future tables).

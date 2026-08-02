@@ -766,6 +766,56 @@ literally) · [DATA_MODEL.md §7](./docs/DATA_MODEL.md#7-crm-schema-crm_) ·
 [BUSINESS_RULES.md §9](./docs/BUSINESS_RULES.md#9-crm-rules) ·
 [UI_UX_GUIDELINES.md](./docs/UI_UX_GUIDELINES.md)
 
+> **De-risked (2026-08-02):** two prerequisite gaps were investigated before
+> implementation — the module-migration runner and the OpenAPI/api-client
+> tooling. Both are now resolved as Step 0 below (decisions recorded in
+> [PROGRESS.md Session 21](./PROGRESS.md)).
+
+### 4.0 Prerequisite infrastructure (build once, unblock every later module)
+
+**4.0.1 Module-aware migration runner** (`packages/db`)
+
+The `runMigrations(conn, dir)` function is already generic, but the CLI
+(`scripts/migrate.mjs`) only scans `packages/db/migrations/core`, and the
+`_migrations` table keys on **filename only** — so two modules both shipping
+`0001_init.sql` would collide (the second is silently skipped as "already
+applied"). Fix forward:
+
+1. Extend the CLI to discover `apps/api/src/modules/*/db/migrations/` and run
+   each module's dir after core, passing the module key as a **namespace** so
+   the tracking key becomes `crm/0001_init.sql` (unique across modules).
+2. Add a shared test helper (`applyAllMigrations`) so the integration suites
+   apply core + module migrations instead of hardcoding `MIGRATIONS_DIR`.
+3. Keep `runMigrations` backward-compatible (core keeps bare filenames).
+
+**Tests:** migration CLI applies core + a fixture module's migrations to a fresh
+Testcontainers DB; two modules with identically named files do not collide;
+idempotent re-run skips both.
+
+**4.0.2 OpenAPI + api-client tooling** (`apps/api` + `packages/api-client`)
+
+TECH_STACK already locks `@nestjs/swagger` (OpenAPI 3.1) + `nestjs-zod`
+(DTO/OpenAPI bridge) with "typed client generated into `@modubiz/api-client`",
+but **zero implementation exists** (`generate:api-client` is a TODO stub,
+`apps/api/src/swagger.ts` is referenced but absent, no codegen lib installed).
+Build it once so every later phase satisfies its DoD and the web gets typed
+client functions for free:
+
+1. Add `@nestjs/swagger` + `nestjs-zod` to `apps/api` (stack-locked choices).
+2. Convert the existing Zod DTOs to `createZodDto` so OpenAPI reflects them.
+   This is a mechanical sweep across every platform module's DTOs (auth, users,
+   orgs, memberships, roles, billing, module-registry, audit-log, search,
+   fx-rates) — run each module's tests after conversion.
+3. Create `apps/api/src/swagger.ts` — Fastify notes: `await app.init()` before
+   `SwaggerModule.createDocument`; emit `openapi.json` to `packages/api-client/`
+   (no swagger-UI hosting needed for codegen).
+4. Wire `generate:api-client` to generate the typed client (e.g.
+   `openapi-typescript`) into `packages/api-client/src`.
+5. Update `apps/web/src/lib/api` to consume the generated client.
+
+**Tests:** a documented route appears in `openapi.json`; the generated client
+compiles; regeneration is idempotent.
+
 ### 4.1 Declare contracts first
 
 In `packages/contracts` (before any implementation —
@@ -834,11 +884,20 @@ One use case per operation, each owning its transaction:
 2. `CreateDealUseCase`, `MoveDealStageUseCase` (**CRM-6** — appends stage
    history), `CloseDealUseCase` (**CRM-7**, **CRM-9**), `ReopenDealUseCase`.
 3. `CreateActivityUseCase`, `CompleteActivityUseCase` (**CRM-13**).
-4. All mutating use cases call `AuditLogger` (**AUD-1**) and collect events for
+4. `EnsureDefaultPipelineUseCase` — **CRM-3** via **lazy idempotent ensure**
+   (decision recorded in PROGRESS.md Session 21): the first pipeline read / deal
+   write for an org calls `ensureDefaultPipeline()` inside the transaction and
+   creates the standard pipeline iff none exists. No framework hook needed —
+   `onEnableSeed` stays declared-but-unused in the contract (it is not wired
+   into `EnableModuleUseCase` today), and the generated `db/seed-on-enable.ts`
+   scaffold is **deleted** during CRM implementation (CRM-3 lives here, lazily,
+   so no caller exists for the scaffold — no dead code per the DoD).
+5. All mutating use cases call `AuditLogger` (**AUD-1**) and collect events for
    after-commit publishing.
 
 **Tests (integration, Testcontainers + RLS):**
 
+- `it('CRM-3: first deal write ensures exactly one default pipeline; a second call is a no-op')`
 - `it('CRM-6: appends a row to crm_deal_stage_history on every stage change')`
 - `it('CRM-8: deal value in non-base currency stores FX rate snapshot')`
 - `it('CRM-12: merge moves activities, notes, deals, attachments to the surviving contact')`
@@ -888,20 +947,27 @@ event contract tests validate payloads against schemas.
 
 1. Add to `registered-modules.ts` and `app.module.ts`.
 2. Update `README.md` module table.
-3. Regenerate OpenAPI + `@modubiz/api-client`.
+3. Regenerate OpenAPI + `@modubiz/api-client` via the Step 4.0.2 pipeline
+   (`pnpm generate:api-client`), now a real command.
 
 ### Phase 4 — Definition of Done
 
+- [x] Step 4.0.1: module-aware migration runner — module migrations applied,
+      namespaced keys, no collisions, test helper shared
+- [x] Step 4.0.2: OpenAPI + api-client pipeline — `openapi.json` emitted, typed
+      client generated and compiling, `generate:api-client` idempotent
 - [ ] Full
       [MODULE_GUIDE.md §5](./docs/MODULE_GUIDE.md#5-definition-of-done-checklist)
       checklist complete
-- [ ] All **CRM-1** through **CRM-14** rules tested
+- [ ] All **CRM-1** through **CRM-14** rules tested (incl. CRM-3 lazy ensure)
 - [ ] Tenant isolation test passing
 - [ ] Event contract tests passing
 - [ ] Frontend: pipeline board, contact merge, all four locales, RTL verified
 - [ ] E2E: CRM journey green
-- [ ] Zero `core/` changes; only 2 files touched outside the module
-- [ ] OpenAPI + api-client regenerated
+- [ ] Zero `core/` changes; outside the module only contracts `MODULE_KEYS` +
+      composition root (`registered-modules.ts`, `app.module.ts`) + the 4 i18n
+      catalogs (per MODULE_GUIDE) — no other files
+- [ ] OpenAPI + api-client regenerated and committed
 
 ---
 

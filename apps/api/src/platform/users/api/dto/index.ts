@@ -5,9 +5,6 @@ export {
   requestPasswordResetSchema,
   completePasswordResetSchema,
   passwordChangeSchema,
-  buildAuthResponse,
-} from './auth.dto.js';
-export type {
   SignupDto,
   LoginDto,
   RefreshTokenDto,
@@ -15,6 +12,10 @@ export type {
   CompletePasswordResetDto,
   PasswordChangeDto,
   AuthResponse,
+  AuthMessageEnvelopeResponse,
+  AuthEnvelopeResponse,
+  TokenPairEnvelopeResponse,
+  buildAuthResponse,
 } from './auth.dto.js';
-export { updateProfileSchema } from './user.dto.js';
-export type { UpdateProfileDto, SessionResponse, UserProfileResponse } from './user.dto.js';
+export { updateProfileSchema, UpdateProfileDto, SessionResponse, UserProfileResponse } from './user.dto.js';
+export { UserMessageEnvelopeResponse, ProfileEnvelopeResponse, SessionsEnvelopeResponse } from './user.dto.js';

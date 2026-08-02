@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 /**
@@ -15,7 +16,10 @@ export const signupSchema = z
   })
   .strict();
 
-export type SignupDto = z.infer<typeof signupSchema>;
+/**
+ * Request DTO for signup.
+ */
+export class SignupDto extends createZodDto(signupSchema) {}
 
 /**
  * Zod schema for login.
@@ -28,7 +32,10 @@ export const loginSchema = z
   })
   .strict();
 
-export type LoginDto = z.infer<typeof loginSchema>;
+/**
+ * Request DTO for login.
+ */
+export class LoginDto extends createZodDto(loginSchema) {}
 
 /**
  * Zod schema for token refresh.
@@ -39,7 +46,10 @@ export const refreshTokenSchema = z
   })
   .strict();
 
-export type RefreshTokenDto = z.infer<typeof refreshTokenSchema>;
+/**
+ * Request DTO for token refresh.
+ */
+export class RefreshTokenDto extends createZodDto(refreshTokenSchema) {}
 
 /**
  * Zod schema for requesting a password reset.
@@ -50,7 +60,10 @@ export const requestPasswordResetSchema = z
   })
   .strict();
 
-export type RequestPasswordResetDto = z.infer<typeof requestPasswordResetSchema>;
+/**
+ * Request DTO for requesting a password reset.
+ */
+export class RequestPasswordResetDto extends createZodDto(requestPasswordResetSchema) {}
 
 /**
  * Zod schema for completing a password reset.
@@ -66,7 +79,10 @@ export const completePasswordResetSchema = z
   })
   .strict();
 
-export type CompletePasswordResetDto = z.infer<typeof completePasswordResetSchema>;
+/**
+ * Request DTO for completing a password reset.
+ */
+export class CompletePasswordResetDto extends createZodDto(completePasswordResetSchema) {}
 
 /**
  * Zod schema for changing password (authenticated).
@@ -81,22 +97,56 @@ export const passwordChangeSchema = z
   })
   .strict();
 
-export type PasswordChangeDto = z.infer<typeof passwordChangeSchema>;
+/**
+ * Request DTO for changing password.
+ */
+export class PasswordChangeDto extends createZodDto(passwordChangeSchema) {}
+
+/**
+ * Auth response payload.
+ */
+export const authResponseSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  user: z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string(),
+    preferredLocale: z.string().nullable(),
+    emailVerified: z.boolean(),
+  }),
+});
 
 /**
  * Auth response DTO.
  */
-export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    preferredLocale: string | null;
-    emailVerified: boolean;
-  };
-}
+export class AuthResponse extends createZodDto(authResponseSchema) {}
+
+// ─── Response envelopes (match the `{ data }` wire format) ────────────────
+
+/** `{ data: { message } }` — signup / password-reset flow. */
+export const authMessageEnvelopeSchema = z.object({
+  data: z.object({ message: z.string() }),
+});
+
+export class AuthMessageEnvelopeResponse extends createZodDto(authMessageEnvelopeSchema) {}
+
+/** `{ data: AuthResponse }` — login. */
+export const authEnvelopeSchema = z.object({
+  data: authResponseSchema,
+});
+
+export class AuthEnvelopeResponse extends createZodDto(authEnvelopeSchema) {}
+
+/** `{ data: { accessToken; refreshToken } }` — refresh. */
+export const tokenPairEnvelopeSchema = z.object({
+  data: z.object({
+    accessToken: z.string(),
+    refreshToken: z.string(),
+  }),
+});
+
+export class TokenPairEnvelopeResponse extends createZodDto(tokenPairEnvelopeSchema) {}
 
 /**
  * Build an auth response from a user entity.

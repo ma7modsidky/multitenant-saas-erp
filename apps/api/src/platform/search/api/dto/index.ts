@@ -1,1 +1,1 @@
-export { type SearchResponse } from './search.dto.js';
+export { SearchResponse, SearchEnvelopeResponse } from './search.dto.js';

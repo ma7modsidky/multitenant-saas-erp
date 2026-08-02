@@ -4,6 +4,7 @@ packages:
   - 'tooling/*'
 allowBuilds:
   '@nestjs/core': true
+  '@scarf/scarf': false
   argon2: true
   cpu-features: true
   esbuild: true

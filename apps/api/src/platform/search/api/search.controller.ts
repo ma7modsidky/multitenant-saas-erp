@@ -1,9 +1,11 @@
 import { Controller, Get, Inject, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiOkResponse } from '@nestjs/swagger';
 
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { FederatedSearchUseCase } from '../application/index.js';
-import { type SearchResponse } from './dto/index.js';
+
+import { SearchResponse, SearchEnvelopeResponse } from './dto/index.js';
 
 @Controller('v1')
 @UseGuards(AuthGuard('jwt'))
@@ -15,6 +17,7 @@ export class SearchController {
    * Federated search across all registered module contributors.
    */
   @Get('search')
+  @ApiOkResponse({ type: SearchEnvelopeResponse })
   async search(@Query('q') q?: string): Promise<{ data: SearchResponse }> {
     const orgId = TenantContext.requireOrganizationId();
     const query = q ?? '';

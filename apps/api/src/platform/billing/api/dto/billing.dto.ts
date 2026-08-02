@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 export const createSubscriptionSchema = z
@@ -9,7 +10,10 @@ export const createSubscriptionSchema = z
   })
   .strict();
 
-export type CreateSubscriptionDto = z.infer<typeof createSubscriptionSchema>;
+/**
+ * Request DTO for creating a subscription.
+ */
+export class CreateSubscriptionDto extends createZodDto(createSubscriptionSchema) {}
 
 export const enableModuleTrialSchema = z
   .object({
@@ -18,7 +22,10 @@ export const enableModuleTrialSchema = z
   })
   .strict();
 
-export type EnableModuleTrialDto = z.infer<typeof enableModuleTrialSchema>;
+/**
+ * Request DTO for enabling a module trial.
+ */
+export class EnableModuleTrialDto extends createZodDto(enableModuleTrialSchema) {}
 
 export const disableModuleSchema = z
   .object({
@@ -26,20 +33,81 @@ export const disableModuleSchema = z
   })
   .strict();
 
-export type DisableModuleDto = z.infer<typeof disableModuleSchema>;
+/**
+ * Request DTO for disabling a module via billing.
+ *
+ * NOTE: named `BillingDisableModuleDto` (not `DisableModuleDto`) because the
+ * class name becomes the OpenAPI `components.schemas` key — `platform/module-
+ * registry` already exports `DisableModuleDto` with a different `maxLength`,
+ * and a same-name collision would silently collapse one of the two schemas in
+ * the generated OpenAPI document.
+ */
+export class BillingDisableModuleDto extends createZodDto(disableModuleSchema) {}
 
-export interface BillingResponse {
-  subscription: {
-    id: string;
-    stripeCustomerId: string;
-    status: string;
-    billingCurrency: string;
-    currentPeriodEnd: string | null;
-  } | null;
-  entitlements: Array<{
-    moduleKey: string;
-    state: string;
-    trialEndsAt: string | null;
-    activatedAt: string | null;
-  }>;
-}
+/**
+ * Billing response payload.
+ */
+export const billingResponseSchema = z.object({
+  subscription: z
+    .object({
+      id: z.string(),
+      stripeCustomerId: z.string(),
+      status: z.string(),
+      billingCurrency: z.string(),
+      currentPeriodEnd: z.string().nullable(),
+    })
+    .nullable(),
+  entitlements: z.array(
+    z.object({
+      moduleKey: z.string(),
+      state: z.string(),
+      trialEndsAt: z.string().nullable(),
+      activatedAt: z.string().nullable(),
+    }),
+  ),
+});
+
+/**
+ * Billing response DTO.
+ */
+export class BillingResponse extends createZodDto(billingResponseSchema) {}
+
+// ─── Response envelopes (match the `{ data }` wire format) ────────────────
+
+/** `{ data: BillingResponse }` — get billing. */
+export const billingEnvelopeSchema = z.object({
+  data: billingResponseSchema,
+});
+
+export class BillingEnvelopeResponse extends createZodDto(billingEnvelopeSchema) {}
+
+/** `{ data: { subscriptionId } }` — create subscription. */
+export const subscriptionCreatedEnvelopeSchema = z.object({
+  data: z.object({ subscriptionId: z.string() }),
+});
+
+export class SubscriptionCreatedEnvelopeResponse extends createZodDto(subscriptionCreatedEnvelopeSchema) {}
+
+/** `{ data: { updated; alerts } }` — reconcile entitlements. */
+export const reconcileEnvelopeSchema = z.object({
+  data: z.object({
+    updated: z.number(),
+    alerts: z.array(z.string()),
+  }),
+});
+
+export class ReconcileEnvelopeResponse extends createZodDto(reconcileEnvelopeSchema) {}
+
+/** `{ received }` — Stripe webhook acknowledgement. */
+export const webhookResponseSchema = z.object({
+  received: z.boolean(),
+});
+
+export class WebhookResponse extends createZodDto(webhookResponseSchema) {}
+
+/** `{ data: { message } }` — trial / disable. */
+export const billingMessageEnvelopeSchema = z.object({
+  data: z.object({ message: z.string() }),
+});
+
+export class BillingMessageEnvelopeResponse extends createZodDto(billingMessageEnvelopeSchema) {}

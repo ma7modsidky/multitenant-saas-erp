@@ -26,7 +26,7 @@
     "db:migrate": "pnpm --filter @modubiz/db run migrate",
     "db:seed": "pnpm --filter @modubiz/db run seed",
     "generate:module": "pnpm --filter @modubiz/generator-module run generate",
-    "generate:api-client": "pnpm --filter @modubiz/api-client run generate",
+    "generate:api-client": "pnpm --filter api run generate:openapi:build && pnpm --filter @modubiz/api-client run generate",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -1,1 +1,1 @@
-export { type AuditLogEntryResponse, type AuditLogQueryResponse } from './audit-log.dto.js';
+export { AuditLogEntryResponse, AuditLogQueryResponse, AuditLogQueryEnvelopeResponse } from './audit-log.dto.js';

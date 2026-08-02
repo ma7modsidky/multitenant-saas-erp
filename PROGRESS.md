@@ -1,7 +1,7 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 20 — Phase 3 (Module Framework & Generator) complete
-and verified **Current phase:** Phase 4 — CRM Module
+**Last updated:** Session 23 — Phase 4 Step 4.0.2 complete (OpenAPI + api-client
+pipeline) **Current phase:** Phase 4 — CRM Module (Step 4.1 pending)
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -513,6 +513,146 @@ and verified **Current phase:** Phase 4 — CRM Module
 ---
 
 ## Session log
+
+### Session 23 — Phase 4 Step 4.0.2: OpenAPI + api-client pipeline
+
+- **Stack-locked deps added:** `@nestjs/swagger@11.4.6` + `nestjs-zod@5.5.0` to
+  `apps/api`; `openapi-typescript@7.13.0` + `prettier` to `@modubiz/api-client`.
+  `@scarf/scarf` (transitive telemetry from swagger-ui-dist) build explicitly
+  blocked via `pnpm-workspace.yaml` `allowBuilds` — this also fixed a pnpm
+  install gate that had started failing.
+- **Full DTO sweep to `createZodDto` (request + response):** every platform
+  module's request schemas now export a `class X extends createZodDto(schema)`
+  (type-preserving — the class instance type is the schema output type, so all
+  `z.infer`-typed call sites compile unchanged); every response interface became
+  a zod schema + `createZodDto` class, plus per-module **response envelope**
+  classes matching the `{ data: ... }` wire format
+  (`OrganizationEnvelopeResponse`, `AuthEnvelopeResponse`,
+  `SessionsEnvelopeResponse`, …). Barrels (`dto/index.ts` and module
+  `api/index.ts`) now value-export the DTO classes so `design:paramtypes`
+  metadata resolves them for swagger reflection.
+- **Controllers annotated:** all ~30 routes across 10 platform controllers now
+  declare `@ApiOkResponse` / `@ApiCreatedResponse` with the envelope types;
+  validation still uses the existing custom `ZodValidationPipe(schema)` — zero
+  runtime behaviour change (error shape untouched).
+- **`apps/api/src/swagger.ts` + `generate-openapi.ts`:** `DocumentBuilder` +
+  `SwaggerModule.createDocument` (Fastify: runs after `await app.init()`),
+  post-processed with `cleanupOpenApiDoc`, emitted to
+  `packages/api-client/openapi.json`. Repo root is located by walking up to
+  `pnpm-workspace.yaml` (compiled `dist/src/` sits one level deeper than `src/`,
+  so a compile-time relative path is wrong in one of the two); the one-shot CLI
+  calls `process.exit(0)` after writing because the postgres pool keeps the
+  event loop alive. Process.env is NOT read here (arch rule 9 — the arch test
+  caught and rejected an earlier `OPENAPI_OUTPUT` override; dropped it).
+- **`generate:api-client` is now real:** root script chains
+  `api generate:openapi:build` (nest build + emit `openapi.json`) then
+  `@modubiz/api-client generate`
+  (`openapi-typescript openapi.json -o src/index.ts && prettier --write`).
+  Verified **idempotent** (md5-stable across re-runs); `openapi.json` added to
+  `.prettierignore` so the generator's `JSON.stringify` output doesn't fight the
+  repo format gate.
+- **Output:** `openapi.json` = **44 paths, 57 component schemas, 22 routes with
+  request bodies**; generated client = 2367-line typed `paths`/`components`/
+  `operations` module that typechecks standalone. Web consumption of the typed
+  client (`apps/web/src/lib/api`) is the remaining 4.0.2 follow-up (plan step
+  5), deferred to keep this change reviewable.
+- **Schema-name collision caught in review & fixed:** billing and
+  module-registry BOTH exported a `DisableModuleDto` class backed by different
+  zod schemas (`moduleKey` min(1) vs min(1).max(64)). Because the class name is
+  the OpenAPI `components.schemas` key, swagger silently collapsed the pair —
+  billing's disable route $ref'd module-registry's (stricter) schema. Renamed
+  billing's to `BillingDisableModuleDto` (with a NOTE comment); both disable
+  routes now reference distinct schemas (58 total). Also dropped an unused
+  `resolve` import in swagger.ts and replaced the stale
+  `packages/api-client/src/generated/` gitignore entry (the client is generated
+  at `src/index.ts`).
+- **Validation:** unit **1202/1202** (73 files), integration **65/65** (7 files,
+  real Postgres), `pnpm typecheck` 6/6, `pnpm lint` 6/6 (0 errors), `pnpm test`
+  6/6, arch **8/8** (process.env boundary re-verified), `pnpm format:check`
+  clean, depcruise clean of new warnings. Reviewed: 4 reviewer rounds (swagger
+  interop mechanism, DTO type preservation, idempotency/format interplay,
+  schema-name collision).
+
+### Session 22 — Phase 4 Step 4.0.1: module-aware migration runner
+
+- **`runMigrations` gains an optional `namespace`** — when set, the
+  `_migrations` tracking key becomes `<module>/<file>` (e.g.
+  `crm/0001_init.sql`) instead of the bare filename. Core keeps bare names, so
+  already-applied core rows are fully backward compatible. `rollbackMigration`
+  got the same optional namespace (down file resolves from the bare name while
+  the tracked key is deleted by the namespaced name).
+- **`runAllMigrations(connectionString, { modulesRoot? })`** — new
+  orchestration: applies `packages/db/migrations/core` first, then discovers and
+  applies every module-owned migration dir under
+  `apps/api/src/modules/*/db/migrations/` (override `modulesRoot` for tests).
+  Discovery (`discoverModuleMigrationDirs`) is pure FS, sorted by key, skips
+  missing roots / dirs without a `db/migrations` / dirs with only `.down.sql`
+  files. Ordering assumption (alphabetical) documented: module tables are
+  independent — cross-module FKs are forbidden by the architecture.
+- **CLI `scripts/migrate.mjs`** now calls `runAllMigrations` instead of
+  hardcoding the core dir — `pnpm db:migrate` applies module migrations too.
+  Verified live against the dev DB: core re-run is a no-op
+  (`⏭️ Already applied`), exits clean.
+- **Shared test helper** `tests/integration/helpers/migrations.ts`
+  (`applyAllMigrations`) — the three existing integration suites (organizations,
+  audit-log, memberships) swapped their hardcoded `MIGRATIONS_DIR` +
+  `runMigrations` for it, so future module migrations are applied automatically
+  in every suite.
+- **New tests:** `tests/integration/migrations.integration.test.ts` (3 tests,
+  real Postgres): two fixture modules both shipping `0001_init.sql` +
+  `0002_rls.sql` apply with distinct namespaced keys (no collision), re-run is
+  idempotent, and a namespaced `rollbackMigration` removes the tracked key +
+  re-apply works. `packages/db/__tests__/migrate.spec.ts` (3 unit tests) for
+  `discoverModuleMigrationDirs` (sorted, skips empty/down-only/missing).
+- **Bug caught during implementation:** the `discoverModuleMigrationDirs`
+  docstring contained `<modulesRoot>/*/db/migrations/` — the literal `*/`
+  terminated the block comment early and broke parsing. Reworded without the
+  glob.
+- **Validation:** integration suite **65/65** (7 files, +3 new), unit suite
+  **1202 tests** (73 files), `pnpm typecheck` 6/6, `pnpm test` 6/6,
+  `pnpm test:arch` 8/8 + depcruise clean of new warnings, `pnpm lint` 6/6 (db
+  package has no lint script — tooling package).
+
+### Session 21 — Phase 4 de-risked: module-migration runner + OpenAPI/api-client tooling investigated
+
+- **Request:** investigate the two open Phase 4 questions before implementation
+  so the plan is fully de-risked. Both are now resolved and written into PLAN.md
+  as **Phase 4 Step 0**.
+- **Q1 — module-owned migration runner:** `runMigrations(conn, dir)` in
+  `packages/db/src/migrate.ts` is already generic (any dir, `_migrations`
+  tracking), but (a) the CLI `scripts/migrate.mjs` hardcodes
+  `packages/db/migrations/core`, so module migrations at
+  `apps/api/src/modules/<key>/db/migrations/` are never applied on a fresh
+  checkout; (b) the `_migrations` table keys on **filename only**
+  (`name = ${file}`), so two modules both shipping `0001_init.sql` would collide
+  — the second silently skipped. Plan: extend the CLI to discover
+  `modules/*/db/migrations/` and run each with the module key as a namespace
+  (`crm/0001_init.sql`); add a shared `applyAllMigrations` test helper; core
+  keeps bare filenames (backward compatible).
+- **Q2 — OpenAPI/api-client tooling:** TECH_STACK already locks
+  `@nestjs/swagger` (OpenAPI 3.1) + `nestjs-zod` (DTO/OpenAPI bridge) with
+  "typed client generated into `@modubiz/api-client`" — but **zero
+  implementation exists**: `apps/api/src/swagger.ts` is referenced by
+  `packages/api-client` yet absent, `generate:api-client` is a TODO stub, no
+  codegen lib installed, and the web app still uses the hand-rolled
+  `lib/api/index.ts` wrapper. **User decision: build it now as Phase 4 Step 0**
+  (add the two stack-locked deps, convert zod DTOs to `createZodDto`, create
+  `swagger.ts` emitting `openapi.json` — Fastify: `await app.init()` before
+  `createDocument` — wire `generate:api-client` via `openapi-typescript`). Every
+  later phase then satisfies its DoD line "OpenAPI regenerated" with a real
+  command.
+- **Related finding — `onEnableSeed` is declared but never invoked:** the
+  descriptor contract has `onEnableSeed?: string` and the generator scaffolds
+  `db/seed-on-enable.ts`, but no wiring exists in `EnableModuleUseCase` or
+  anywhere in `apps/api/src`. **User decision for CRM-3 (default pipeline): lazy
+  idempotent ensure** — the first pipeline read / deal write calls
+  `ensureDefaultPipeline()` inside the transaction, creating the standard
+  pipeline iff none exists. No framework hook needed; existing orgs get the
+  default pipeline too. PLAN.md 4.5 updated with a CRM-3 integration test.
+- **PLAN.md updated:** new Step 4.0 (4.0.1 migration runner, 4.0.2
+  OpenAPI/api-client), CRM-3 lazy ensure in 4.5, real `generate:api-client` in
+  4.10, and expanded Phase 4 DoD. Phase 4 can now start with zero open
+  questions.
 
 ### Session 20 — Phase 3 complete: descriptor system, generator, registry wiring, ports, demo proof
 

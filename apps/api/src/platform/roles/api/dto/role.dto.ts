@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 export const createRoleSchema = z
@@ -13,7 +14,10 @@ export const createRoleSchema = z
   })
   .strict();
 
-export type CreateRoleDto = z.infer<typeof createRoleSchema>;
+/**
+ * Request DTO for creating a role.
+ */
+export class CreateRoleDto extends createZodDto(createRoleSchema) {}
 
 export const updateRoleSchema = z
   .object({
@@ -23,7 +27,10 @@ export const updateRoleSchema = z
   })
   .strict();
 
-export type UpdateRoleDto = z.infer<typeof updateRoleSchema>;
+/**
+ * Request DTO for updating a role.
+ */
+export class UpdateRoleDto extends createZodDto(updateRoleSchema) {}
 
 export const assignRoleSchema = z
   .object({
@@ -31,7 +38,10 @@ export const assignRoleSchema = z
   })
   .strict();
 
-export type AssignRoleDto = z.infer<typeof assignRoleSchema>;
+/**
+ * Request DTO for assigning a role.
+ */
+export class AssignRoleDto extends createZodDto(assignRoleSchema) {}
 
 export const transferOwnershipSchema = z
   .object({
@@ -39,27 +49,83 @@ export const transferOwnershipSchema = z
   })
   .strict();
 
-export type TransferOwnershipDto = z.infer<typeof transferOwnershipSchema>;
+/**
+ * Request DTO for transferring ownership.
+ */
+export class TransferOwnershipDto extends createZodDto(transferOwnershipSchema) {}
 
-export interface RoleResponse {
-  id: string;
-  key: string;
-  nameI18n: Record<string, string>;
-  description: string | null;
-  isSystem: boolean;
-  permissions: string[];
-  memberCount: number;
-}
+/**
+ * Role response payload.
+ */
+export const roleResponseSchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  nameI18n: z.record(z.string(), z.string()),
+  description: z.string().nullable(),
+  isSystem: z.boolean(),
+  permissions: z.array(z.string()),
+  memberCount: z.number(),
+});
 
-export interface RoleMatrixResponse {
-  systemRoles: Array<{ key: string; permissions: string[] }>;
-  customRoles: Array<{
-    id: string;
-    key: string;
-    nameI18n: Record<string, string>;
-    description: string | null;
-    permissions: string[];
-  }>;
-  platformPermissions: string[];
-  permissionCatalog: string[];
-}
+/**
+ * Role response DTO.
+ */
+export class RoleResponse extends createZodDto(roleResponseSchema) {}
+
+/**
+ * Role matrix response payload.
+ */
+export const roleMatrixResponseSchema = z.object({
+  systemRoles: z.array(
+    z.object({
+      key: z.string(),
+      permissions: z.array(z.string()),
+    }),
+  ),
+  customRoles: z.array(
+    z.object({
+      id: z.string(),
+      key: z.string(),
+      nameI18n: z.record(z.string(), z.string()),
+      description: z.string().nullable(),
+      permissions: z.array(z.string()),
+    }),
+  ),
+  platformPermissions: z.array(z.string()),
+  permissionCatalog: z.array(z.string()),
+});
+
+/**
+ * Role matrix response DTO.
+ */
+export class RoleMatrixResponse extends createZodDto(roleMatrixResponseSchema) {}
+
+// ─── Response envelopes (match the `{ data }` wire format) ────────────────
+
+/** `{ data: RoleResponse[] }` — list roles. */
+export const rolesEnvelopeSchema = z.object({
+  data: z.array(roleResponseSchema),
+});
+
+export class RolesEnvelopeResponse extends createZodDto(rolesEnvelopeSchema) {}
+
+/** `{ data: RoleMatrixResponse }` — role matrix. */
+export const roleMatrixEnvelopeSchema = z.object({
+  data: roleMatrixResponseSchema,
+});
+
+export class RoleMatrixEnvelopeResponse extends createZodDto(roleMatrixEnvelopeSchema) {}
+
+/** `{ data: { id } }` — create role. */
+export const roleCreatedEnvelopeSchema = z.object({
+  data: z.object({ id: z.string() }),
+});
+
+export class RoleCreatedEnvelopeResponse extends createZodDto(roleCreatedEnvelopeSchema) {}
+
+/** `{ data: { message } }` — update / delete / assign / transfer. */
+export const roleMessageEnvelopeSchema = z.object({
+  data: z.object({ message: z.string() }),
+});
+
+export class RoleMessageEnvelopeResponse extends createZodDto(roleMessageEnvelopeSchema) {}

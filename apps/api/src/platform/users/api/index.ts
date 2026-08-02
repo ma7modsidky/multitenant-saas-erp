@@ -7,6 +7,12 @@ export {
   requestPasswordResetSchema,
   completePasswordResetSchema,
   passwordChangeSchema,
+  SignupDto,
+  LoginDto,
+  RefreshTokenDto,
+  AuthResponse,
+  AuthMessageEnvelopeResponse,
+  AuthEnvelopeResponse,
+  TokenPairEnvelopeResponse,
   buildAuthResponse,
 } from './dto/index.js';
-export type { SignupDto, LoginDto, RefreshTokenDto, AuthResponse } from './dto/index.js';

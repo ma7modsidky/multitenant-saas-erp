@@ -1,18 +1,23 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { NotFoundError } from '../../../core/common/errors.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { PasswordChangeUseCase, SessionManagementUseCase } from '../application/index.js';
 import { USER_REPOSITORY, type UserRepository } from '../ports/index.js';
+
 import {
   passwordChangeSchema,
   updateProfileSchema,
-  type PasswordChangeDto,
-  type UpdateProfileDto,
-  type SessionResponse,
-  type UserProfileResponse,
+  PasswordChangeDto,
+  UpdateProfileDto,
+  SessionResponse,
+  UserProfileResponse,
+  UserMessageEnvelopeResponse,
+  ProfileEnvelopeResponse,
+  SessionsEnvelopeResponse,
 } from './dto/index.js';
 
 /**
@@ -37,6 +42,7 @@ export class UsersController {
    * Get the current user's profile.
    */
   @Get('me')
+  @ApiOkResponse({ type: ProfileEnvelopeResponse })
   async getProfile(): Promise<{ data: UserProfileResponse }> {
     const userId = TenantContext.requireUserId();
     const userData = await this.userRepo.findById(userId);
@@ -62,6 +68,7 @@ export class UsersController {
    * Update the current user's profile.
    */
   @Patch('me')
+  @ApiOkResponse({ type: ProfileEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateProfileSchema))
   async updateProfile(@Body() dto: UpdateProfileDto): Promise<{ data: UserProfileResponse }> {
     const userId = TenantContext.requireUserId();
@@ -88,6 +95,7 @@ export class UsersController {
    * Change password and revoke all other sessions (AUTH-6).
    */
   @Post('me/change-password')
+  @ApiCreatedResponse({ type: UserMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(passwordChangeSchema))
   async changePassword(@Body() dto: PasswordChangeDto): Promise<{ data: { message: string } }> {
     const userId = TenantContext.requireUserId();
@@ -108,6 +116,7 @@ export class UsersController {
    * List all active sessions for the current user (AUTH-5).
    */
   @Get('me/sessions')
+  @ApiOkResponse({ type: SessionsEnvelopeResponse })
   async listSessions(): Promise<{ data: SessionResponse[] }> {
     const userId = TenantContext.requireUserId();
     const currentSessionId = TenantContext.getSessionId();
@@ -130,6 +139,7 @@ export class UsersController {
    * Revoke a specific session (AUTH-5).
    */
   @Delete('me/sessions/:id')
+  @ApiOkResponse({ type: UserMessageEnvelopeResponse })
   async revokeSession(@Param('id') sessionId: string): Promise<{ data: { message: string } }> {
     const userId = TenantContext.requireUserId();
     await this.sessionManagementUseCase.revokeSession(userId, sessionId);

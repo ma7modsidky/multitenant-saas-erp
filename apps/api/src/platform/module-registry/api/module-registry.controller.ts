@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
@@ -16,11 +17,15 @@ import {
 import {
   enableModuleSchema,
   disableModuleSchema,
-  type EnableModuleDto,
-  type DisableModuleDto,
-  type ModuleCatalogResponse,
-  type NavigationResponse,
-  type DashboardWidgetsResponse,
+  EnableModuleDto,
+  DisableModuleDto,
+  ModuleCatalogResponse,
+  NavigationResponse,
+  DashboardWidgetsResponse,
+  ModuleCatalogEnvelopeResponse,
+  NavigationEnvelopeResponse,
+  DashboardWidgetsEnvelopeResponse,
+  ModuleRegistryMessageEnvelopeResponse,
 } from './dto/index.js';
 
 @Controller('v1')
@@ -41,6 +46,7 @@ export class ModuleRegistryController {
    */
   @PublicRoute()
   @Get('modules')
+  @ApiOkResponse({ type: ModuleCatalogEnvelopeResponse })
   async listModules(): Promise<{ data: ModuleCatalogResponse[] }> {
     const result = await this.listModulesUseCase.execute();
     return { data: result };
@@ -51,6 +57,7 @@ export class ModuleRegistryController {
    * Returns only modules the current org is entitled to.
    */
   @Get('me/navigation')
+  @ApiOkResponse({ type: NavigationEnvelopeResponse })
   async getNavigation(): Promise<{ data: NavigationResponse[] }> {
     const orgId = TenantContext.requireOrganizationId();
     const result = await this.getNavigationUseCase.execute({ organizationId: orgId });
@@ -62,6 +69,7 @@ export class ModuleRegistryController {
    * Returns only widgets from modules the current org is entitled to.
    */
   @Get('me/dashboard/widgets')
+  @ApiOkResponse({ type: DashboardWidgetsEnvelopeResponse })
   async getDashboardWidgets(): Promise<{ data: DashboardWidgetsResponse[] }> {
     const orgId = TenantContext.requireOrganizationId();
     const result = await this.getDashboardWidgetsUseCase.execute({ organizationId: orgId });
@@ -73,6 +81,7 @@ export class ModuleRegistryController {
    * Enable a module with dependency validation.
    */
   @Post('organizations/:orgId/modules/enable')
+  @ApiCreatedResponse({ type: ModuleRegistryMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(enableModuleSchema))
   @RequiresPermission('platform:modules:enable')
   async enableModule(
@@ -93,6 +102,7 @@ export class ModuleRegistryController {
    * Disable a module with dependent module guard.
    */
   @Post('organizations/:orgId/modules/disable')
+  @ApiCreatedResponse({ type: ModuleRegistryMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(disableModuleSchema))
   @RequiresPermission('platform:modules:disable')
   async disableModule(

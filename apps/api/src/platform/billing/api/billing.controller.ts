@@ -1,12 +1,14 @@
+import type { IncomingMessage } from 'node:http';
+
+import { ConfigService } from '@modubiz/config';
 import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards, UsePipes, Headers } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import type { IncomingMessage } from 'node:http';
-import { ConfigService } from '@modubiz/config';
+import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
-import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { PublicRoute } from '../../../core/tenancy/system-context.decorator.js';
+import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import {
   CreateSubscriptionUseCase,
   EnableModuleTrialUseCase,
@@ -15,13 +17,20 @@ import {
   ReconcileEntitlementsUseCase,
   GetBillingUseCase,
 } from '../application/index.js';
+
 import {
   createSubscriptionSchema,
   enableModuleTrialSchema,
   disableModuleSchema,
-  type EnableModuleTrialDto,
-  type DisableModuleDto,
-  type BillingResponse,
+  CreateSubscriptionDto,
+  EnableModuleTrialDto,
+  BillingDisableModuleDto,
+  BillingResponse,
+  BillingEnvelopeResponse,
+  SubscriptionCreatedEnvelopeResponse,
+  ReconcileEnvelopeResponse,
+  WebhookResponse,
+  BillingMessageEnvelopeResponse,
 } from './dto/index.js';
 
 @Controller('v1')
@@ -38,17 +47,19 @@ export class BillingController {
   ) {}
 
   @Get('organizations/:orgId/billing')
+  @ApiOkResponse({ type: BillingEnvelopeResponse })
   async getBilling(@Param('orgId') orgId: string): Promise<{ data: BillingResponse }> {
     const result = await this.getBillingUseCase.execute({ organizationId: orgId });
     return { data: result };
   }
 
   @Post('organizations/:orgId/billing/subscription')
+  @ApiCreatedResponse({ type: SubscriptionCreatedEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(createSubscriptionSchema))
   @RequiresPermission('platform:billing:manage')
   async createSubscription(
     @Param('orgId') orgId: string,
-    @Body() dto: { organizationName: string; email: string; billingCurrency: string; priceKeys?: string[] },
+    @Body() dto: CreateSubscriptionDto,
   ): Promise<{ data: { subscriptionId: string } }> {
     const result = await this.createSubscriptionUseCase.execute({
       ...dto,
@@ -58,6 +69,7 @@ export class BillingController {
   }
 
   @Post('organizations/:orgId/billing/trial')
+  @ApiCreatedResponse({ type: BillingMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(enableModuleTrialSchema))
   @RequiresPermission('platform:billing:manage')
   async enableTrial(
@@ -75,11 +87,12 @@ export class BillingController {
   }
 
   @Post('organizations/:orgId/billing/disable')
+  @ApiCreatedResponse({ type: BillingMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(disableModuleSchema))
   @RequiresPermission('platform:billing:manage')
   async disableModule(
     @Param('orgId') orgId: string,
-    @Body() dto: DisableModuleDto,
+    @Body() dto: BillingDisableModuleDto,
   ): Promise<{ data: { message: string } }> {
     await this.disableModuleUseCase.execute({
       organizationId: orgId,
@@ -89,6 +102,7 @@ export class BillingController {
   }
 
   @Post('organizations/:orgId/billing/reconcile')
+  @ApiCreatedResponse({ type: ReconcileEnvelopeResponse })
   @RequiresPermission('platform:billing:manage')
   async reconcile(@Param('orgId') orgId: string): Promise<{ data: { updated: number; alerts: string[] } }> {
     const result = await this.reconcileEntitlementsUseCase.execute({ organizationId: orgId });
@@ -101,6 +115,7 @@ export class BillingController {
    */
   @PublicRoute()
   @Post('billing/webhook')
+  @ApiCreatedResponse({ type: WebhookResponse })
   async handleWebhook(
     @Req() req: IncomingMessage,
     @Headers('stripe-signature') signature: string,

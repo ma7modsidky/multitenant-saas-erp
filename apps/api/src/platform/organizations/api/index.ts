@@ -3,13 +3,11 @@ export {
   createOrganizationSchema,
   updateOrganizationSchema,
   updateOrganizationSettingsSchema,
-  organizationToResponse,
-  settingsToResponse,
-} from './dto/index.js';
-export type {
   CreateOrganizationDto,
   UpdateOrganizationDto,
   UpdateOrganizationSettingsDto,
   OrganizationResponse,
   OrganizationSettingsResponse,
+  organizationToResponse,
+  settingsToResponse,
 } from './dto/index.js';

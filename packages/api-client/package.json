@@ -7,10 +7,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "generate": "echo 'TODO: Generate typed client from OpenAPI spec'"
+    "generate": "openapi-typescript openapi.json -o src/index.ts && prettier --write src/index.ts"
   },
   "devDependencies": {
     "@modubiz/tsconfig": "workspace:*",
+    "openapi-typescript": "7.13.0",
+    "prettier": "^3.3.3",
     "typescript": "^5.7.2"
   }
 }
