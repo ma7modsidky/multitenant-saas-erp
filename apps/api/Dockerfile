@@ -7,7 +7,7 @@
 # Not yet used in production; scaffolded for Phase 7.
 
 # ─── Stage 1: Install dependencies ─────────────────────────────────────────
-FROM node:22-slim AS deps
+FROM node:25-slim AS deps
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ COPY packages/api-client/package.json ./packages/api-client/package.json
 RUN pnpm install --frozen-lockfile --prod
 
 # ─── Stage 2: Build ────────────────────────────────────────────────────────
-FROM node:22-slim AS builder
+FROM node:25-slim AS builder
 
 WORKDIR /app
 
