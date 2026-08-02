@@ -15,6 +15,11 @@ export interface MembershipData {
   organizationId: string;
   userId: string;
   roleId: string;
+  /** Role key (e.g. 'owner', 'admin') — populated when the membership is read
+   *  with a join to core_roles, so use cases can enforce AUTHZ-1 (only the
+   *  last OWNER is protected from demotion/removal). Undefined for raw
+   *  row-mapped reads without the join. */
+  roleKey?: string;
   status: MembershipStatus;
   joinedAt: Date;
   createdAt: Date;
@@ -45,16 +50,36 @@ export class Membership {
 
   // ─── Getters ────────────────────────────────────────────────────────────────
 
-  get id(): string { return this.data.id; }
-  get organizationId(): string { return this.data.organizationId; }
-  get userId(): string { return this.data.userId; }
-  get roleId(): string { return this.data.roleId; }
-  get status(): MembershipStatus { return this.data.status; }
-  get joinedAt(): Date { return this.data.joinedAt; }
-  get createdAt(): Date { return this.data.createdAt; }
-  get updatedAt(): Date { return this.data.updatedAt; }
-  get createdBy(): string | null { return this.data.createdBy; }
-  get deletedAt(): Date | null { return this.data.deletedAt; }
+  get id(): string {
+    return this.data.id;
+  }
+  get organizationId(): string {
+    return this.data.organizationId;
+  }
+  get userId(): string {
+    return this.data.userId;
+  }
+  get roleId(): string {
+    return this.data.roleId;
+  }
+  get status(): MembershipStatus {
+    return this.data.status;
+  }
+  get joinedAt(): Date {
+    return this.data.joinedAt;
+  }
+  get createdAt(): Date {
+    return this.data.createdAt;
+  }
+  get updatedAt(): Date {
+    return this.data.updatedAt;
+  }
+  get createdBy(): string | null {
+    return this.data.createdBy;
+  }
+  get deletedAt(): Date | null {
+    return this.data.deletedAt;
+  }
 
   get isActive(): boolean {
     return this.data.status === 'active' && this.data.deletedAt === null;

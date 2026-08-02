@@ -237,6 +237,12 @@ stateDiagram-v2
 window. Exact durations and transition authority are specified in
 [BUSINESS_RULES.md §4](./BUSINESS_RULES.md#4-subscription-trial-and-entitlement-rules).
 
+**Stripe-driven transitions:** `customer.subscription.deleted` maps
+`active`/`trialing`/`expired` modules to `disabled` (cancelled) and `past_due`
+modules to `suspended`. The reconciliation job (BILL-4) moves a locally-`active`
+module that is absent from the Stripe subscription to `disabled`; `suspended`
+remains reachable only through the dunning flow (`past_due` → `suspended`).
+
 ---
 
 ## 7. Internationalization requirements

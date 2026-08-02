@@ -13,6 +13,8 @@ export type InvitationStatus = 'pending' | 'accepted' | 'revoked';
 export interface InvitationData {
   id: string;
   organizationId: string;
+  /** Display name of the invitee, as typed by the inviter (migration 0012). */
+  name: string | null;
   email: string;
   roleId: string;
   tokenHash: string;
@@ -47,16 +49,39 @@ export class Invitation {
 
   // ─── Getters ────────────────────────────────────────────────────────────────
 
-  get id(): string { return this.data.id; }
-  get organizationId(): string { return this.data.organizationId; }
-  get email(): string { return this.data.email; }
-  get roleId(): string { return this.data.roleId; }
-  get tokenHash(): string { return this.data.tokenHash; }
-  get expiresAt(): Date { return this.data.expiresAt; }
-  get acceptedAt(): Date | null { return this.data.acceptedAt; }
-  get revokedAt(): Date | null { return this.data.revokedAt; }
-  get invitedBy(): string | null { return this.data.invitedBy; }
-  get createdAt(): Date { return this.data.createdAt; }
+  get id(): string {
+    return this.data.id;
+  }
+  get organizationId(): string {
+    return this.data.organizationId;
+  }
+  get name(): string | null {
+    return this.data.name;
+  }
+  get email(): string {
+    return this.data.email;
+  }
+  get roleId(): string {
+    return this.data.roleId;
+  }
+  get tokenHash(): string {
+    return this.data.tokenHash;
+  }
+  get expiresAt(): Date {
+    return this.data.expiresAt;
+  }
+  get acceptedAt(): Date | null {
+    return this.data.acceptedAt;
+  }
+  get revokedAt(): Date | null {
+    return this.data.revokedAt;
+  }
+  get invitedBy(): string | null {
+    return this.data.invitedBy;
+  }
+  get createdAt(): Date {
+    return this.data.createdAt;
+  }
 
   get isPending(): boolean {
     return !this.data.acceptedAt && !this.data.revokedAt && new Date() < this.data.expiresAt;

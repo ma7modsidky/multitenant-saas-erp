@@ -5,12 +5,12 @@ import { useTranslations } from 'next-intl';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { NoOrganizationState } from '@/components/shell/no-organization-state';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
 import { disableBillingModule, enableModuleTrial, getModuleCatalog } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
 import { useEntitlements } from '@/lib/entitlements';
-
 
 export default function ModulesSettingsPage() {
   const t = useTranslations();
@@ -20,7 +20,7 @@ export default function ModulesSettingsPage() {
   const { data: catalog } = useQuery({ queryKey: ['module-catalog'], queryFn: getModuleCatalog });
   const { data: billing } = useEntitlements();
 
-  if (organizationId === null) return null;
+  if (organizationId === null) return <NoOrganizationState />;
 
   const entitlements = billing?.entitlements ?? [];
   const stateOf = (moduleKey: string): string => entitlements.find((e) => e.moduleKey === moduleKey)?.state ?? 'none';

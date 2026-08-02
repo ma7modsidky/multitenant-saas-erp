@@ -1,4 +1,14 @@
-export { Role, RoleError, SYSTEM_ROLES, PLATFORM_PERMISSIONS, SYSTEM_ROLE_PERMISSIONS, type SystemRoleKey, type RoleData, type RolePermissionData } from './role.entity.js';
+export {
+  Role,
+  RoleError,
+  SYSTEM_ROLES,
+  SYSTEM_ROLE_SEED,
+  PLATFORM_PERMISSIONS,
+  SYSTEM_ROLE_PERMISSIONS,
+  type SystemRoleKey,
+  type RoleData,
+  type RolePermissionData,
+} from './role.entity.js';
 export {
   ROLE_NOT_FOUND,
   SYSTEM_ROLE_IMMUTABLE,

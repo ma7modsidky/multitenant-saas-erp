@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-  UsePipes,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 import {
@@ -19,6 +9,9 @@ import {
   CancelDeletionUseCase,
   UpdateOrganizationSettingsUseCase,
 } from '../application/index.js';
+import { Audit } from '../../../core/audit/__init__.js';
+import { RequiresPermission } from '../../../core/authorization/__init__.js';
+import { NotFoundError } from '../../../core/common/errors.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import {
@@ -55,6 +48,24 @@ export class OrganizationsController {
   ) {}
 
   /**
+   * TEN-2: bind an `:id` path param to the authenticated session's org.
+   *
+   * core_organizations is a GLOBAL (non-RLS) table, so nothing below the
+   * controller filters by organization — a `:id` passed straight to a use
+   * case would let any permission holder read or mutate ANOTHER org's
+   * profile (e.g. an OWNER of org A renaming org B). The session org is
+   * authoritative; a mismatched id fails closed as if the org did not
+   * exist (never reveal cross-tenant rows).
+   */
+  private assertSessionOrg(id: string): string {
+    const sessionOrgId = TenantContext.requireOrganizationId();
+    if (id !== sessionOrgId) {
+      throw new NotFoundError('ORG_NOT_FOUND', { organizationId: id });
+    }
+    return sessionOrgId;
+  }
+
+  /**
    * POST /v1/organizations
    * Create a new organization.
    *
@@ -80,7 +91,7 @@ export class OrganizationsController {
     data: OrganizationResponse;
     settings: OrganizationSettingsResponse | null;
   }> {
-    const result = await this.getOrgUseCase.execute({ organizationId: id });
+    const result = await this.getOrgUseCase.execute({ organizationId: this.assertSessionOrg(id) });
 
     return {
       data: organizationToResponse(result.organization.toJSON()),
@@ -109,17 +120,31 @@ export class OrganizationsController {
   /**
    * PATCH /v1/organizations/:id
    * Update organization profile.
+   *
+   * AUTHZ-5/BUSINESS_RULES §3: org profile edits (name, country, currency,
+   * timezone) are OWNER/ADMIN-only, same as org settings. The PermissionGuard
+   * rejects a VIEWER/MEMBER with 403 FORBIDDEN before the use case runs —
+   * this route was previously unguarded, letting any member rename the org
+   * (the web form calls this endpoint for name/currency while only the
+   * /settings endpoint carried the permission, so a viewer's name change
+   * silently persisted even though the UI showed a generic error).
    */
   @Patch(':id')
+  @RequiresPermission('platform:settings:manage')
   @UsePipes(new ZodValidationPipe(updateOrganizationSchema))
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateOrganizationDto,
-  ): Promise<{ data: OrganizationResponse }> {
+  @Audit({ action: 'UPDATE', entityType: 'organization' })
+  async update(@Param('id') id: string, @Body() dto: UpdateOrganizationDto): Promise<{ data: OrganizationResponse }> {
+    // exactOptionalPropertyTypes: spreading the DTO would carry explicit
+    // `undefined` for absent fields — spread each defined field conditionally.
     const organization = await this.updateOrgUseCase.execute({
-      organizationId: id,
-      ...dto,
-    } as any); // DTO was Zod-validated at the boundary
+      organizationId: this.assertSessionOrg(id),
+      ...(dto.name !== undefined ? { name: dto.name } : {}),
+      ...(dto.countryCode !== undefined ? { countryCode: dto.countryCode } : {}),
+      ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+      ...(dto.baseCurrency !== undefined ? { baseCurrency: dto.baseCurrency } : {}),
+      ...(dto.defaultLocale !== undefined ? { defaultLocale: dto.defaultLocale } : {}),
+      ...(dto.hasMonetaryRecords !== undefined ? { hasMonetaryRecords: dto.hasMonetaryRecords } : {}),
+    });
 
     return {
       data: organizationToResponse(organization.toJSON()),
@@ -131,10 +156,12 @@ export class OrganizationsController {
    * Soft-delete organization with 30-day grace period (GDPR-2).
    */
   @Delete(':id')
+  @RequiresPermission('platform:organization:delete')
+  @Audit({ action: 'SOFT_DELETE', entityType: 'organization' })
   async delete(@Param('id') id: string): Promise<{
     data: { deletionScheduledAt: string; message: string };
   }> {
-    const result = await this.deleteOrgUseCase.execute({ organizationId: id });
+    const result = await this.deleteOrgUseCase.execute({ organizationId: this.assertSessionOrg(id) });
 
     return {
       data: {
@@ -149,8 +176,10 @@ export class OrganizationsController {
    * Cancel a pending deletion and restore the organization.
    */
   @Post(':id/cancel-deletion')
+  @RequiresPermission('platform:organization:delete')
+  @Audit({ action: 'UPDATE', entityType: 'organization' })
   async cancelDeletion(@Param('id') id: string): Promise<{ data: OrganizationResponse }> {
-    const organization = await this.cancelDeletionUseCase.execute({ organizationId: id });
+    const organization = await this.cancelDeletionUseCase.execute({ organizationId: this.assertSessionOrg(id) });
 
     return {
       data: organizationToResponse(organization.toJSON()),
@@ -163,7 +192,7 @@ export class OrganizationsController {
    */
   @Get(':id/settings')
   async getSettings(@Param('id') id: string): Promise<{ data: OrganizationSettingsResponse | null }> {
-    const result = await this.getOrgUseCase.execute({ organizationId: id });
+    const result = await this.getOrgUseCase.execute({ organizationId: this.assertSessionOrg(id) });
 
     return {
       data: result.settings ? settingsToResponse(result.settings.toJSON()) : null,
@@ -176,14 +205,23 @@ export class OrganizationsController {
    */
   @Patch(':id/settings')
   @UsePipes(new ZodValidationPipe(updateOrganizationSettingsSchema))
+  @RequiresPermission('platform:settings:manage')
+  @Audit({ action: 'UPDATE', entityType: 'organization_settings' })
   async updateSettings(
     @Param('id') id: string,
     @Body() dto: UpdateOrganizationSettingsDto,
   ): Promise<{ data: OrganizationSettingsResponse }> {
+    // exactOptionalPropertyTypes: spread each defined field conditionally so
+    // absent fields never carry an explicit `undefined`.
     const settings = await this.updateSettingsUseCase.execute({
-      organizationId: id,
-      ...dto,
-    } as any); // DTO was Zod-validated at the boundary
+      organizationId: this.assertSessionOrg(id),
+      ...(dto.locale !== undefined ? { locale: dto.locale } : {}),
+      ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+      ...(dto.baseCurrency !== undefined ? { baseCurrency: dto.baseCurrency } : {}),
+      ...(dto.numberPreferences !== undefined ? { numberPreferences: dto.numberPreferences } : {}),
+      ...(dto.datePreferences !== undefined ? { datePreferences: dto.datePreferences } : {}),
+      ...(dto.receiptFooter !== undefined ? { receiptFooter: dto.receiptFooter } : {}),
+    });
 
     return {
       data: settingsToResponse(settings.toJSON()),

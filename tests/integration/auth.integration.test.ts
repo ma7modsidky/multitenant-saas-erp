@@ -14,9 +14,9 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { JwtService } from '@nestjs/jwt';
 
-import { PasswordService } from '../apps/api/src/core/auth/password.service.js';
-import { JwtTokenService } from '../apps/api/src/core/auth/jwt-token.service.js';
-import { InMemorySessionStore } from '../apps/api/src/core/auth/session-store.js';
+import { PasswordService } from '../../apps/api/src/core/auth/password.service.js';
+import { JwtTokenService } from '../../apps/api/src/core/auth/jwt-token.service.js';
+import { InMemorySessionStore } from '../../apps/api/src/core/auth/session-store.js';
 import { ConfigService } from '@modubiz/config';
 
 // ─── Test config helper ─────────────────────────────────────────────────────

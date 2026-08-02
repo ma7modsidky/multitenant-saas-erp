@@ -9,7 +9,7 @@
  * 2. Lint with ESLint (slower, may find issues)
  */
 module.exports = {
-  '*.{ts,tsx,js,jsx}': ['prettier --write', 'pnpm exec eslint --fix --max-warnings=5'],
+  '*.{ts,tsx,js,jsx}': ['prettier --write', 'node scripts/lint-staged-eslint.cjs'],
   '*.{md,json,yml,yaml}': ['prettier --write'],
   '*.css': ['prettier --write'],
 };

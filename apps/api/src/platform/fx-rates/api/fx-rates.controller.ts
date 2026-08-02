@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 import { GetFxRateUseCase, SnapshotFxRatesUseCase } from '../application/index.js';
@@ -29,9 +22,7 @@ export class FxRatesController {
   }
 
   @Get('fx-rates/:baseCurrency')
-  async getRatesForBase(
-    @Param('baseCurrency') baseCurrency: string,
-  ): Promise<{ data: FxRatesListResponse }> {
+  async getRatesForBase(@Param('baseCurrency') baseCurrency: string): Promise<{ data: FxRatesListResponse }> {
     const rates = await this.repo.getLatestRatesForBase(baseCurrency.toUpperCase());
     return {
       data: {
@@ -47,13 +38,11 @@ export class FxRatesController {
     @Param('quoteCurrency') quoteCurrency: string,
     @Query('date') date?: string,
   ): Promise<{ data: FxRateResponse }> {
-    const input: Record<string, unknown> = {
+    const result = await this.getFxRateUseCase.execute({
       baseCurrency: baseCurrency.toUpperCase(),
       quoteCurrency: quoteCurrency.toUpperCase(),
-    };
-    if (date !== undefined) input.date = date;
-
-    const result = await this.getFxRateUseCase.execute(input as any);
+      ...(date !== undefined ? { date } : {}),
+    });
     return { data: result };
   }
 

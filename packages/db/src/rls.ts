@@ -17,9 +17,15 @@
  * CREATE POLICY tenant_isolation ON <tableName>
  *   FOR ALL
  *   TO modubiz_app
- *   USING      (organization_id = current_setting('app.current_organization_id', true)::uuid)
- *   WITH CHECK (organization_id = current_setting('app.current_organization_id', true)::uuid);
+ *   USING      (organization_id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid)
+ *   WITH CHECK (organization_id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid);
  * ```
+ *
+ * The `NULLIF(..., '')` wrapper is required: PostgreSQL resets custom GUCs to
+ * the EMPTY STRING (not NULL) after any transaction touches them, so a policy
+ * casting the raw value crashes with `invalid input syntax for type uuid: ""`
+ * on the next org-less query for that pooled connection. NULLIF normalizes both
+ * unset (NULL) and reset ('') to NULL → fail-closed, zero rows (see 0008).
  */
 export function generateRlsPolicy(tableName: string): string {
   return `
@@ -29,8 +35,8 @@ ALTER TABLE ${tableName} FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON ${tableName}
   FOR ALL
   TO modubiz_app
-  USING      (organization_id = current_setting('app.current_organization_id', true)::uuid)
-  WITH CHECK (organization_id = current_setting('app.current_organization_id', true)::uuid);
+  USING      (organization_id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid);
 `.trim();
 }
 

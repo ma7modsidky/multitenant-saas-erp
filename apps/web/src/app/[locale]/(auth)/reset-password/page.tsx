@@ -13,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
 import { completePasswordReset } from '@/lib/auth';
 
-
 function ResetPasswordForm() {
   const t = useTranslations();
   const searchParams = useSearchParams();
@@ -56,7 +55,7 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <Card className="text-center">
             <CardContent className="pt-8 pb-6">
@@ -77,7 +76,7 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-6">
         <div className="flex flex-col items-center text-center">
           <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">

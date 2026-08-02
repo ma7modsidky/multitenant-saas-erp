@@ -22,7 +22,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "migrate": "tsc -b && node --env-file=../../.env scripts/migrate.mjs",
+    "seed": "tsc -b && node --env-file=../../.env scripts/seed.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.36.4",

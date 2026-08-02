@@ -24,8 +24,9 @@ export class CreateRoleUseCase {
   }): Promise<{ id: string }> {
     const normalizedKey = input.key.trim().toLowerCase().replace(/\s+/g, '_');
 
-    // Check for duplicate key
-    const existing = await this.roleRepo.findByKey(input.organizationId, normalizedKey);
+    // Check for duplicate key — core_roles is RLS-protected, so the read must
+    // run inside the tenant-bound transaction or it fails closed.
+    const existing = await this.txManager.run((tx) => this.roleRepo.findByKey(input.organizationId, normalizedKey, tx));
     if (existing) {
       throw new ConflictError(ROLE_KEY_EXISTS, `Role with key '${normalizedKey}' already exists`);
     }
@@ -37,19 +38,22 @@ export class CreateRoleUseCase {
     const roleId = crypto.randomUUID();
 
     await this.txManager.run(async (tx) => {
-      await this.roleRepo.insert({
-        id: roleId,
-        organizationId: input.organizationId,
-        key: normalizedKey,
-        nameI18n: input.nameI18n,
-        description: input.description ?? null,
-        isSystem: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdBy: input.createdBy,
-        updatedBy: input.createdBy,
-        deletedAt: null,
-      }, tx);
+      await this.roleRepo.insert(
+        {
+          id: roleId,
+          organizationId: input.organizationId,
+          key: normalizedKey,
+          nameI18n: input.nameI18n,
+          description: input.description ?? null,
+          isSystem: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: input.createdBy,
+          updatedBy: input.createdBy,
+          deletedAt: null,
+        },
+        tx,
+      );
 
       // Set permissions if provided
       if (perms.length > 0) {

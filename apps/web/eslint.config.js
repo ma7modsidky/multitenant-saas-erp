@@ -3,12 +3,7 @@ import modubizConfig from '@modubiz/eslint-config';
 
 export default [
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      '.next/**',
-      'next-env.d.ts',
-    ],
+    ignores: ['dist/**', 'node_modules/**', '.next/**', 'next-env.d.ts'],
   },
   ...modubizConfig,
   // Override projectService AFTER the base config to add allowDefaultProject
@@ -28,15 +23,16 @@ export default [
   // Next.js and config files require default exports
   {
     files: [
-      'eslint.config.*',               // ESLint flat config
-      'src/app/**/*.{ts,tsx}',        // Pages and layouts
-      'src/middleware.{ts,tsx}',       // Middleware
-      'src/i18n/**/*.{ts,tsx}',        // i18n setup
-      'next.config.*',                 // Next.js config
-      'tailwind.config.*',             // Tailwind config
-      'postcss.config.*',              // PostCSS config (JS/CJS/ESM variants)
-      'vitest.config.*',               // Vitest config
-      'next-env.d.ts',                 // Next.js type declarations
+      'eslint.config.*', // ESLint flat config
+      'src/app/**/*.{ts,tsx}', // Pages and layouts
+      'src/middleware.{ts,tsx}', // Middleware
+      'src/i18n/**/*.{ts,tsx}', // i18n setup
+      'next.config.*', // Next.js config
+      'tailwind.config.*', // Tailwind config
+      'postcss.config.*', // PostCSS config (JS/CJS/ESM variants)
+      'vitest.config.*', // Vitest config
+      'playwright.config.*', // Playwright E2E config
+      'next-env.d.ts', // Next.js type declarations
     ],
     rules: {
       'import/no-default-export': 'off',

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConflictError } from '../../../core/common/errors.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
-import { SYSTEM_ROLES } from '../../roles/domain/index.js';
+import { SYSTEM_ROLES, SYSTEM_ROLE_SEED } from '../../roles/domain/index.js';
 import { CreateOrganizationUseCase } from '../application/create-organization.use-case.js';
 import type { OrganizationRepository } from '../ports/index.js';
 
@@ -35,7 +35,11 @@ function makeOrgRow(id: string) {
 }
 
 describe('CreateOrganizationUseCase', () => {
-  let orgRepo: { isSlugTaken: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn>; upsertSettings: ReturnType<typeof vi.fn> };
+  let orgRepo: {
+    isSlugTaken: ReturnType<typeof vi.fn>;
+    insert: ReturnType<typeof vi.fn>;
+    upsertSettings: ReturnType<typeof vi.fn>;
+  };
   let roleRepo: { insert: ReturnType<typeof vi.fn> };
   let membershipRepo: { insert: ReturnType<typeof vi.fn> };
   let txManager: { run: ReturnType<typeof vi.fn> };
@@ -44,7 +48,11 @@ describe('CreateOrganizationUseCase', () => {
   beforeEach(() => {
     orgRepo = {
       isSlugTaken: vi.fn().mockResolvedValue(false),
-      insert: vi.fn().mockImplementation((data: unknown) => Promise.resolve({ ...(data as object), organizationId: (data as { id: string }).id })),
+      insert: vi
+        .fn()
+        .mockImplementation((data: unknown) =>
+          Promise.resolve({ ...(data as object), organizationId: (data as { id: string }).id }),
+        ),
       upsertSettings: vi.fn().mockResolvedValue({}),
     };
     roleRepo = {
@@ -66,20 +74,38 @@ describe('CreateOrganizationUseCase', () => {
     );
   });
 
-  it('AUTH-10: creates an OWNER system role for the new organization', async () => {
+  it('AUTH-10: seeds all five system roles (owner, admin, manager, member, viewer)', async () => {
     await TenantContext.run(
       { userId: 'user-1', sessionId: 'session-1', organizationId: undefined, roles: [], permissions: [], locale: 'en' },
       async () => useCase.execute(orgInput),
     );
 
-    expect(roleRepo.insert).toHaveBeenCalledTimes(1);
-    type RoleCall = { key: string; isSystem: boolean; organizationId: string; createdBy: string };
-    const roleData = (roleRepo.insert.mock.calls[0] as [RoleCall])[0];
-    expect(roleData).toBeDefined();
-    expect(roleData!.key).toBe(SYSTEM_ROLES.OWNER);
-    expect(roleData!.isSystem).toBe(true);
-    expect(roleData!.organizationId).toBeTruthy();
-    expect(roleData!.createdBy).toBe('user-1');
+    // The full role matrix from BUSINESS_RULES.md §3 must be seeded so the
+    // members/invite dropdowns list every system role, not just OWNER.
+    const expectedKeys = Object.values(SYSTEM_ROLES).sort();
+    expect(roleRepo.insert).toHaveBeenCalledTimes(expectedKeys.length);
+
+    const insertedKeys = roleRepo.insert.mock.calls.map((call) => (call[0] as { key: string }).key).sort();
+    expect(insertedKeys).toEqual(expectedKeys);
+
+    type RoleCall = {
+      key: string;
+      isSystem: boolean;
+      organizationId: string;
+      createdBy: string;
+      nameI18n: Record<string, string>;
+    };
+    for (const call of roleRepo.insert.mock.calls) {
+      const roleData = (call as [RoleCall])[0];
+      expect(roleData).toBeDefined();
+      expect(roleData.isSystem).toBe(true);
+      expect(roleData.organizationId).toBeTruthy();
+      expect(roleData.createdBy).toBe('user-1');
+      // Seeded names are localized in all four supported locales.
+      const seed = SYSTEM_ROLE_SEED[roleData.key as keyof typeof SYSTEM_ROLE_SEED];
+      expect(roleData.nameI18n).toEqual(seed.nameI18n);
+      expect(['en', 'ar', 'fr', 'es'].every((l) => roleData.nameI18n[l])).toBe(true);
+    }
   });
 
   it('AUTH-10: creates an active OWNER membership for the creating user', async () => {
@@ -92,13 +118,17 @@ describe('CreateOrganizationUseCase', () => {
     type MembershipCall = { userId: string; roleId: string; status: string; organizationId: string; createdBy: string };
     const membershipData = (membershipRepo.insert.mock.calls[0] as [MembershipCall])[0];
     expect(membershipData).toBeDefined();
-    expect(membershipData!.userId).toBe('user-1');
-    expect(membershipData!.status).toBe('active');
-    expect(membershipData!.createdBy).toBe('user-1');
-    // The membership must reference the role created in the same transaction.
-    type RoleIdCall = { id: string };
-    const roleData = (roleRepo.insert.mock.calls[0] as [RoleIdCall])[0];
-    expect(membershipData!.roleId).toBe(roleData!.id);
+    expect(membershipData.userId).toBe('user-1');
+    expect(membershipData.status).toBe('active');
+    expect(membershipData.createdBy).toBe('user-1');
+    // The membership must reference the OWNER role created in the same
+    // transaction (the first of the five seeded system roles).
+    type RoleIdCall = { id: string; key: string };
+    const ownerRoleCall = roleRepo.insert.mock.calls.find(
+      (call) => (call[0] as { key: string }).key === SYSTEM_ROLES.OWNER,
+    ) as [RoleIdCall] | undefined;
+    expect(ownerRoleCall).toBeDefined();
+    expect(membershipData.roleId).toBe(ownerRoleCall![0].id);
   });
 
   it('AUTH-10: scopes the role and membership writes to the new organization', async () => {
@@ -108,10 +138,14 @@ describe('CreateOrganizationUseCase', () => {
     );
 
     type OrgIdCall = { organizationId: string };
-    const roleData = (roleRepo.insert.mock.calls[0] as [OrgIdCall])[0];
+    // Every seeded system role and the owner membership share the new org id.
+    for (const call of roleRepo.insert.mock.calls) {
+      const roleData = (call as [OrgIdCall])[0];
+      expect(roleData.organizationId).toBeTruthy();
+    }
     const membershipData = (membershipRepo.insert.mock.calls[0] as [OrgIdCall])[0];
-    expect(roleData!.organizationId).toBeTruthy();
-    expect(membershipData!.organizationId).toBe(roleData!.organizationId);
+    const firstRoleData = (roleRepo.insert.mock.calls[0] as [OrgIdCall])[0];
+    expect(membershipData.organizationId).toBe(firstRoleData.organizationId);
   });
 
   it('rejects a duplicate slug with a ConflictError', async () => {
@@ -125,6 +159,12 @@ describe('CreateOrganizationUseCase', () => {
     );
 
     expect(orgRepo.insert).not.toHaveBeenCalled();
+    expect(roleRepo.insert).not.toHaveBeenCalled();
+    expect(membershipRepo.insert).not.toHaveBeenCalled();
+  });
+
+  it('rejects without a tenant context (no role seeding happens)', async () => {
+    await expect(useCase.execute(orgInput)).rejects.toThrow('requires an authenticated tenant context');
     expect(roleRepo.insert).not.toHaveBeenCalled();
     expect(membershipRepo.insert).not.toHaveBeenCalled();
   });

@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
 import { requestPasswordReset } from '@/lib/auth';
 
-
 export default function ForgotPasswordPage() {
   const t = useTranslations();
   const [email, setEmail] = useState('');
@@ -46,7 +45,7 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <Card className="text-center">
             <CardContent className="pt-8 pb-6">
@@ -54,9 +53,7 @@ export default function ForgotPasswordPage() {
                 <CheckCircle className="size-6" />
               </div>
               <h2 className="mt-4 text-xl font-semibold">{t('auth.checkEmail')}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t('auth.checkEmailText', { email })}
-              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{t('auth.checkEmailText', { email })}</p>
             </CardContent>
             <CardFooter className="justify-center border-t pt-4">
               <Button variant="ghost" asChild>
@@ -73,7 +70,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-6">
         <div className="flex flex-col items-center text-center">
           <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">

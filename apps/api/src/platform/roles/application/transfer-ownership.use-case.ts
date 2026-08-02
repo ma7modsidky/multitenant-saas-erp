@@ -21,35 +21,31 @@ export class TransferOwnershipUseCase {
     private readonly txManager: TransactionManager,
   ) {}
 
-  async execute(input: {
-    organizationId: string;
-    currentUserId: string;
-    targetUserId: string;
-  }): Promise<void> {
+  async execute(input: { organizationId: string; currentUserId: string; targetUserId: string }): Promise<void> {
     // Cannot transfer to self
     if (input.currentUserId === input.targetUserId) {
       throw new ConflictError(CANNOT_TRANSFER_TO_SELF, 'Cannot transfer ownership to yourself');
     }
 
-    // Find the OWNER role for this organization
-    const ownerRole = await this.roleRepo.findByKey(input.organizationId, 'owner');
+    // core_roles is RLS-protected — reads must run inside the tenant-bound
+    // transaction or they fail closed to zero rows.
+    const [ownerRole, adminRole] = await this.txManager.run(async (tx) => {
+      const [owner, admin] = await Promise.all([
+        this.roleRepo.findByKey(input.organizationId, 'owner', tx),
+        this.roleRepo.findByKey(input.organizationId, 'admin', tx),
+      ]);
+      return [owner, admin] as const;
+    });
     if (!ownerRole) {
       throw new NotFoundError(ROLE_NOT_FOUND, { key: 'owner' });
     }
-
-    // Find an admin role
-    const adminRole = await this.roleRepo.findByKey(input.organizationId, 'admin');
     if (!adminRole) {
       throw new NotFoundError(ROLE_NOT_FOUND, { key: 'admin' });
     }
 
     await this.txManager.run(async (tx) => {
       // Verify the target is an active member
-      const targetMembership = await this.membershipRepo.findByUserAndOrg(
-        input.targetUserId,
-        input.organizationId,
-        tx as any,
-      );
+      const targetMembership = await this.membershipRepo.findByUserAndOrg(input.targetUserId, input.organizationId, tx);
 
       if (!targetMembership) {
         throw new NotFoundError(TRANSFER_TARGET_NOT_FOUND, { targetUserId: input.targetUserId });
@@ -59,23 +55,31 @@ export class TransferOwnershipUseCase {
       const currentMembership = await this.membershipRepo.findByUserAndOrg(
         input.currentUserId,
         input.organizationId,
-        tx as any,
+        tx,
       );
       if (!currentMembership) {
         throw new ForbiddenError(NOMINATION_REQUIRED, 'You must be an active member of this organization');
       }
 
       // Promote target to OWNER
-      await this.membershipRepo.update(targetMembership.id, {
-        roleId: ownerRole.id,
-        updatedBy: input.currentUserId,
-      } as any, tx);
+      await this.membershipRepo.update(
+        targetMembership.id,
+        {
+          roleId: ownerRole.id,
+          updatedBy: input.currentUserId,
+        },
+        tx,
+      );
 
       // Demote current owner to ADMIN
-      await this.membershipRepo.update(currentMembership.id, {
-        roleId: adminRole.id,
-        updatedBy: input.currentUserId,
-      } as any, tx);
+      await this.membershipRepo.update(
+        currentMembership.id,
+        {
+          roleId: adminRole.id,
+          updatedBy: input.currentUserId,
+        },
+        tx,
+      );
     });
   }
 }

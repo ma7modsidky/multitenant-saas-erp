@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../../core/auth/auth.module.js';
+import { UsersModule } from '../users/users.module.js';
 import { MembershipsController } from './api/index.js';
 import {
   InviteUserUseCase,
   AcceptInvitationUseCase,
+  RevokeInvitationUseCase,
   RemoveMemberUseCase,
   UpdateMembershipRoleUseCase,
   SwitchOrgUseCase,
@@ -14,7 +16,7 @@ import { DrizzleMembershipRepository } from './infrastructure/repositories/drizz
 import { INVITATION_REPOSITORY, MEMBERSHIP_REPOSITORY } from './ports/index.js';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, UsersModule],
   controllers: [MembershipsController],
   providers: [
     // Repositories
@@ -23,14 +25,11 @@ import { INVITATION_REPOSITORY, MEMBERSHIP_REPOSITORY } from './ports/index.js';
     // Use cases
     InviteUserUseCase,
     AcceptInvitationUseCase,
+    RevokeInvitationUseCase,
     RemoveMemberUseCase,
     UpdateMembershipRoleUseCase,
     SwitchOrgUseCase,
   ],
-  exports: [
-    MEMBERSHIP_REPOSITORY,
-    INVITATION_REPOSITORY,
-    InviteUserUseCase,
-  ],
+  exports: [MEMBERSHIP_REPOSITORY, INVITATION_REPOSITORY, InviteUserUseCase],
 })
 export class MembershipsModule {}

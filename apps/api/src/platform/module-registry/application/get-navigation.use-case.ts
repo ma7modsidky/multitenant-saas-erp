@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { MODULE_REGISTRY_REPOSITORY, type ModuleRegistryRepository } from '../ports/index.js';
 import { REGISTERED_MODULES } from '../registered-modules.js';
 import type { NavigationItem } from '@modubiz/contracts';
@@ -15,17 +16,17 @@ export class GetNavigationUseCase {
   constructor(
     @Inject(MODULE_REGISTRY_REPOSITORY)
     private readonly repo: ModuleRegistryRepository,
+    private readonly txManager: TransactionManager,
   ) {}
 
   async execute(input: {
     organizationId: string;
   }): Promise<Array<{ moduleKey: string; labelKey: string; icon?: string; items: NavigationItem[] }>> {
-    // Get all entitlements for the org
-    const entitlements = await this.repo.listEntitlements(input.organizationId);
+    // core_module_entitlements is RLS-protected — read inside the tenant-bound
+    // transaction or it fails closed to zero rows (empty navigation).
+    const entitlements = await this.txManager.run((tx) => this.repo.listEntitlements(input.organizationId, tx));
     const entitledKeys = new Set(
-      entitlements
-        .filter((e) => ['active', 'trialing', 'past_due'].includes(e.state))
-        .map((e) => e.moduleKey),
+      entitlements.filter((e) => ['active', 'trialing', 'past_due'].includes(e.state)).map((e) => e.moduleKey),
     );
 
     // Build navigation from descriptors of entitled modules

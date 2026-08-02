@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
+import { fromDbDate, toDbDate } from '../../../../core/database/db-date.js';
 import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.provider.js';
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import { type SubscriptionData } from '../../domain/index.js';
@@ -26,9 +27,9 @@ export class DrizzleBillingRepository implements BillingRepository {
       stripeSubscriptionId: row.stripe_subscription_id as string,
       status: row.status as SubscriptionData['status'],
       billingCurrency: row.billing_currency as string,
-      currentPeriodEnd: row.current_period_end as Date | null,
-      createdAt: row.created_at as Date,
-      updatedAt: row.updated_at as Date,
+      currentPeriodEnd: fromDbDate(row.current_period_end),
+      createdAt: fromDbDate(row.created_at) as Date,
+      updatedAt: fromDbDate(row.updated_at) as Date,
     };
   }
 
@@ -59,7 +60,7 @@ export class DrizzleBillingRepository implements BillingRepository {
         INSERT INTO core_subscriptions
           (id, organization_id, stripe_customer_id, stripe_subscription_id, status, billing_currency, current_period_end, created_at, updated_at)
         VALUES
-          (${data.id}, ${data.organizationId}, ${data.stripeCustomerId}, ${data.stripeSubscriptionId}, ${data.status}, ${data.billingCurrency}, ${data.currentPeriodEnd}, ${data.createdAt}, ${data.updatedAt})
+          (${data.id}, ${data.organizationId}, ${data.stripeCustomerId}, ${data.stripeSubscriptionId}, ${data.status}, ${data.billingCurrency}, ${toDbDate(data.currentPeriodEnd)}, ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)})
         RETURNING *
       `,
     );
@@ -72,7 +73,8 @@ export class DrizzleBillingRepository implements BillingRepository {
     const db = this.getDb(tx);
     const fragments = [sql`updated_at = NOW()`];
     if (data.status !== undefined) fragments.push(sql`status = ${data.status}`);
-    if (data.currentPeriodEnd !== undefined) fragments.push(sql`current_period_end = ${data.currentPeriodEnd}`);
+    if (data.currentPeriodEnd !== undefined)
+      fragments.push(sql`current_period_end = ${toDbDate(data.currentPeriodEnd)}`);
 
     const setClause = sql.join(fragments, sql.raw(', '));
     const rows = await db.execute<Record<string, unknown>>(
@@ -93,7 +95,10 @@ export class DrizzleBillingRepository implements BillingRepository {
     return { key: row.key as string };
   }
 
-  async getModuleFromCatalog(moduleKey: string, tx?: TxOrDb): Promise<{ key: string; stripePriceKey: string | null; dependsOn: string[]; trialDays: number } | undefined> {
+  async getModuleFromCatalog(
+    moduleKey: string,
+    tx?: TxOrDb,
+  ): Promise<{ key: string; stripePriceKey: string | null; dependsOn: string[]; trialDays: number } | undefined> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT key, stripe_price_key, depends_on, trial_days FROM core_module_catalog WHERE key = ${moduleKey} LIMIT 1`,
@@ -116,11 +121,24 @@ export class DrizzleBillingRepository implements BillingRepository {
     return rows.map((r) => r.key as string);
   }
 
-  async findEntitlement(organizationId: string, moduleKey: string, tx?: TxOrDb): Promise<{
-    id: string; moduleKey: string; state: string; trialStartedAt: Date | null; trialEndsAt: Date | null;
-    activatedAt: Date | null; disabledAt: Date | null; purgeAfter: Date | null;
-    stripeSubscriptionItemId: string | null;
-  } | undefined> {
+  async findEntitlement(
+    organizationId: string,
+    moduleKey: string,
+    tx?: TxOrDb,
+  ): Promise<
+    | {
+        id: string;
+        moduleKey: string;
+        state: string;
+        trialStartedAt: Date | null;
+        trialEndsAt: Date | null;
+        activatedAt: Date | null;
+        disabledAt: Date | null;
+        purgeAfter: Date | null;
+        stripeSubscriptionItemId: string | null;
+      }
+    | undefined
+  > {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id
@@ -134,34 +152,43 @@ export class DrizzleBillingRepository implements BillingRepository {
       id: row.id as string,
       moduleKey: row.module_key as string,
       state: row.state as string,
-      trialStartedAt: row.trial_started_at as Date | null,
-      trialEndsAt: row.trial_ends_at as Date | null,
-      activatedAt: row.activated_at as Date | null,
-      disabledAt: row.disabled_at as Date | null,
-      purgeAfter: row.purge_after as Date | null,
+      trialStartedAt: fromDbDate(row.trial_started_at),
+      trialEndsAt: fromDbDate(row.trial_ends_at),
+      activatedAt: fromDbDate(row.activated_at),
+      disabledAt: fromDbDate(row.disabled_at),
+      purgeAfter: fromDbDate(row.purge_after),
       stripeSubscriptionItemId: row.stripe_subscription_item_id as string | null,
     };
   }
 
-  async upsertEntitlement(data: {
-    organizationId: string; moduleKey: string; state: string;
-    trialStartedAt?: Date | null; trialEndsAt?: Date | null;
-    activatedAt?: Date | null; disabledAt?: Date | null;
-    purgeAfter?: Date | null; stripeSubscriptionItemId?: string | null;
-    updatedBy?: string | null;
-  }, tx?: TxOrDb): Promise<void> {
+  async upsertEntitlement(
+    data: {
+      organizationId: string;
+      moduleKey: string;
+      state: string;
+      trialStartedAt?: Date | null;
+      trialEndsAt?: Date | null;
+      activatedAt?: Date | null;
+      disabledAt?: Date | null;
+      purgeAfter?: Date | null;
+      stripeSubscriptionItemId?: string | null;
+      updatedBy?: string | null;
+    },
+    tx?: TxOrDb,
+  ): Promise<void> {
     const db = this.getDb(tx);
     const existing = await this.findEntitlement(data.organizationId, data.moduleKey, tx);
 
     if (existing) {
       const fragments = [sql`updated_at = NOW()`];
       fragments.push(sql`state = ${data.state}`);
-      if (data.trialStartedAt !== undefined) fragments.push(sql`trial_started_at = ${data.trialStartedAt}`);
-      if (data.trialEndsAt !== undefined) fragments.push(sql`trial_ends_at = ${data.trialEndsAt}`);
-      if (data.activatedAt !== undefined) fragments.push(sql`activated_at = ${data.activatedAt}`);
-      if (data.disabledAt !== undefined) fragments.push(sql`disabled_at = ${data.disabledAt}`);
-      if (data.purgeAfter !== undefined) fragments.push(sql`purge_after = ${data.purgeAfter}`);
-      if (data.stripeSubscriptionItemId !== undefined) fragments.push(sql`stripe_subscription_item_id = ${data.stripeSubscriptionItemId}`);
+      if (data.trialStartedAt !== undefined) fragments.push(sql`trial_started_at = ${toDbDate(data.trialStartedAt)}`);
+      if (data.trialEndsAt !== undefined) fragments.push(sql`trial_ends_at = ${toDbDate(data.trialEndsAt)}`);
+      if (data.activatedAt !== undefined) fragments.push(sql`activated_at = ${toDbDate(data.activatedAt)}`);
+      if (data.disabledAt !== undefined) fragments.push(sql`disabled_at = ${toDbDate(data.disabledAt)}`);
+      if (data.purgeAfter !== undefined) fragments.push(sql`purge_after = ${toDbDate(data.purgeAfter)}`);
+      if (data.stripeSubscriptionItemId !== undefined)
+        fragments.push(sql`stripe_subscription_item_id = ${data.stripeSubscriptionItemId}`);
 
       const setClause = sql.join(fragments, sql.raw(', '));
       await db.execute(sql`UPDATE core_module_entitlements SET ${setClause} WHERE id = ${existing.id}`);
@@ -171,9 +198,9 @@ export class DrizzleBillingRepository implements BillingRepository {
           (id, organization_id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, created_at, updated_at)
         VALUES
           (gen_random_uuid(), ${data.organizationId}, ${data.moduleKey}, ${data.state},
-           ${data.trialStartedAt ?? null}, ${data.trialEndsAt ?? null},
-           ${data.activatedAt ?? null}, ${data.disabledAt ?? null},
-           ${data.purgeAfter ?? null}, ${data.stripeSubscriptionItemId ?? null},
+           ${toDbDate(data.trialStartedAt ?? null)}, ${toDbDate(data.trialEndsAt ?? null)},
+           ${toDbDate(data.activatedAt ?? null)}, ${toDbDate(data.disabledAt ?? null)},
+           ${toDbDate(data.purgeAfter ?? null)}, ${data.stripeSubscriptionItemId ?? null},
            NOW(), NOW())
       `);
     }
@@ -186,7 +213,10 @@ export class DrizzleBillingRepository implements BillingRepository {
     );
   }
 
-  async findEntitlementsByOrg(organizationId: string, tx?: TxOrDb): Promise<Array<{ id: string; moduleKey: string; state: string }>> {
+  async findEntitlementsByOrg(
+    organizationId: string,
+    tx?: TxOrDb,
+  ): Promise<Array<{ id: string; moduleKey: string; state: string }>> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT id, module_key, state FROM core_module_entitlements WHERE organization_id = ${organizationId}`,
@@ -194,7 +224,10 @@ export class DrizzleBillingRepository implements BillingRepository {
     return rows.map((r) => ({ id: r.id as string, moduleKey: r.module_key as string, state: r.state as string }));
   }
 
-  async findActiveSubscriptionItems(organizationId: string, tx?: TxOrDb): Promise<Array<{ moduleKey: string; stripeSubscriptionItemId: string | null; state: string }>> {
+  async findActiveSubscriptionItems(
+    organizationId: string,
+    tx?: TxOrDb,
+  ): Promise<Array<{ moduleKey: string; stripeSubscriptionItemId: string | null; state: string }>> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT module_key, stripe_subscription_item_id, state FROM core_module_entitlements WHERE organization_id = ${organizationId} AND state IN ('active', 'trialing')`,

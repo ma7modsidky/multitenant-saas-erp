@@ -47,51 +47,51 @@ unenforced. Both must be true.
 
 ### Role matrix
 
-| Permission area                                         | OWNER | ADMIN | MANAGER | MEMBER | VIEWER |
-| ------------------------------------------------------- | ----- | ----- | ------- | ------ | ------ |
-| Delete organization                                     | ✅    | ❌    | ❌      | ❌     | ❌     |
-| Transfer ownership                                      | ✅    | ❌    | ❌      | ❌     | ❌     |
-| Manage billing / enable & disable modules               | ✅    | ✅    | ❌      | ❌     | ❌     |
-| Invite / remove members, assign roles                   | ✅    | ✅    | ❌      | ❌     | ❌     |
-| Manage custom roles                                     | ✅    | ✅    | ❌      | ❌     | ❌     |
-| Organization settings (locale, currency, timezone)      | ✅    | ✅    | ❌      | ❌     | ❌     |
-| View audit log                                          | ✅    | ✅    | ❌      | ❌     | ❌     |
-| Module configuration (warehouses, registers, pipelines) | ✅    | ✅    | ✅      | ❌     | ❌     |
-| Module data write                                       | ✅    | ✅    | ✅      | ✅     | ❌     |
-| Module data read                                        | ✅    | ✅    | ✅      | ✅     | ✅     |
-| Export data                                             | ✅    | ✅    | ✅      | ❌     | ❌     |
+| Permission area                                                    | OWNER | ADMIN | MANAGER | MEMBER | VIEWER |
+| ------------------------------------------------------------------ | ----- | ----- | ------- | ------ | ------ |
+| Delete organization                                                | ✅    | ❌    | ❌      | ❌     | ❌     |
+| Transfer ownership                                                 | ✅    | ❌    | ❌      | ❌     | ❌     |
+| Manage billing / enable & disable modules                          | ✅    | ✅    | ❌      | ❌     | ❌     |
+| Invite / remove members, assign roles                              | ✅    | ✅    | ❌      | ❌     | ❌     |
+| Manage custom roles                                                | ✅    | ✅    | ❌      | ❌     | ❌     |
+| Organization profile & settings (name, locale, currency, timezone) | ✅    | ✅    | ❌      | ❌     | ❌     |
+| View audit log                                                     | ✅    | ✅    | ❌      | ❌     | ❌     |
+| Module configuration (warehouses, registers, pipelines)            | ✅    | ✅    | ✅      | ❌     | ❌     |
+| Module data write                                                  | ✅    | ✅    | ✅      | ✅     | ❌     |
+| Module data read                                                   | ✅    | ✅    | ✅      | ✅     | ✅     |
+| Export data                                                        | ✅    | ✅    | ✅      | ❌     | ❌     |
 
-| ID      | Rule                                                                                                                                                                                                        |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AUTHZ-1 | An organization always has **at least one active OWNER**. The last owner cannot be removed, demoted, or have their membership suspended.                                                                    |
-| AUTHZ-2 | Ownership transfer is explicit: the current owner nominates an existing active member, who is promoted, and only then may the former owner step down.                                                       |
-| AUTHZ-3 | A user cannot change their own role, and cannot grant a permission they do not themselves hold.                                                                                                             |
-| AUTHZ-4 | Custom roles may only combine permissions from registered modules and may never include platform-administration permissions reserved to OWNER/ADMIN.                                                        |
-| AUTHZ-5 | Permission checks are declarative (`@RequiresPermission`). Ad-hoc role comparisons in service code (`if (user.role === 'ADMIN')`) are forbidden.                                                            |
-| AUTHZ-6 | Entitlement is checked **before** permission. An unentitled module returns `403 MODULE_NOT_ENTITLED` even for an OWNER.                                                                                     |
-| AUTHZ-7 | Removing a member soft-deletes the membership and reassigns or explicitly orphans their owned records (deals, activities) according to the module's documented policy — records are never silently deleted. |
-| AUTHZ-8 | A pending invitation for an email that already has an active membership is rejected with `MEMBERSHIP_ALREADY_EXISTS`.                                                                                       |
-| AUTHZ-9 | Seat-limited plans reject an invitation that would exceed the paid seat count with `SEAT_LIMIT_EXCEEDED`, offering an upgrade path.                                                                         |
+| ID      | Rule                                                                                                                                                                                                                                                                                                                                          |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AUTHZ-1 | An organization always has **at least one active OWNER**. The last owner cannot be removed, demoted, or have their membership suspended.                                                                                                                                                                                                      |
+| AUTHZ-2 | Ownership transfer is explicit: the current owner nominates an existing active member, who is promoted, and only then may the former owner step down. Ownership is **OWNER-managed**: only a member holding the OWNER role may change or remove another OWNER — an ADMIN can never demote or remove an OWNER, even when another owner exists. |
+| AUTHZ-3 | A user cannot change their own role, and cannot grant a permission they do not themselves hold.                                                                                                                                                                                                                                               |
+| AUTHZ-4 | Custom roles may only combine permissions from registered modules and may never include platform-administration permissions reserved to OWNER/ADMIN.                                                                                                                                                                                          |
+| AUTHZ-5 | Permission checks are declarative (`@RequiresPermission`). Ad-hoc role comparisons in service code (`if (user.role === 'ADMIN')`) are forbidden.                                                                                                                                                                                              |
+| AUTHZ-6 | Entitlement is checked **before** permission. An unentitled module returns `403 MODULE_NOT_ENTITLED` even for an OWNER.                                                                                                                                                                                                                       |
+| AUTHZ-7 | Removing a member soft-deletes the membership and reassigns or explicitly orphans their owned records (deals, activities) according to the module's documented policy — records are never silently deleted.                                                                                                                                   |
+| AUTHZ-8 | A pending invitation for an email that already has an active membership is rejected with `MEMBERSHIP_ALREADY_EXISTS`.                                                                                                                                                                                                                         |
+| AUTHZ-9 | Seat-limited plans reject an invitation that would exceed the paid seat count with `SEAT_LIMIT_EXCEEDED`, offering an upgrade path.                                                                                                                                                                                                           |
 
 ---
 
 ## 4. Subscription, trial, and entitlement rules
 
-| ID      | Rule                                                                                                                                                                                               |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BILL-1  | An organization has exactly one Stripe customer and one base subscription. Each enabled module is a subscription **item** on it.                                                                   |
-| BILL-2  | Each module may be trialled **once per organization**, for 14 days, without a payment method. A second trial of the same module is rejected with `TRIAL_ALREADY_USED`.                             |
-| BILL-3  | Trial expiry moves the module to `expired`: **read-only** access for a 7-day grace period, then `disabled`. Data is retained throughout.                                                           |
-| BILL-4  | `core_module_entitlements` is the runtime authority for access. Stripe is the commercial authority. A nightly reconciliation job compares them and alerts on any drift; Stripe wins in a conflict. |
-| BILL-5  | Stripe webhooks are verified by signature, processed **idempotently** by event id, and safe to replay. Out-of-order events are resolved by comparing Stripe object versions.                       |
-| BILL-6  | Payment failure moves the module to `past_due` with full access for a 7-day dunning window, then `suspended`.                                                                                      |
-| BILL-7  | Disabling a module immediately removes API and UI access and sets `purge_after = now() + dataRetention.onDisableDays`. Re-enabling before that date restores full access to the existing data.     |
-| BILL-8  | Enabling a module whose `dependsOn` are not all entitled is rejected with `MODULE_DEPENDENCY_MISSING`.                                                                                             |
-| BILL-9  | Disabling a module that another entitled module depends on is rejected with `MODULE_DEPENDENCY_CONFLICT` (e.g. Inventory cannot be disabled while POS is active).                                  |
-| BILL-10 | Prices and amounts are never hardcoded. Code references `stripePriceKey`; amounts are resolved from Stripe at runtime and cached.                                                                  |
-| BILL-11 | The organization's billing currency is set at first subscription and is immutable thereafter (a Stripe constraint we surface explicitly). It is independent of the operational base currency.      |
-| BILL-12 | Downgrades and cancellations take effect at the end of the current period; upgrades take effect immediately with proration.                                                                        |
-| BILL-13 | Every entitlement state transition writes an audit entry with the actor (user, Stripe webhook, or system job).                                                                                     |
+| ID      | Rule                                                                                                                                                                                                                                                                                                                  |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BILL-1  | An organization has exactly one Stripe customer and one base subscription. Each enabled module is a subscription **item** on it.                                                                                                                                                                                      |
+| BILL-2  | Each module may be trialled **once per organization**, for 14 days, without a payment method. A second trial of the same module is rejected with `TRIAL_ALREADY_USED`.                                                                                                                                                |
+| BILL-3  | Trial expiry moves the module to `expired`: **read-only** access for a 7-day grace period, then `disabled`. Data is retained throughout.                                                                                                                                                                              |
+| BILL-4  | `core_module_entitlements` is the runtime authority for access. Stripe is the commercial authority. A nightly reconciliation job compares them and alerts on any drift; Stripe wins in a conflict. A module locally `active` but absent from the Stripe subscription is treated as cancelled and moved to `disabled`. |
+| BILL-5  | Stripe webhooks are verified by signature, processed **idempotently** by event id, and safe to replay. Out-of-order events are resolved by comparing Stripe object versions. `customer.subscription.deleted` moves `active`/`trialing`/`expired` modules to `disabled` and `past_due` modules to `suspended`.         |
+| BILL-6  | Payment failure moves the module to `past_due` with full access for a 7-day dunning window, then `suspended`.                                                                                                                                                                                                         |
+| BILL-7  | Disabling a module immediately removes API and UI access and sets `purge_after = now() + dataRetention.onDisableDays`. Re-enabling before that date restores full access to the existing data.                                                                                                                        |
+| BILL-8  | Enabling a module whose `dependsOn` are not all entitled is rejected with `MODULE_DEPENDENCY_MISSING`.                                                                                                                                                                                                                |
+| BILL-9  | Disabling a module that another entitled module depends on is rejected with `MODULE_DEPENDENCY_CONFLICT` (e.g. Inventory cannot be disabled while POS is active).                                                                                                                                                     |
+| BILL-10 | Prices and amounts are never hardcoded. Code references `stripePriceKey`; amounts are resolved from Stripe at runtime and cached.                                                                                                                                                                                     |
+| BILL-11 | The organization's billing currency is set at first subscription and is immutable thereafter (a Stripe constraint we surface explicitly). It is independent of the operational base currency.                                                                                                                         |
+| BILL-12 | Downgrades and cancellations take effect at the end of the current period; upgrades take effect immediately with proration.                                                                                                                                                                                           |
+| BILL-13 | Every entitlement state transition writes an audit entry with the actor (user, Stripe webhook, or system job).                                                                                                                                                                                                        |
 
 ---
 

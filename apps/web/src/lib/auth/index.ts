@@ -99,6 +99,43 @@ export async function logout(): Promise<void> {
 }
 
 /**
+ * Attempt a silent token refresh with the STORED refresh token.
+ *
+ * Used at session hydration: a stored access token may already be expired
+ * (15-min lifetime). Previously hydration marked the session "authenticated"
+ * from the mere presence of a token, so the server-rendered dashboard shell
+ * flashed on screen until the first API call 401'd and the client bounced to
+ * login. Now hydration validates the token's `exp` and refreshes BEFORE the
+ * shell renders — a stale `modubiz_authed` cookie can no longer cause the
+ * flash because the loading gate stays up until the session is verified.
+ *
+ * Returns true when the tokens were rotated successfully. On failure the
+ * caller clears the session (tokens + cookie) and redirects to login.
+ */
+export async function refreshStoredSession(): Promise<boolean> {
+  const refreshToken = sessionStore.getRefreshToken();
+  if (refreshToken === null) return false;
+  try {
+    const data = await apiFetch<{ accessToken: string; refreshToken: string }>(
+      '/v1/auth/refresh',
+      {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      },
+      // The refresh endpoint takes the refresh token from the body, not the
+      // Authorization header; apiFetch's automatic 401→refresh retry must not
+      // run here (it would recurse into itself).
+      { auth: false },
+    );
+    sessionStore.setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+    setAuthedCookie(true);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fetch the current user profile (GET /v1/users/me).
  */
 export function fetchMe(): Promise<AuthUser> {

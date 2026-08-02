@@ -1,18 +1,9 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Inject,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-  UsePipes,
-  Headers,
-} from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards, UsePipes, Headers } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { IncomingMessage } from 'node:http';
+import { ConfigService } from '@modubiz/config';
 
+import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { PublicRoute } from '../../../core/tenancy/system-context.decorator.js';
@@ -43,6 +34,7 @@ export class BillingController {
     private readonly reconcileEntitlementsUseCase: ReconcileEntitlementsUseCase,
     private readonly getBillingUseCase: GetBillingUseCase,
     private readonly handleWebhookUseCase: HandleWebhookUseCase,
+    private readonly config: ConfigService,
   ) {}
 
   @Get('organizations/:orgId/billing')
@@ -53,6 +45,7 @@ export class BillingController {
 
   @Post('organizations/:orgId/billing/subscription')
   @UsePipes(new ZodValidationPipe(createSubscriptionSchema))
+  @RequiresPermission('platform:billing:manage')
   async createSubscription(
     @Param('orgId') orgId: string,
     @Body() dto: { organizationName: string; email: string; billingCurrency: string; priceKeys?: string[] },
@@ -66,6 +59,7 @@ export class BillingController {
 
   @Post('organizations/:orgId/billing/trial')
   @UsePipes(new ZodValidationPipe(enableModuleTrialSchema))
+  @RequiresPermission('platform:billing:manage')
   async enableTrial(
     @Param('orgId') orgId: string,
     @Body() dto: EnableModuleTrialDto,
@@ -82,6 +76,7 @@ export class BillingController {
 
   @Post('organizations/:orgId/billing/disable')
   @UsePipes(new ZodValidationPipe(disableModuleSchema))
+  @RequiresPermission('platform:billing:manage')
   async disableModule(
     @Param('orgId') orgId: string,
     @Body() dto: DisableModuleDto,
@@ -94,6 +89,7 @@ export class BillingController {
   }
 
   @Post('organizations/:orgId/billing/reconcile')
+  @RequiresPermission('platform:billing:manage')
   async reconcile(@Param('orgId') orgId: string): Promise<{ data: { updated: number; alerts: string[] } }> {
     const result = await this.reconcileEntitlementsUseCase.execute({ organizationId: orgId });
     return { data: result };
@@ -116,7 +112,7 @@ export class BillingController {
     const result = await this.handleWebhookUseCase.execute({
       payload,
       signature: signature ?? '',
-      secret: 'whsec_test', // TODO: inject from ConfigService
+      secret: this.config.stripeWebhookSecret,
     });
 
     return result;

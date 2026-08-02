@@ -1,19 +1,8 @@
-import {
-  Body,
-  Controller,
-  Post,
-  UsePipes,
-  Headers,
-} from '@nestjs/common';
+import { Body, Controller, Post, UsePipes, Headers } from '@nestjs/common';
 
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { PublicRoute } from '../../../core/tenancy/system-context.decorator.js';
-import {
-  SignupUseCase,
-  LoginUseCase,
-  RefreshTokenUseCase,
-  PasswordResetUseCase,
-} from '../application/index.js';
+import { SignupUseCase, LoginUseCase, RefreshTokenUseCase, PasswordResetUseCase } from '../application/index.js';
 import {
   signupSchema,
   loginSchema,
@@ -60,7 +49,7 @@ export class AuthController {
       password: dto.password,
       name: dto.name,
       ...(dto.preferredLocale !== undefined ? { preferredLocale: dto.preferredLocale } : {}),
-    } as any); // DTO was Zod-validated at the boundary
+    });
 
     return {
       data: {
@@ -90,7 +79,7 @@ export class AuthController {
       ...(userAgent !== undefined ? { device: userAgent } : {}),
       ...(dto.device !== undefined ? { device: dto.device } : {}),
       ...(ip !== undefined ? { ip } : {}),
-    } as any); // DTO was Zod-validated at the boundary
+    });
 
     return {
       data: buildAuthResponse(result.accessToken, result.refreshToken, result.user),

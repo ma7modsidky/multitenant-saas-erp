@@ -36,23 +36,31 @@ export class EnableModuleTrialUseCase {
       throw new NotFoundError(MODULE_NOT_FOUND, { moduleKey: input.moduleKey });
     }
 
-    // Get current subscription
-    const subscription = await this.billingRepo.findByOrgId(input.organizationId);
+    // Get current subscription — core_subscriptions is RLS-protected, so reads
+    // must run inside the tenant-bound transaction or they fail closed.
+    const subscription = await this.txManager.run((tx) => this.billingRepo.findByOrgId(input.organizationId, tx));
     if (!subscription) {
       throw new NotFoundError(SUBSCRIPTION_NOT_FOUND, { organizationId: input.organizationId });
     }
 
     // Check current entitlement state
-    const entitlement = await this.billingRepo.findEntitlement(input.organizationId, input.moduleKey);
+    const entitlement = await this.txManager.run((tx) =>
+      this.billingRepo.findEntitlement(input.organizationId, input.moduleKey, tx),
+    );
 
     // If entitlement exists and is trialing/active, reject
     if (entitlement && (entitlement.state === 'trialing' || entitlement.state === 'active')) {
-      throw new ConflictError(TRIAL_ALREADY_USED, `Module '${input.moduleKey}' already has an active trial or subscription`);
+      throw new ConflictError(
+        TRIAL_ALREADY_USED,
+        `Module '${input.moduleKey}' already has an active trial or subscription`,
+      );
     }
 
     // BILL-8: All dependencies must be entitled before enabling this module
     for (const dep of moduleCatalog.dependsOn) {
-      const depEntitlement = await this.billingRepo.findEntitlement(input.organizationId, dep);
+      const depEntitlement = await this.txManager.run((tx) =>
+        this.billingRepo.findEntitlement(input.organizationId, dep, tx),
+      );
       const depState = depEntitlement?.state ?? 'available';
       if (!ENTITLED_STATES.includes(depState)) {
         throw new ConflictError(
@@ -68,15 +76,18 @@ export class EnableModuleTrialUseCase {
 
     await this.txManager.run(async (tx) => {
       // Update entitlement state
-      await this.billingRepo.upsertEntitlement({
-        organizationId: input.organizationId,
-        moduleKey: input.moduleKey,
-        state: targetState,
-        trialStartedAt: isTrial ? new Date() : null,
-        trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null,
-        activatedAt: new Date(),
-        stripeSubscriptionItemId: null,
-      }, tx);
+      await this.billingRepo.upsertEntitlement(
+        {
+          organizationId: input.organizationId,
+          moduleKey: input.moduleKey,
+          state: targetState,
+          trialStartedAt: isTrial ? new Date() : null,
+          trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null,
+          activatedAt: new Date(),
+          stripeSubscriptionItemId: null,
+        },
+        tx,
+      );
 
       // Add to Stripe subscription if there's a price key
       if (moduleCatalog.stripePriceKey) {
@@ -86,12 +97,15 @@ export class EnableModuleTrialUseCase {
         });
 
         // Update with the Stripe subscription item ID
-        await this.billingRepo.upsertEntitlement({
-          organizationId: input.organizationId,
-          moduleKey: input.moduleKey,
-          state: targetState,
-          stripeSubscriptionItemId: subscriptionItemId,
-        }, tx);
+        await this.billingRepo.upsertEntitlement(
+          {
+            organizationId: input.organizationId,
+            moduleKey: input.moduleKey,
+            state: targetState,
+            stripeSubscriptionItemId: subscriptionItemId,
+          },
+          tx,
+        );
       }
     });
   }

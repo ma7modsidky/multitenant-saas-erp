@@ -2,6 +2,7 @@
 // One function per endpoint the web app consumes.
 
 import type {
+  AuditLogQueryResponse,
   BillingResponse,
   InvitationResponse,
   MemberResponse,
@@ -40,7 +41,11 @@ export function getActiveOrganization(): Promise<{
   data: OrganizationResponse;
   settings: OrganizationSettingsResponse | null;
 }> {
-  return apiFetch<{ data: OrganizationResponse; settings: OrganizationSettingsResponse | null }>('/v1/organizations/me');
+  return apiFetch<{ data: OrganizationResponse; settings: OrganizationSettingsResponse | null }>(
+    '/v1/organizations/me',
+    {},
+    { envelope: true },
+  );
 }
 
 export function getOrganization(orgId: string): Promise<{
@@ -49,10 +54,15 @@ export function getOrganization(orgId: string): Promise<{
 }> {
   return apiFetch<{ data: OrganizationResponse; settings: OrganizationSettingsResponse | null }>(
     `/v1/organizations/${orgId}`,
+    {},
+    { envelope: true },
   );
 }
 
-export function updateOrganization(orgId: string, patch: Partial<Pick<OrganizationResponse, 'name' | 'countryCode' | 'timezone' | 'baseCurrency' | 'defaultLocale'>>): Promise<OrganizationResponse> {
+export function updateOrganization(
+  orgId: string,
+  patch: Partial<Pick<OrganizationResponse, 'name' | 'countryCode' | 'timezone' | 'baseCurrency' | 'defaultLocale'>>,
+): Promise<OrganizationResponse> {
   return apiFetch<OrganizationResponse>(`/v1/organizations/${orgId}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
@@ -92,7 +102,10 @@ export function getInvitations(orgId: string): Promise<InvitationResponse[]> {
   return apiFetch<InvitationResponse[]>(`/v1/organizations/${orgId}/invitations`);
 }
 
-export function inviteUser(orgId: string, input: { email: string; roleId: string }): Promise<{ invitationId: string }> {
+export function inviteUser(
+  orgId: string,
+  input: { name: string; email: string; roleId: string },
+): Promise<{ invitationId: string }> {
   return apiFetch<{ invitationId: string }>(`/v1/organizations/${orgId}/invitations`, {
     method: 'POST',
     body: JSON.stringify(input),
@@ -101,6 +114,12 @@ export function inviteUser(orgId: string, input: { email: string; roleId: string
 
 export function acceptInvitation(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/v1/invitations/${id}/accept`, { method: 'POST' });
+}
+
+export function revokeInvitation(orgId: string, invitationId: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/organizations/${orgId}/invitations/${invitationId}/revoke`, {
+    method: 'POST',
+  });
 }
 
 export function updateMemberRole(id: string, roleId: string): Promise<{ message: string }> {
@@ -112,6 +131,33 @@ export function updateMemberRole(id: string, roleId: string): Promise<{ message:
 
 export function removeMember(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/v1/memberships/${id}`, { method: 'DELETE' });
+}
+
+// ─── Audit log ──────────────────────────────────────────────────────────────
+
+export interface AuditLogQueryParams {
+  actorUserId?: string;
+  entityType?: string;
+  entityId?: string;
+  action?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function getAuditLog(orgId: string, params: AuditLogQueryParams = {}): Promise<AuditLogQueryResponse> {
+  const query = new URLSearchParams();
+  if (params.actorUserId !== undefined) query.set('actorUserId', params.actorUserId);
+  if (params.entityType !== undefined) query.set('entityType', params.entityType);
+  if (params.entityId !== undefined) query.set('entityId', params.entityId);
+  if (params.action !== undefined) query.set('action', params.action);
+  if (params.fromDate !== undefined) query.set('fromDate', params.fromDate);
+  if (params.toDate !== undefined) query.set('toDate', params.toDate);
+  if (params.page !== undefined) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<AuditLogQueryResponse>(`/v1/organizations/${orgId}/audit-log${qs ? `?${qs}` : ''}`);
 }
 
 // ─── Roles ─────────────────────────────────────────────────────────────────

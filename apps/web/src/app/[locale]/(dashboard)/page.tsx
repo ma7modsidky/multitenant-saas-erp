@@ -1,21 +1,22 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Package, Users, DollarSign, Building2, TrendingUp, Puzzle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTranslations , useLocale } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useState } from 'react';
-
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
-import { createOrganization } from '@/lib/api/resources';
+import { createOrganization, getActiveOrganization } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
 import { useEntitlements, useNavigation } from '@/lib/entitlements';
+import { useOrgLocalization } from '@/lib/hooks/use-org-localization';
 
 const MODULE_ICONS: Record<string, typeof Package> = {
   crm: Users,
@@ -38,10 +39,21 @@ function errorKey(code: string): string {
 
 function CreateOrganizationForm({ onCreated }: { onCreated: (orgId: string) => Promise<void> }) {
   const t = useTranslations();
+  const locale = useLocale();
+  const {
+    countryCode,
+    baseCurrency,
+    timezone,
+    setBaseCurrency,
+    setTimezone,
+    countryOptions,
+    currencyOptions,
+    timezoneOptions,
+    handleCountryChange,
+  } = useOrgLocalization(locale, { countryCode: 'US', baseCurrency: 'USD', timezone: 'UTC' });
+
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [countryCode, setCountryCode] = useState('US');
-  const [baseCurrency, setBaseCurrency] = useState('USD');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,7 +62,7 @@ function CreateOrganizationForm({ onCreated }: { onCreated: (orgId: string) => P
     setIsSubmitting(true);
     setError(null);
     try {
-      const org = await createOrganization({ name, slug, countryCode, baseCurrency });
+      const org = await createOrganization({ name, slug, countryCode, timezone, baseCurrency });
       await onCreated(org.id);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -72,8 +84,20 @@ function CreateOrganizationForm({ onCreated }: { onCreated: (orgId: string) => P
           value={name}
           onChange={(e) => {
             setName(e.target.value);
-            if (slug === '' || slug === name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')) {
-              setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+            if (
+              slug === '' ||
+              slug ===
+                name
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '-')
+                  .replace(/^-+|-+$/g, '')
+            ) {
+              setSlug(
+                e.target.value
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '-')
+                  .replace(/^-+|-+$/g, ''),
+              );
             }
           }}
           required
@@ -96,26 +120,40 @@ function CreateOrganizationForm({ onCreated }: { onCreated: (orgId: string) => P
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="org-country">{t('org.country')}</Label>
-          <Input
+          <Combobox
             id="org-country"
+            options={countryOptions}
             value={countryCode}
-            onChange={(e) => setCountryCode(e.target.value.toUpperCase())}
-            required
-            maxLength={2}
-            pattern="^[A-Z]{2}$"
+            onValueChange={handleCountryChange}
+            placeholder={t('org.selectCountry')}
+            searchPlaceholder={t('org.searchCountry')}
+            emptyText={t('common.noResults')}
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="org-currency">{t('org.currency')}</Label>
-          <Input
+          <Combobox
             id="org-currency"
+            options={currencyOptions}
             value={baseCurrency}
-            onChange={(e) => setBaseCurrency(e.target.value.toUpperCase())}
-            required
-            maxLength={3}
-            pattern="^[A-Z]{3}$"
+            onValueChange={setBaseCurrency}
+            placeholder={t('org.selectCurrency')}
+            searchPlaceholder={t('org.searchCurrency')}
+            emptyText={t('common.noResults')}
           />
         </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="org-timezone">{t('org.timezone')}</Label>
+        <Combobox
+          id="org-timezone"
+          options={timezoneOptions}
+          value={timezone}
+          onValueChange={setTimezone}
+          placeholder={t('org.selectTimezone')}
+          searchPlaceholder={t('org.searchTimezone')}
+          emptyText={t('common.noResults')}
+        />
       </div>
       {error && (
         <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -137,7 +175,15 @@ export default function DashboardPage() {
   const { status, organizationId, switchOrg } = useSession();
   const { data: navigation } = useNavigation(organizationId !== null);
   const { data: billing } = useEntitlements();
+  const { data: activeOrg } = useQuery({
+    queryKey: ['organization', organizationId],
+    queryFn: getActiveOrganization,
+    enabled: organizationId !== null,
+  });
 
+  // Org auto-selection (AUTHZ-5 UX) lives in ShellLayout, which wraps every
+  // dashboard route — including direct /settings/* navigation. See
+  // components/shell/shell-layout.tsx.
   const handleCreated = async (orgId: string) => {
     await switchOrg(orgId);
     await queryClient.invalidateQueries();
@@ -177,10 +223,16 @@ export default function DashboardPage() {
     };
   });
 
-  const activeModules = billing?.entitlements?.filter((e) => ['active', 'trialing', 'past_due'].includes(e.state)).length ?? 0;
+  const activeModules =
+    billing?.entitlements?.filter((e) => ['active', 'trialing', 'past_due'].includes(e.state)).length ?? 0;
 
   const stats = [
-    { label: t('dashboard.stats.activeModules'), value: String(activeModules), icon: Puzzle, change: t('dashboard.stats.modulesHint') },
+    {
+      label: t('dashboard.stats.activeModules'),
+      value: String(activeModules),
+      icon: Puzzle,
+      change: t('dashboard.stats.modulesHint'),
+    },
     { label: t('dashboard.stats.products'), value: '0', icon: Package, change: t('dashboard.stats.startInventory') },
     { label: t('dashboard.stats.revenueMtd'), value: '0', icon: TrendingUp, change: t('dashboard.stats.startSelling') },
     { label: t('dashboard.stats.activeDeals'), value: '0', icon: DollarSign, change: t('dashboard.stats.dealsHint') },
@@ -190,7 +242,9 @@ export default function DashboardPage() {
     <div className="space-y-8 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{t('nav.dashboard')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.welcome')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {activeOrg?.data?.name ? `${activeOrg.data.name} · ${t('dashboard.welcome')}` : t('dashboard.welcome')}
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -243,7 +297,9 @@ export default function DashboardPage() {
                           <Icon className="size-5" aria-hidden="true" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold transition-colors group-hover:text-primary">{t(mod.labelKey)}</h3>
+                          <h3 className="font-semibold transition-colors group-hover:text-primary">
+                            {t(mod.labelKey)}
+                          </h3>
                           <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">
                             {t(`modules.${mod.moduleKey}.description`)}
                           </p>

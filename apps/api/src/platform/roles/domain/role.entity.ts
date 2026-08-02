@@ -1,9 +1,5 @@
 import { DomainError } from '../../../core/common/errors.js';
-import {
-  SYSTEM_ROLE_IMMUTABLE,
-  LAST_OWNER_ROLE,
-  CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED,
-} from './errors.js';
+import { SYSTEM_ROLE_IMMUTABLE, LAST_OWNER_ROLE, CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED } from './errors.js';
 
 /**
  * System role keys — the hardcoded role matrix per BUSINESS_RULES.md §3.
@@ -30,6 +26,7 @@ export const PLATFORM_PERMISSIONS = [
   'platform:modules:disable',
   'platform:members:invite',
   'platform:members:remove',
+  'platform:members:assign-role',
   'platform:roles:manage',
   'platform:settings:manage',
   'platform:audit:view',
@@ -50,6 +47,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'platform:modules:disable',
     'platform:members:invite',
     'platform:members:remove',
+    'platform:members:assign-role',
     'platform:roles:manage',
     'platform:settings:manage',
     'platform:audit:view',
@@ -64,6 +62,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'platform:modules:disable',
     'platform:members:invite',
     'platform:members:remove',
+    'platform:members:assign-role',
     'platform:roles:manage',
     'platform:settings:manage',
     'platform:audit:view',
@@ -78,13 +77,42 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'platform:data:read',
     'platform:data:export',
   ],
-  [SYSTEM_ROLES.MEMBER]: [
-    'platform:data:write',
-    'platform:data:read',
-  ],
-  [SYSTEM_ROLES.VIEWER]: [
-    'platform:data:read',
-  ],
+  [SYSTEM_ROLES.MEMBER]: ['platform:data:write', 'platform:data:read'],
+  [SYSTEM_ROLES.VIEWER]: ['platform:data:read'],
+};
+
+/**
+ * Seed metadata (name + description) for the five system roles.
+ *
+ * Org creation inserts one `core_roles` row per system role so every
+ * organization starts with the full documented role set — the members
+ * page invite/role dropdowns read these rows. System-role *permissions*
+ * stay code-defined (`SYSTEM_ROLE_PERMISSIONS`); only the role rows are
+ * persisted per org (AUTH-10).
+ *
+ * @see BUSINESS_RULES.md §3 — Role matrix
+ */
+export const SYSTEM_ROLE_SEED: Record<SystemRoleKey, { nameI18n: Record<string, string>; description: string }> = {
+  [SYSTEM_ROLES.OWNER]: {
+    nameI18n: { en: 'Owner', ar: 'المالك', fr: 'Propriétaire', es: 'Propietario' },
+    description: 'Organization owner with full administrative access.',
+  },
+  [SYSTEM_ROLES.ADMIN]: {
+    nameI18n: { en: 'Admin', ar: 'مدير', fr: 'Administrateur', es: 'Administrador' },
+    description: 'Administrator with platform-level management rights.',
+  },
+  [SYSTEM_ROLES.MANAGER]: {
+    nameI18n: { en: 'Manager', ar: 'مشرف', fr: 'Gestionnaire', es: 'Gerente' },
+    description: 'Manages module configuration and data.',
+  },
+  [SYSTEM_ROLES.MEMBER]: {
+    nameI18n: { en: 'Member', ar: 'عضو', fr: 'Membre', es: 'Miembro' },
+    description: 'Standard member with data read/write access.',
+  },
+  [SYSTEM_ROLES.VIEWER]: {
+    nameI18n: { en: 'Viewer', ar: 'مشاهد', fr: 'Observateur', es: 'Observador' },
+    description: 'Read-only access to module data.',
+  },
 };
 
 /**
@@ -137,16 +165,36 @@ export class Role {
 
   // ─── Getters ────────────────────────────────────────────────────────────────
 
-  get id(): string { return this.data.id; }
-  get organizationId(): string { return this.data.organizationId; }
-  get key(): string { return this.data.key; }
-  get nameI18n(): Record<string, string> { return { ...this.data.nameI18n }; }
-  get description(): string | null { return this.data.description; }
-  get isSystem(): boolean { return this.data.isSystem; }
-  get isDeletable(): boolean { return !this.data.isSystem && this.data.deletedAt === null; }
-  get createdAt(): Date { return this.data.createdAt; }
-  get updatedAt(): Date { return this.data.updatedAt; }
-  get deletedAt(): Date | null { return this.data.deletedAt; }
+  get id(): string {
+    return this.data.id;
+  }
+  get organizationId(): string {
+    return this.data.organizationId;
+  }
+  get key(): string {
+    return this.data.key;
+  }
+  get nameI18n(): Record<string, string> {
+    return { ...this.data.nameI18n };
+  }
+  get description(): string | null {
+    return this.data.description;
+  }
+  get isSystem(): boolean {
+    return this.data.isSystem;
+  }
+  get isDeletable(): boolean {
+    return !this.data.isSystem && this.data.deletedAt === null;
+  }
+  get createdAt(): Date {
+    return this.data.createdAt;
+  }
+  get updatedAt(): Date {
+    return this.data.updatedAt;
+  }
+  get deletedAt(): Date | null {
+    return this.data.deletedAt;
+  }
 
   /** Check if this is an OWNER role. */
   get isOwnerRole(): boolean {

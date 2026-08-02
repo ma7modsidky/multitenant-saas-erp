@@ -33,7 +33,7 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     // Nest's FastifyAdapter serves routes through @fastify/middie, so the
     // response passed to middlewares may be the raw Node ServerResponse
     // rather than a FastifyReply. Handle both shapes.
-    const reply = res as FastifyReply;
+    const reply = res;
     if (typeof reply.header === 'function') {
       reply.header(CORRELATION_ID_HEADER, correlationId);
     } else {

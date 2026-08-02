@@ -1,14 +1,7 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  UseGuards,
-  UsePipes,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
+import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { PublicRoute } from '../../../core/tenancy/system-context.decorator.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
@@ -67,6 +60,7 @@ export class ModuleRegistryController {
    */
   @Post('organizations/:orgId/modules/enable')
   @UsePipes(new ZodValidationPipe(enableModuleSchema))
+  @RequiresPermission('platform:modules:enable')
   async enableModule(
     @Param('orgId') orgId: string,
     @Body() dto: EnableModuleDto,
@@ -86,6 +80,7 @@ export class ModuleRegistryController {
    */
   @Post('organizations/:orgId/modules/disable')
   @UsePipes(new ZodValidationPipe(disableModuleSchema))
+  @RequiresPermission('platform:modules:disable')
   async disableModule(
     @Param('orgId') orgId: string,
     @Body() dto: DisableModuleDto,

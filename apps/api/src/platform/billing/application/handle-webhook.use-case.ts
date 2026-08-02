@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
-import { validateStateTransition, WEBHOOK_ALREADY_PROCESSED } from '../domain/index.js';
+import { validateStateTransition, WEBHOOK_ALREADY_PROCESSED, type SubscriptionStatus } from '../domain/index.js';
 import { BILLING_REPOSITORY, STRIPE_PORT, type BillingRepository, type StripePort } from '../ports/index.js';
 
 @Injectable()
@@ -18,11 +18,7 @@ export class HandleWebhookUseCase {
     private readonly txManager: TransactionManager,
   ) {}
 
-  async execute(input: {
-    payload: string;
-    signature: string;
-    secret: string;
-  }): Promise<{ received: boolean }> {
+  async execute(input: { payload: string; signature: string; secret: string }): Promise<{ received: boolean }> {
     // Verify webhook signature (BILL-5)
     const event = await this.stripe.verifyWebhookSignature(input.payload, input.signature, input.secret);
     if (!event) {
@@ -43,7 +39,8 @@ export class HandleWebhookUseCase {
 
     try {
       // Extract the event data object — Stripe nests the resource under 'data.object'
-      const eventData = (event.data as Record<string, unknown> | undefined)?.object as Record<string, unknown> | undefined;
+      const eventData = (event.data as Record<string, unknown> | undefined)?.object as
+        Record<string, unknown> | undefined;
       await this.processEvent(eventType, eventData);
     } catch {
       // Don't fail the webhook response — Stripe will retry
@@ -79,10 +76,14 @@ export class HandleWebhookUseCase {
     if (!subscription) return;
 
     await this.txManager.run(async (tx) => {
-      await this.billingRepo.update(subscription.id, {
-        status: 'active',
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      }, tx);
+      await this.billingRepo.update(
+        subscription.id,
+        {
+          status: 'active',
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+        tx,
+      );
 
       const entitlements = await this.billingRepo.findEntitlementsByOrg(subscription.organizationId, tx);
       for (const ent of entitlements) {
@@ -123,7 +124,7 @@ export class HandleWebhookUseCase {
     if (!subscription) return;
 
     await this.txManager.run(async (tx) => {
-      await this.billingRepo.update(subscription.id, { status: status as any }, tx);
+      await this.billingRepo.update(subscription.id, { status: status as SubscriptionStatus }, tx);
     });
   }
 
@@ -135,12 +136,23 @@ export class HandleWebhookUseCase {
     if (!subscription) return;
 
     await this.txManager.run(async (tx) => {
+      // BILL-6: a deleted subscription ends the commercial relationship.
+      // Active/trialing modules are treated as cancelled → disabled. Modules
+      // still in dunning have no valid path to disabled, so they drop to
+      // suspended (the terminal access-denied state) instead.
+      const DELETED_TARGET: Record<string, string> = {
+        active: 'disabled',
+        trialing: 'disabled',
+        expired: 'disabled',
+        past_due: 'suspended',
+      };
+
       const entitlements = await this.billingRepo.findEntitlementsByOrg(subscription.organizationId, tx);
       for (const ent of entitlements) {
-        if (['active', 'past_due', 'trialing'].includes(ent.state)) {
-          validateStateTransition(ent.state, 'suspended');
-          await this.billingRepo.updateEntitlementState(subscription.organizationId, ent.moduleKey, 'suspended', tx);
-        }
+        const target = DELETED_TARGET[ent.state];
+        if (!target) continue;
+        validateStateTransition(ent.state, target);
+        await this.billingRepo.updateEntitlementState(subscription.organizationId, ent.moduleKey, target, tx);
       }
     });
   }

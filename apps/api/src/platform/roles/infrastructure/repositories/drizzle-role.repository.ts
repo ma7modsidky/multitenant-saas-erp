@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
+import { fromDbDate, toDbDate } from '../../../../core/database/db-date.js';
 import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.provider.js';
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import { type RoleData } from '../../domain/index.js';
@@ -30,11 +31,11 @@ export class DrizzleRoleRepository implements RoleRepository {
       nameI18n: row.name_i18n as Record<string, string>,
       description: row.description as string | null,
       isSystem: row.is_system as boolean,
-      createdAt: row.created_at as Date,
-      updatedAt: row.updated_at as Date,
+      createdAt: fromDbDate(row.created_at) as Date,
+      updatedAt: fromDbDate(row.updated_at) as Date,
       createdBy: row.created_by as string | null,
       updatedBy: row.updated_by as string | null,
-      deletedAt: row.deleted_at as Date | null,
+      deletedAt: fromDbDate(row.deleted_at),
     };
   }
 
@@ -76,7 +77,7 @@ export class DrizzleRoleRepository implements RoleRepository {
         VALUES
           (${data.id}, ${data.organizationId}, ${data.key}, ${JSON.stringify(data.nameI18n)}::jsonb,
            ${data.description}, ${data.isSystem},
-           ${data.createdAt}, ${data.updatedAt}, ${data.createdBy}, ${data.updatedBy})
+           ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)}, ${data.createdBy}, ${data.updatedBy})
         RETURNING *
       `,
     );
@@ -92,7 +93,7 @@ export class DrizzleRoleRepository implements RoleRepository {
     if (data.nameI18n !== undefined) fragments.push(sql`name_i18n = ${JSON.stringify(data.nameI18n)}::jsonb`);
     if (data.description !== undefined) fragments.push(sql`description = ${data.description}`);
     if (data.updatedBy !== undefined) fragments.push(sql`updated_by = ${data.updatedBy}`);
-    if (data.deletedAt !== undefined) fragments.push(sql`deleted_at = ${data.deletedAt}`);
+    if (data.deletedAt !== undefined) fragments.push(sql`deleted_at = ${toDbDate(data.deletedAt)}`);
     if (data.isSystem !== undefined) fragments.push(sql`is_system = ${data.isSystem}`);
 
     // Build the SET clause using the fragment for name_i18n separately to handle jsonb
@@ -150,9 +151,7 @@ export class DrizzleRoleRepository implements RoleRepository {
 
   async getAllRegisteredPermissions(_organizationId: string, tx?: TxOrDb): Promise<string[]> {
     const db = this.getDb(tx);
-    const rows = await db.execute<Record<string, unknown>>(
-      sql`SELECT key FROM ${this.permsTable} ORDER BY key`,
-    );
+    const rows = await db.execute<Record<string, unknown>>(sql`SELECT key FROM ${this.permsTable} ORDER BY key`);
     return rows.map((r) => r.key as string);
   }
 }

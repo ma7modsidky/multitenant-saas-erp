@@ -12,6 +12,12 @@ out/
 # Coverage
 coverage/
 
+# Playwright E2E
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+apps/web/playwright/.cache/
+
 # Environment files
 .env
 .env.local
@@ -41,3 +47,6 @@ packages/api-client/src/generated/
 # Misc
 *.tsbuildinfo
 *.tsbuildinfo.*
+
+# Local tooling databases (desktop app local state, never committed)
+.freebuff/

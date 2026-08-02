@@ -1,24 +1,10 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-  UsePipes,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 import { NotFoundError } from '../../../core/common/errors.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
-import {
-  PasswordChangeUseCase,
-  SessionManagementUseCase,
-} from '../application/index.js';
+import { PasswordChangeUseCase, SessionManagementUseCase } from '../application/index.js';
 import { USER_REPOSITORY, type UserRepository } from '../ports/index.js';
 import {
   passwordChangeSchema,
@@ -77,15 +63,13 @@ export class UsersController {
    */
   @Patch('me')
   @UsePipes(new ZodValidationPipe(updateProfileSchema))
-  async updateProfile(
-    @Body() dto: UpdateProfileDto,
-  ): Promise<{ data: UserProfileResponse }> {
+  async updateProfile(@Body() dto: UpdateProfileDto): Promise<{ data: UserProfileResponse }> {
     const userId = TenantContext.requireUserId();
-    const updateData: Record<string, unknown> = {};
+    const updateData: { name?: string; preferredLocale?: string | null } = {};
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.preferredLocale !== undefined) updateData.preferredLocale = dto.preferredLocale;
 
-    const updated = await this.userRepo.update(userId, updateData as any);
+    const updated = await this.userRepo.update(userId, updateData);
 
     return {
       data: {

@@ -1,19 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Bell,
-  Moon,
-  Sun,
-  Monitor,
-  LogOut,
-  User,
-  Settings,
-  Building2,
-  ChevronDown,
-  Menu,
-  Check,
-} from 'lucide-react';
+import { Bell, Moon, Sun, Monitor, LogOut, User, Settings, Building2, ChevronDown, Menu, Check } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -23,9 +11,9 @@ import { getMyOrganizations } from '@/lib/api/resources';
 import type { MembershipOrg } from '@/lib/api/types';
 import { useSession } from '@/lib/auth/session-context';
 
-import { cn } from '../cn';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
+import { LocaleSwitcher } from './locale-switcher';
 
 interface TopbarProps {
   onMenuToggle?: () => void;
@@ -46,7 +34,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   const queryClient = useQueryClient();
   const locale = pathname.split('/')[1] ?? 'en';
 
-  const { user, organizationId, switchOrg, logout } = useSession();
+  const { status, user, organizationId, switchOrg, logout } = useSession();
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
@@ -58,6 +46,11 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   const { data: myOrgs } = useQuery({
     queryKey: ['my-organizations'],
     queryFn: getMyOrganizations,
+    // Only fetch while a real session exists. The shell gate (ShellLayout)
+    // already keeps this component mounted only when authenticated, but a
+    // stale-cookie render must not fire API calls that 401 and bounce the
+    // user to login mid-hydration.
+    enabled: status === 'authenticated',
   });
 
   // Close menus on click outside
@@ -73,8 +66,6 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const localeLabels: Record<string, string> = { en: 'EN', ar: 'AR', fr: 'FR', es: 'ES' };
 
   const cycleTheme = () => {
     const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
@@ -157,6 +148,11 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                     >
                       <Building2 className="size-4 shrink-0 text-muted-foreground" />
                       <span className="flex-1 truncate text-start">{org.organizationName}</span>
+                      {org.organizationStatus === 'pending_deletion' && (
+                        <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">
+                          {t('shell.pendingDeletion')}
+                        </span>
+                      )}
                       {org.current && <Check className="size-4 text-primary" aria-hidden="true" />}
                     </button>
                   ))}
@@ -169,21 +165,8 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         <div className="flex-1" />
 
         <div className="flex items-center gap-1">
-          {/* Locale switcher */}
-          <div className="hidden sm:flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground">
-            {Object.entries(localeLabels).map(([code, label]) => (
-              <Link
-                key={code}
-                href={pathname === `/${locale}` ? `/${code}` : pathname.replace(`/${locale}`, `/${code}`)}
-                className={cn(
-                  'rounded px-1.5 py-0.5 transition-colors hover:text-foreground',
-                  code === locale && 'bg-accent text-foreground',
-                )}
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
+          {/* Locale switcher (dropdown) */}
+          <LocaleSwitcher />
 
           <Separator orientation="vertical" className="mx-1 h-6" />
 
@@ -192,7 +175,9 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             variant="ghost"
             size="icon"
             onClick={cycleTheme}
-            aria-label={t(theme === 'dark' ? 'shell.darkMode' : theme === 'light' ? 'shell.lightMode' : 'shell.systemMode')}
+            aria-label={t(
+              theme === 'dark' ? 'shell.darkMode' : theme === 'light' ? 'shell.lightMode' : 'shell.systemMode',
+            )}
           >
             <ThemeIcon className="size-4" />
           </Button>

@@ -20,10 +20,10 @@ export class ReconcileEntitlementsUseCase {
     private readonly txManager: TransactionManager,
   ) {}
 
-  async execute(input: {
-    organizationId: string;
-  }): Promise<{ updated: number; alerts: string[] }> {
-    const subscription = await this.billingRepo.findByOrgId(input.organizationId);
+  async execute(input: { organizationId: string }): Promise<{ updated: number; alerts: string[] }> {
+    // core_subscriptions / core_module_entitlements are RLS-protected — read
+    // them inside the tenant-bound transaction or they fail closed.
+    const subscription = await this.txManager.run((tx) => this.billingRepo.findByOrgId(input.organizationId, tx));
     if (!subscription) {
       return { updated: 0, alerts: ['No subscription found'] };
     }
@@ -32,7 +32,9 @@ export class ReconcileEntitlementsUseCase {
     let updated = 0;
 
     // Get local entitlements
-    const localEntitlements = await this.billingRepo.findEntitlementsByOrg(input.organizationId);
+    const localEntitlements = await this.txManager.run((tx) =>
+      this.billingRepo.findEntitlementsByOrg(input.organizationId, tx),
+    );
 
     // Get Stripe subscription items
     const stripeItems = await this.stripe.getSubscriptionItems(subscription.stripeSubscriptionId);
@@ -51,11 +53,12 @@ export class ReconcileEntitlementsUseCase {
         }
 
         if (!shouldBeActive && local.state === 'active') {
-          // Stripe says not active, we say active → adjust
-          validateStateTransition('active', 'suspended');
-          await this.billingRepo.updateEntitlementState(input.organizationId, local.moduleKey, 'suspended', tx);
+          // Stripe says not active, we say active → adjust (BILL-4: Stripe wins).
+          // A module absent from the Stripe subscription is treated as cancelled → disabled.
+          validateStateTransition('active', 'disabled');
+          await this.billingRepo.updateEntitlementState(input.organizationId, local.moduleKey, 'disabled', tx);
           updated++;
-          alerts.push(`Module '${local.moduleKey}' suspended — not found in Stripe subscription`);
+          alerts.push(`Module '${local.moduleKey}' disabled — not found in Stripe subscription`);
         }
       }
     });

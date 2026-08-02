@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { AUDIT_LOG_REPOSITORY, type AuditLogRepository } from '../ports/index.js';
 
 @Injectable()
@@ -7,6 +8,7 @@ export class QueryAuditLogUseCase {
   constructor(
     @Inject(AUDIT_LOG_REPOSITORY)
     private readonly repo: AuditLogRepository,
+    private readonly txManager: TransactionManager,
   ) {}
 
   async execute(input: {
@@ -52,8 +54,14 @@ export class QueryAuditLogUseCase {
     filter.limit = pageSize;
     filter.offset = offset;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic filter for exactOptionalPropertyTypes
-    const result = await this.repo.query(filter as any);
+    // core_audit_log is org-scoped RLS (0003/0008): the query MUST run inside
+    // the tenant-bound transaction or it fails closed to zero rows even for
+    // the owner (TEN-3). Regression: this read previously ran on the raw pool
+    // and returned an empty audit log for every org.
+    const result = await this.txManager.run((tx) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic filter for exactOptionalPropertyTypes
+      this.repo.query(filter as any, tx),
+    );
 
     return {
       entries: result.entries.map((e) => ({

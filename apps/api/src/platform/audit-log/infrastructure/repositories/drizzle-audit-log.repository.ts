@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
+import { fromDbDate } from '../../../../core/database/db-date.js';
 import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.provider.js';
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import { type AuditLogRepository } from '../../ports/index.js';
@@ -59,9 +60,7 @@ export class DrizzleAuditLogRepository implements AuditLogRepository {
     if (filters.fromDate) conditions.push(sql`occurred_at >= ${filters.fromDate}::timestamptz`);
     if (filters.toDate) conditions.push(sql`occurred_at <= ${filters.toDate}::timestamptz`);
 
-    const whereClause = conditions.length > 0
-      ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
-      : sql``;
+    const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
 
     // Count query
     const countRows = await db.execute<Record<string, unknown>>(
@@ -90,7 +89,7 @@ export class DrizzleAuditLogRepository implements AuditLogRepository {
       after: row.after as Record<string, unknown> | null,
       ip: row.ip as string | null,
       correlationId: row.correlation_id as string | null,
-      occurredAt: row.occurred_at as Date,
+      occurredAt: fromDbDate(row.occurred_at) as Date,
     }));
 
     return { entries, total };

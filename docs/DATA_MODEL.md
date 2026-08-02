@@ -52,16 +52,28 @@ ALTER TABLE <table> FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON <table>
   FOR ALL
   TO modubiz_app
-  USING      (organization_id = current_setting('app.current_organization_id', true)::uuid)
-  WITH CHECK (organization_id = current_setting('app.current_organization_id', true)::uuid);
+  USING      (organization_id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid)
+  WITH CHECK (organization_id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid);
 ```
 
 Notes:
 
-- `current_setting(..., true)` returns `NULL` when unset, so the predicate is
-  `NULL` → **no rows match**. A query executed without tenant context silently
-  sees nothing; it never sees everything. This fail-closed behaviour is
+- The `NULLIF(..., '')` wrapper is **mandatory, not optional**. PostgreSQL
+  resets custom GUCs (`app.*`) to the **empty string** — not `NULL` — after any
+  transaction that touches them via `set_config(..., true)`, even on a dedicated
+  connection. A policy casting the raw value (`current_setting(...)::uuid`)
+  therefore crashes with `invalid input syntax for type uuid: ""` on the next
+  **org-less** query served by that pooled connection (e.g. the switch-org
+  lookup right after a user creates their first organization) → HTTP 500.
+- `NULLIF(current_setting(..., true), '')` normalizes both unset (`NULL`) and
+  reset (`''`) to `NULL`, so the predicate is `NULL` → **no rows match** and the
+  cast can never see an empty string. A query executed without tenant context
+  silently sees nothing; it never sees everything. This fail-closed behaviour is
   intentional and is asserted by tests.
+- The `user_own_memberships` policy (0007) follows the same rule for
+  `app.current_user_id`.
+- Fix forward: merged migration `0003_rls.sql` used the raw cast; it was
+  hardened by `0008_nullif_rls_policies.sql`. Do not edit merged migrations.
 - `WITH CHECK` blocks writing a row belonging to another org — insert and update
   are both covered.
 - Global (non-tenant) tables — `core_currencies`, `core_fx_rates`,
@@ -87,6 +99,12 @@ await db.transaction(async (tx) => {
 
 `set_config(..., true)` is transaction-local — safe with connection pooling
 (including PgBouncer in transaction mode).
+
+**Important:** a variable is left **unset** when the context has no value —
+never bound to an empty string.
+`set_config('app.current_organization_id', '', true)` would crash RLS policies
+casting `::uuid` on the next org-less query served by that pooled connection
+(see the `NULLIF` note above).
 
 **Rules for all feature code:**
 
@@ -146,6 +164,13 @@ await db.transaction(async (tx) => {
    never for data that must be queried relationally or constrained.
 7. Timestamps are always `timestamptz` stored in UTC. Display timezone comes
    from the organization.
+8. **Raw
+   `sql`` bindings of timestamps use `toDbDate`/`fromDbDate`** from `apps/api/src/core/database/db-date.ts`. Drizzle's postgres-js driver overrides postgres.js date serializers/parsers with identity functions, so a raw `Date`bound in a`sql``
+   template crashes at runtime (`ERR_INVALID_ARG_TYPE`) and reads return
+   timestamptz as strings. Always serialize writes with `toDbDate(...)` and
+   normalize reads with `fromDbDate(...)` when using raw SQL templates (the
+   drizzle query builder path is unaffected — it maps `Date` via the column
+   type).
 
 ---
 
@@ -153,31 +178,31 @@ await db.transaction(async (tx) => {
 
 ### 4.1 Global (non-tenant) tables
 
-| Table                 | Purpose                                                                    | RLS                                                |
-| --------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
+| Table                 | Purpose                                                                                                                             | RLS                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `core_users`          | Identity: email, password hash, name, preferred locale, verification state, login lockout (`failed_login_attempts`, `locked_until`) | No (row visibility governed by membership queries) |
-| `core_sessions`       | Refresh-token sessions: hash, device, ip, expiry, revocation               | No                                                 |
-| `core_organizations`  | Tenants                                                                    | No (visibility via membership)                     |
-| `core_currencies`     | ISO 4217 reference: code, exponent, symbol                                 | No (read-only reference)                           |
-| `core_fx_rates`       | Daily rate snapshots: base, quote, rate, valid_on, source                  | No (read-only reference)                           |
-| `core_module_catalog` | Registered modules, mirrored from descriptors at boot                      | No (read-only reference)                           |
-| `core_permissions`    | Permission catalog, mirrored from descriptors at boot                      | No (read-only reference)                           |
+| `core_sessions`       | Refresh-token sessions: hash, device, ip, expiry, revocation                                                                        | No                                                 |
+| `core_organizations`  | Tenants                                                                                                                             | No (visibility via membership)                     |
+| `core_currencies`     | ISO 4217 reference: code, exponent, symbol                                                                                          | No (read-only reference)                           |
+| `core_fx_rates`       | Daily rate snapshots: base, quote, rate, valid_on, source                                                                           | No (read-only reference)                           |
+| `core_module_catalog` | Registered modules, mirrored from descriptors at boot                                                                               | No (read-only reference)                           |
+| `core_permissions`    | Permission catalog, mirrored from descriptors at boot                                                                               | No (read-only reference)                           |
 
 ### 4.2 Tenant-scoped platform tables (all RLS-protected)
 
-| Table                        | Purpose                                                                  | Key columns                                                                                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core_memberships`           | Links a user to an organization                                          | `user_id`, `organization_id`, `role_id`, `status`, `joined_at` — `UNIQUE (organization_id, user_id)`                                                                             |
-| `core_roles`                 | System + custom roles                                                    | `key`, `name_i18n jsonb`, `is_system`, `UNIQUE (organization_id, key)`                                                                                                           |
-| `core_role_permissions`      | Role → permission keys                                                   | `role_id`, `permission_key`                                                                                                                                                      |
-| `core_invitations`           | Pending invites                                                          | `email`, `role_id`, `token_hash`, `expires_at`, `accepted_at`, `revoked_at`                                                                                                      |
-| `core_subscriptions`         | Stripe subscription mirror                                               | `stripe_customer_id`, `stripe_subscription_id`, `status`, `billing_currency`, `current_period_end`                                                                               |
-| `core_module_entitlements`   | **Runtime authority for module access**                                  | `module_key`, `state`, `trial_started_at`, `trial_ends_at`, `activated_at`, `disabled_at`, `purge_after`, `stripe_subscription_item_id` — `UNIQUE (organization_id, module_key)` |
-| `core_audit_log`             | Append-only audit trail                                                  | `actor_user_id`, `actor_type`, `action`, `entity_type`, `entity_id`, `before jsonb`, `after jsonb`, `ip`, `correlation_id`, `occurred_at`                                        |
-| `core_notifications`         | In-app notifications                                                     | `user_id`, `type`, `payload jsonb`, `read_at`                                                                                                                                    |
-| `core_outbox`                | Transactional outbox for durable events                                  | `event_name`, `payload jsonb`, `published_at`, `attempts`, `failed_reason`                                                                                                       |
-| `core_data_exports`          | Export/erasure requests                                                  | `type`, `status`, `requested_by`, `file_key`, `expires_at`                                                                                                                       |
-| `core_organization_settings` | Locale, timezone, base currency, number/date preferences, receipt footer | one row per org                                                                                                                                                                  |
+| Table                        | Purpose                                                                  | Key columns                                                                                                                                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core_memberships`           | Links a user to an organization                                          | `user_id`, `organization_id`, `role_id`, `status`, `joined_at` — partial `uq_core_memberships_active` (`WHERE deleted_at IS NULL`): at most one **active** membership per (org, user); soft-deleted memberships do not block re-join (AUTHZ-7) |
+| `core_roles`                 | System + custom roles                                                    | `key`, `name_i18n jsonb`, `is_system`, `UNIQUE (organization_id, key)`                                                                                                                                                                         |
+| `core_role_permissions`      | Role → permission keys                                                   | `role_id`, `permission_key`                                                                                                                                                                                                                    |
+| `core_invitations`           | Pending invites                                                          | `email`, `role_id`, `token_hash`, `expires_at`, `accepted_at`, `revoked_at`                                                                                                                                                                    |
+| `core_subscriptions`         | Stripe subscription mirror                                               | `stripe_customer_id`, `stripe_subscription_id`, `status`, `billing_currency`, `current_period_end`                                                                                                                                             |
+| `core_module_entitlements`   | **Runtime authority for module access**                                  | `module_key`, `state`, `trial_started_at`, `trial_ends_at`, `activated_at`, `disabled_at`, `purge_after`, `stripe_subscription_item_id` — `UNIQUE (organization_id, module_key)`                                                               |
+| `core_audit_log`             | Append-only audit trail                                                  | `actor_user_id`, `actor_type`, `action`, `entity_type`, `entity_id`, `before jsonb`, `after jsonb`, `ip`, `correlation_id`, `occurred_at`                                                                                                      |
+| `core_notifications`         | In-app notifications                                                     | `user_id`, `type`, `payload jsonb`, `read_at`                                                                                                                                                                                                  |
+| `core_outbox`                | Transactional outbox for durable events                                  | `event_name`, `payload jsonb`, `published_at`, `attempts`, `failed_reason`                                                                                                                                                                     |
+| `core_data_exports`          | Export/erasure requests                                                  | `type`, `status`, `requested_by`, `file_key`, `expires_at`                                                                                                                                                                                     |
+| `core_organization_settings` | Locale, timezone, base currency, number/date preferences, receipt footer | one row per org                                                                                                                                                                                                                                |
 
 ### 4.3 Organization identity columns
 

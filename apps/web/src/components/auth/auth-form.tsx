@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import { ApiError } from '@/lib/api';
+import { safeNextPath } from '@/lib/api/error-keys';
 import { login, signup } from '@/lib/auth';
 
 import { cn } from '../cn';
@@ -42,9 +43,13 @@ function errorKey(code: string): string {
 interface LoginFormProps {
   className?: string;
   onSuccess?: () => void;
+  /** Relative path to redirect to after a successful login (e.g. an invitation link). */
+  next?: string | undefined;
+  /** Pre-fill the email field (e.g. the address an invitation was sent to). */
+  initialEmail?: string | undefined;
 }
 
-export function LoginForm({ className, onSuccess }: LoginFormProps) {
+export function LoginForm({ className, onSuccess, next, initialEmail }: LoginFormProps) {
   const t = useTranslations();
   const router = useRouter();
   const pathname = usePathname();
@@ -53,7 +58,7 @@ export function LoginForm({ className, onSuccess }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail ?? '');
   const [password, setPassword] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,7 +70,9 @@ export function LoginForm({ className, onSuccess }: LoginFormProps) {
       await login({ email, password });
       setSuccess(true);
       onSuccess?.();
-      router.replace(`/${locale}`);
+      // Prefer the sanitized `next` target (e.g. returning to an invitation
+      // link) over the dashboard. safeNextPath rejects external/absolute URLs.
+      router.replace(safeNextPath(next) ?? `/${locale}`);
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError) {
@@ -160,9 +167,17 @@ export function LoginForm({ className, onSuccess }: LoginFormProps) {
 interface SignupFormProps {
   className?: string;
   onSuccess?: () => void;
+  /** Relative path carried to the follow-up login (e.g. an invitation link). */
+  next?: string | undefined;
+  /**
+   * The invited email (AUTH-3/AUTH-9). When provided the email field is
+   * pre-filled and locked: the invitation is bound to this address and the
+   * accept RLS policy only matches an account with this exact email.
+   */
+  initialEmail?: string | undefined;
 }
 
-export function SignupForm({ className, onSuccess }: SignupFormProps) {
+export function SignupForm({ className, onSuccess, next, initialEmail }: SignupFormProps) {
   const t = useTranslations();
   const router = useRouter();
   const pathname = usePathname();
@@ -172,8 +187,11 @@ export function SignupForm({ className, onSuccess }: SignupFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail ?? '');
   const [password, setPassword] = useState('');
+  // The invited email is locked on signup so the new account is created with
+  // the exact address the invitation was sent to (AUTH-3 / RLS 0009).
+  const emailLocked = initialEmail !== undefined && initialEmail.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,12 +214,23 @@ export function SignupForm({ className, onSuccess }: SignupFormProps) {
   };
 
   if (success) {
+    // After signup the user is not yet logged in; point them at the login
+    // page, preserving the `next` target (e.g. the invitation link) so the
+    // post-login redirect completes the flow. The invited email is carried
+    // along so the login form is pre-filled with the same address.
+    const safeNext = safeNextPath(next);
+    const emailQuery = emailLocked ? `&email=${encodeURIComponent(email)}` : '';
+    const loginHref = safeNext
+      ? `/${locale}/login?next=${encodeURIComponent(safeNext)}${emailQuery}`
+      : emailLocked
+        ? `/${locale}/login?email=${encodeURIComponent(email)}`
+        : `/${locale}/login`;
     return (
       <div className={cn('space-y-4', className)}>
         <div role="status" className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">
           {t('auth.signupSuccess')}
         </div>
-        <Button type="button" className="w-full" variant="outline" onClick={() => router.push(`/${locale}/login`)}>
+        <Button type="button" className="w-full" variant="outline" onClick={() => router.push(loginHref)}>
           {t('auth.login')}
         </Button>
       </div>
@@ -241,8 +270,15 @@ export function SignupForm({ className, onSuccess }: SignupFormProps) {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            readOnly={emailLocked}
+            aria-describedby={emailLocked ? 'signup-email-locked' : undefined}
           />
         </div>
+        {emailLocked && (
+          <p id="signup-email-locked" className="text-xs text-muted-foreground">
+            {t('auth.emailLockedHint')}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -283,9 +319,7 @@ export function SignupForm({ className, onSuccess }: SignupFormProps) {
         {t('auth.signup')}
       </Button>
 
-      <p className="text-xs text-muted-foreground text-center">
-        {t('auth.terms')}
-      </p>
+      <p className="text-xs text-muted-foreground text-center">{t('auth.terms')}</p>
     </form>
   );
 }

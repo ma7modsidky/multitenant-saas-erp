@@ -23,18 +23,16 @@ export class CreateSubscriptionUseCase {
     billingCurrency: string;
     priceKeys?: string[];
   }): Promise<{ subscriptionId: string }> {
-    // Check for existing subscription (BILL-1: exactly one per org)
-    const existing = await this.billingRepo.findByOrgId(input.organizationId);
+    // Check for existing subscription (BILL-1: exactly one per org).
+    // core_subscriptions is RLS-protected — read inside the tenant-bound
+    // transaction or it fails closed and a duplicate could be created.
+    const existing = await this.txManager.run((tx) => this.billingRepo.findByOrgId(input.organizationId, tx));
     if (existing) {
       throw new ConflictError(SUBSCRIPTION_ALREADY_EXISTS, 'Organization already has a subscription');
     }
 
     // Create Stripe customer
-    const { customerId } = await this.stripe.createCustomer(
-      input.organizationId,
-      input.organizationName,
-      input.email,
-    );
+    const { customerId } = await this.stripe.createCustomer(input.organizationId, input.organizationName, input.email);
 
     // Create Stripe subscription
     const { subscriptionId, currentPeriodEnd } = await this.stripe.createSubscription({
@@ -46,17 +44,20 @@ export class CreateSubscriptionUseCase {
     // Save locally
     const subId = crypto.randomUUID();
     await this.txManager.run(async (tx) => {
-      await this.billingRepo.insert({
-        id: subId,
-        organizationId: input.organizationId,
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subscriptionId,
-        status: 'active',
-        billingCurrency: input.billingCurrency,
-        currentPeriodEnd,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }, tx);
+      await this.billingRepo.insert(
+        {
+          id: subId,
+          organizationId: input.organizationId,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId,
+          status: 'active',
+          billingCurrency: input.billingCurrency,
+          currentPeriodEnd,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        tx,
+      );
 
       // Map price keys to module keys via the catalog
       if (input.priceKeys) {
@@ -64,13 +65,16 @@ export class CreateSubscriptionUseCase {
           // Find module by stripe_price_key in catalog
           const moduleCatalog = await this.billingRepo.findModuleByStripePriceKey(priceKey);
           if (moduleCatalog) {
-            await this.billingRepo.upsertEntitlement({
-              organizationId: input.organizationId,
-              moduleKey: moduleCatalog.key,
-              state: 'active',
-              activatedAt: new Date(),
-              stripeSubscriptionItemId: null,
-            }, tx);
+            await this.billingRepo.upsertEntitlement(
+              {
+                organizationId: input.organizationId,
+                moduleKey: moduleCatalog.key,
+                state: 'active',
+                activatedAt: new Date(),
+                stripeSubscriptionItemId: null,
+              },
+              tx,
+            );
           }
         }
       }

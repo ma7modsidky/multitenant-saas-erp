@@ -7,6 +7,7 @@ import {
   Users,
   Shield,
   CreditCard,
+  ScrollText,
   Puzzle,
   Package,
   DollarSign,
@@ -21,6 +22,7 @@ import { useTranslations } from 'next-intl';
 
 import { useSession } from '@/lib/auth/session-context';
 import { useNavigation } from '@/lib/entitlements';
+import { hasPermission } from '@/lib/permissions';
 
 import { cn } from '../cn';
 import { Button } from '../ui/button';
@@ -30,6 +32,8 @@ interface NavItem {
   icon: LucideIcon;
   label: string;
   href: string;
+  /** Only highlight on the exact path, not child routes (hubs with their own sub-items). */
+  exact?: boolean;
 }
 
 interface NavSection {
@@ -51,19 +55,30 @@ interface SidebarProps {
 export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const t = useTranslations();
   const pathname = usePathname();
-  const { organizationId } = useSession();
+  const { organizationId, permissions } = useSession();
   const { data: navigation, isLoading: navigationLoading } = useNavigation();
 
   // Extract locale from pathname
   const locale = pathname.split('/')[1] ?? 'en';
 
+  // AUTHZ-5/BUSINESS_RULES §3: platform-management settings are OWNER/ADMIN
+  // only. The backend enforces this via @RequiresPermission; the sidebar hides
+  // entries the user cannot use (server-authoritative — UX only).
+  const canManageMembers = hasPermission(permissions, 'platform:members:invite');
+  const canManageRoles = hasPermission(permissions, 'platform:roles:manage');
+  const canManageBilling = hasPermission(permissions, 'platform:billing:manage');
+  const canViewAudit = hasPermission(permissions, 'platform:audit:view');
+
   const platformItems: NavItem[] = [
-    { icon: LayoutDashboard, label: t('nav.dashboard'), href: `/${locale}` },
+    // Dashboard and Settings are hubs: their children (or the settings sub-
+    // pages) are separate nav items, so only the exact path should highlight.
+    { icon: LayoutDashboard, label: t('nav.dashboard'), href: `/${locale}`, exact: true },
     { icon: Building2, label: t('nav.organizations'), href: `/${locale}/settings/organization` },
-    { icon: Users, label: t('nav.members'), href: `/${locale}/settings/members` },
-    { icon: Shield, label: t('nav.roles'), href: `/${locale}/settings/roles` },
-    { icon: CreditCard, label: t('nav.billing'), href: `/${locale}/settings/billing` },
-    { icon: Settings, label: t('nav.settings'), href: `/${locale}/settings` },
+    ...(canManageMembers ? [{ icon: Users, label: t('nav.members'), href: `/${locale}/settings/members` }] : []),
+    ...(canManageRoles ? [{ icon: Shield, label: t('nav.roles'), href: `/${locale}/settings/roles` }] : []),
+    ...(canManageBilling ? [{ icon: CreditCard, label: t('nav.billing'), href: `/${locale}/settings/billing` }] : []),
+    ...(canViewAudit ? [{ icon: ScrollText, label: t('nav.audit'), href: `/${locale}/settings/audit` }] : []),
+    { icon: Settings, label: t('nav.settings'), href: `/${locale}/settings`, exact: true },
   ];
 
   const navSections: NavSection[] = [{ label: t('nav.platform'), items: platformItems }];
@@ -119,7 +134,14 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
             )}
             <ul className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                // Hub items (dashboard root, settings) only highlight on the
+                // exact path — a prefix match on `/${locale}/` would light the
+                // dashboard up on every page, and the settings hub would
+                // double-highlight alongside its sub-items. Other items
+                // highlight on exact or child routes.
+                const isActive = item.exact
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
                   <li key={item.href}>
                     <Link

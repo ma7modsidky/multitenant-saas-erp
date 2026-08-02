@@ -10,7 +10,7 @@
 // (POST /v1/auth/refresh) and one retry; if the refresh fails the session
 // is cleared and `authEvents` emits `expired`.
 
-import { authEvents, sessionStore } from '../auth/session';
+import { authEvents, setAuthedCookie, sessionStore } from '../auth/session';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
@@ -130,13 +130,27 @@ async function doFetch(path: string, init: RequestInit): Promise<Response> {
  * @param path  API path, e.g. `/v1/auth/signup`
  * @param init  Fetch init; `Content-Type: application/json` is set automatically
  * @param opts.auth  Attach the Bearer token and refresh on 401 (default true)
- * @returns The `data` field of the response envelope
+ * @param opts.envelope  Return the full response envelope (e.g. `{ data, settings }`)
+ *        instead of just its `data` field. Some endpoints return extra sibling
+ *        fields (e.g. GET /v1/organizations/me), which are otherwise dropped.
+ * @returns The `data` field of the response envelope (or the whole envelope)
  */
-export async function apiFetch<T>(path: string, init: RequestInit = {}, opts: { auth?: boolean } = {}): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  opts: { auth?: boolean; envelope?: boolean } = {},
+): Promise<T> {
   const auth = opts.auth !== false;
   const accessToken = auth ? sessionStore.getAccessToken() : null;
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Only set Content-Type when there is a body. Fastify (API side) rejects an
+  // empty body with `Content-Type: application/json` (FST_ERR_CTP_EMPTY_JSON_BODY)
+  // and surfaces it as a 500 — which broke every bodyless DELETE (org delete,
+  // member removal, role delete) from the browser.
+  const headers: Record<string, string> = {};
+  if (init.body != null) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (init.headers) {
     for (const [key, value] of new Headers(init.headers)) {
       headers[key] = value;
@@ -161,8 +175,12 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, opts: { 
 
   if (!res.ok) {
     if (res.status === 401 && auth && !AUTH_ENDPOINTS.some((endpoint) => path.startsWith(endpoint))) {
-      // Refresh failed — the session is no longer usable.
+      // Refresh failed — the session is no longer usable. Clear the middleware
+      // cookie too: it outlives the access token (30 days vs 15 min) and would
+      // otherwise keep letting the server render protected shells for a
+      // session the client can no longer use.
       sessionStore.clear();
+      setAuthedCookie(false);
       authEvents.emit('expired');
     }
     throw new ApiError(res.status, envelope?.error ?? { code: 'UNKNOWN_ERROR' });
@@ -174,5 +192,5 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, opts: { 
 
   // Generic client: the caller's type T is the contract for a decoded JSON payload.
   // eslint-disable-next-line no-restricted-syntax -- unavoidable cast of decoded JSON to the generic caller type
-  return envelope.data as T;
+  return (opts.envelope === true ? raw : envelope.data) as T;
 }

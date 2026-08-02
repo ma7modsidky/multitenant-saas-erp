@@ -6,6 +6,8 @@ import {
   MODULE_DUPLICATE_PERMISSION,
   MODULE_DUPLICATE_EVENT,
   MODULE_DUPLICATE_TABLE_PREFIX,
+  MODULE_DUPLICATE_PORT,
+  MODULE_CONSUMED_PORT_MISSING,
 } from '../domain/index.js';
 import { type ModuleRegistryRepository, MODULE_REGISTRY_REPOSITORY } from '../ports/index.js';
 import { REGISTERED_MODULES } from '../registered-modules.js';
@@ -18,6 +20,9 @@ import { REGISTERED_MODULES } from '../registered-modules.js';
  * 2. No two modules share a permission key.
  * 3. No two modules share an event name (for publishes).
  * 4. No two modules share a table prefix.
+ * 5. Consumed events are published by a registered module.
+ * 6. No two modules provide the same port token.
+ * 7. Consumed ports are provided by a registered module.
  *
  * @see PLAN.md §2.7 — Module registry
  */
@@ -44,9 +49,7 @@ export class BootValidationService {
     for (const d of descriptors) {
       for (const dep of d.dependsOn) {
         if (!keys.has(dep)) {
-          errors.push(
-            `Module "${d.key}" depends on "${dep}" which is not registered. (${MODULE_DEPENDENCY_MISSING})`,
-          );
+          errors.push(`Module "${d.key}" depends on "${dep}" which is not registered. (${MODULE_DEPENDENCY_MISSING})`);
         }
       }
     }
@@ -97,6 +100,31 @@ export class BootValidationService {
         if (!eventMap.has(event)) {
           errors.push(
             `Module "${d.key}" consumes event "${event}" which is not published by any registered module. (${MODULE_DEPENDENCY_MISSING})`,
+          );
+        }
+      }
+    }
+
+    // Check duplicate provided port tokens across modules
+    const providedPortMap = new Map<string, string>();
+    for (const d of descriptors) {
+      for (const port of d.providesPorts) {
+        const existing = providedPortMap.get(port.token);
+        if (existing) {
+          errors.push(
+            `Port "${port.token}" is provided by modules "${existing}" and "${d.key}". (${MODULE_DUPLICATE_PORT})`,
+          );
+        }
+        providedPortMap.set(port.token, d.key);
+      }
+    }
+
+    // Validate consumed ports are provided by a registered module
+    for (const d of descriptors) {
+      for (const port of d.consumesPorts) {
+        if (!providedPortMap.has(port.token)) {
+          errors.push(
+            `Module "${d.key}" consumes port "${port.token}" which is not provided by any registered module. (${MODULE_CONSUMED_PORT_MISSING})`,
           );
         }
       }

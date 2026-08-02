@@ -65,6 +65,9 @@ function findProcessEnvViolations(filePattern: string): string[] {
       '**/*.spec.ts',
       '**/*.test.ts',
       '**/__tests__/**',
+      // Playwright E2E config reads base URLs from env (test tooling, not
+      // application code — same category as specs/tests).
+      '**/playwright.config.ts',
     ],
   });
 

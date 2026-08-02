@@ -1,27 +1,21 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
+import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { QueryAuditLogUseCase } from '../application/index.js';
 import { type AuditLogQueryResponse } from './dto/index.js';
 
 @Controller('v1')
 @UseGuards(AuthGuard('jwt'))
 export class AuditLogController {
-  constructor(
-    private readonly queryAuditLogUseCase: QueryAuditLogUseCase,
-  ) {}
+  constructor(private readonly queryAuditLogUseCase: QueryAuditLogUseCase) {}
 
   /**
    * GET /v1/organizations/:orgId/audit-log
    * Query audit log entries with optional filters.
    */
   @Get('organizations/:orgId/audit-log')
+  @RequiresPermission('platform:audit:view')
   async queryAuditLog(
     @Param('orgId') orgId: string,
     @Query('actorUserId') actorUserId?: string,

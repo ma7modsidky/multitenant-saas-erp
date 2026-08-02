@@ -4,11 +4,18 @@ import { getTranslations } from 'next-intl/server';
 import { LoginForm } from '@/components/auth/auth-form';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; email?: string }>;
+}) {
   const t = await getTranslations();
+  const params = await searchParams;
+  const next = typeof params.next === 'string' ? params.next : undefined;
+  const email = typeof params.email === 'string' ? params.email : undefined;
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-6">
         {/* Brand */}
         <div className="flex flex-col items-center text-center">
@@ -21,13 +28,19 @@ export default async function LoginPage() {
 
         <Card>
           <CardContent className="pt-6">
-            <LoginForm />
+            <LoginForm next={next} initialEmail={email} />
           </CardContent>
           <CardFooter className="justify-center border-t pt-4">
             <p className="text-sm text-muted-foreground">
               {t('auth.noAccount')}{' '}
               <Link
-                href="/signup"
+                href={
+                  next
+                    ? `/signup?next=${encodeURIComponent(next)}${email ? `&email=${encodeURIComponent(email)}` : ''}`
+                    : email
+                      ? `/signup?email=${encodeURIComponent(email)}`
+                      : '/signup'
+                }
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
                 {t('auth.signup')}

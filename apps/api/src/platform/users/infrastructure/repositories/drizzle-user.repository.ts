@@ -2,19 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
+import { fromDbDate, toDbDate } from '../../../../core/database/db-date.js';
 import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.provider.js';
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import { User, type UserData } from '../../domain/index.js';
 import { type UserRepository } from '../../ports/index.js';
-
-/**
- * Drizzle overrides postgres.js date serializers with identity functions
- * (driver.js), so JS Date values must be passed to raw sql`` templates as
- * ISO strings.
- */
-function toDbDate(value: Date | null | undefined): string | null {
-  return value === null || value === undefined ? null : value.toISOString();
-}
 
 /**
  * DrizzleUserRepository — Drizzle implementation of UserRepository.
@@ -38,9 +30,7 @@ export class DrizzleUserRepository implements UserRepository {
 
   async findById(id: string, tx?: TxOrDb): Promise<UserData | undefined> {
     const db = this.getDb(tx);
-    const rows = await db.execute<Record<string, unknown>>(
-      sql`SELECT * FROM ${this.table} WHERE id = ${id} LIMIT 1`,
-    );
+    const rows = await db.execute<Record<string, unknown>>(sql`SELECT * FROM ${this.table} WHERE id = ${id} LIMIT 1`);
     const row = rows[0];
     if (!row) return undefined;
     return this.rowToUser(row);
@@ -98,8 +88,10 @@ export class DrizzleUserRepository implements UserRepository {
     if (data.passwordHash !== undefined) setFragments.push(sql`password_hash = ${data.passwordHash}`);
     if (data.name !== undefined) setFragments.push(sql`name = ${data.name}`);
     if (data.preferredLocale !== undefined) setFragments.push(sql`preferred_locale = ${data.preferredLocale}`);
-    if (data.emailVerifiedAt !== undefined) setFragments.push(sql`email_verified_at = ${toDbDate(data.emailVerifiedAt)}`);
-    if (data.failedLoginAttempts !== undefined) setFragments.push(sql`failed_login_attempts = ${data.failedLoginAttempts}`);
+    if (data.emailVerifiedAt !== undefined)
+      setFragments.push(sql`email_verified_at = ${toDbDate(data.emailVerifiedAt)}`);
+    if (data.failedLoginAttempts !== undefined)
+      setFragments.push(sql`failed_login_attempts = ${data.failedLoginAttempts}`);
     if (data.lockedUntil !== undefined) setFragments.push(sql`locked_until = ${toDbDate(data.lockedUntil)}`);
 
     const setClause = sql.join(setFragments, sql.raw(', '));
@@ -127,13 +119,4 @@ export class DrizzleUserRepository implements UserRepository {
       updatedAt: fromDbDate(row.updated_at) as Date,
     };
   }
-}
-
-/**
- * Drizzle's transparent parser returns timestamptz values as strings, so
- * normalise them back to Date instances.
- */
-function fromDbDate(value: unknown): Date | null {
-  if (value === null || value === undefined || value === '') return null;
-  return value instanceof Date ? value : new Date(value as string);
 }

@@ -33,13 +33,17 @@ export class UpdateOrganizationSettingsUseCase {
   ) {}
 
   async execute(input: UpdateOrganizationSettingsInput): Promise<OrganizationSettings> {
-    const existing = await this.orgRepo.findSettingsByOrgId(input.organizationId);
-
-    if (!existing) {
-      throw new NotFoundError('ORG_SETTINGS_NOT_FOUND', { organizationId: input.organizationId });
-    }
-
+    // core_organization_settings is an RLS-protected table, so both the read
+    // and the upsert must happen inside TransactionManager.run() — reading
+    // outside the tenant-bound transaction fails closed and would throw
+    // ORG_SETTINGS_NOT_FOUND even though the row exists.
     const updated = await this.txManager.run(async (tx) => {
+      const existing = await this.orgRepo.findSettingsByOrgId(input.organizationId, tx);
+
+      if (!existing) {
+        throw new NotFoundError('ORG_SETTINGS_NOT_FOUND', { organizationId: input.organizationId });
+      }
+
       const merged: OrganizationSettings = OrganizationSettings.create({
         ...existing,
         locale: input.locale ?? existing.locale,

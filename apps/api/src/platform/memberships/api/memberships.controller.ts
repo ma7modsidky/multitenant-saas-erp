@@ -1,17 +1,8 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-  UsePipes,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
+import { Audit } from '../../../core/audit/__init__.js';
+import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ForbiddenError, NotFoundError } from '../../../core/common/errors.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
@@ -19,20 +10,24 @@ import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import {
   InviteUserUseCase,
   AcceptInvitationUseCase,
+  RevokeInvitationUseCase,
   RemoveMemberUseCase,
   UpdateMembershipRoleUseCase,
   SwitchOrgUseCase,
 } from '../application/index.js';
-import { MEMBERSHIP_REPOSITORY, INVITATION_REPOSITORY, type MembershipRepository, type InvitationRepository } from '../ports/index.js';
+import {
+  MEMBERSHIP_REPOSITORY,
+  INVITATION_REPOSITORY,
+  type MembershipRepository,
+  type InvitationRepository,
+} from '../ports/index.js';
 import {
   inviteUserSchema,
   updateMemberRoleSchema,
   switchOrgSchema,
-  acceptInvitationSchema,
   type InviteUserDto,
   type UpdateMemberRoleDto,
   type SwitchOrgDto,
-  type AcceptInvitationDto,
   type MemberResponse,
   type InvitationResponse,
 } from './dto/index.js';
@@ -55,6 +50,7 @@ export class MembershipsController {
     private readonly acceptInvitationUseCase: AcceptInvitationUseCase,
     private readonly removeMemberUseCase: RemoveMemberUseCase,
     private readonly updateMemberRoleUseCase: UpdateMembershipRoleUseCase,
+    private readonly revokeInvitationUseCase: RevokeInvitationUseCase,
     private readonly switchOrgUseCase: SwitchOrgUseCase,
     private readonly txManager: TransactionManager,
   ) {}
@@ -67,15 +63,18 @@ export class MembershipsController {
    * `user_own_memberships` RLS policy; the active org is flagged `current`.
    */
   @Get('users/me/organizations')
-  async listMyOrganizations(): Promise<{ data: Array<{
-    organizationId: string;
-    organizationName: string;
-    organizationSlug: string;
-    roleId: string;
-    status: string;
-    joinedAt: string;
-    current: boolean;
-  }> }> {
+  async listMyOrganizations(): Promise<{
+    data: Array<{
+      organizationId: string;
+      organizationName: string;
+      organizationSlug: string;
+      roleId: string;
+      status: string;
+      organizationStatus: string;
+      joinedAt: string;
+      current: boolean;
+    }>;
+  }> {
     const userId = TenantContext.requireUserId();
     const currentOrgId = TenantContext.getOrganizationId();
 
@@ -90,6 +89,7 @@ export class MembershipsController {
         organizationSlug: o.organizationSlug,
         roleId: o.roleId,
         status: o.status,
+        organizationStatus: o.organizationStatus,
         joinedAt: o.joinedAt.toISOString(),
         current: o.organizationId === currentOrgId,
       })),
@@ -98,16 +98,18 @@ export class MembershipsController {
 
   /**
    * GET /v1/organizations/:orgId/members
-   * List all members of an organization.
+   * List all members of an organization with their profile info.
    */
   @Get('organizations/:orgId/members')
   async listMembers(@Param('orgId') orgId: string): Promise<{ data: MemberResponse[] }> {
-    const memberships = await this.membershipRepo.findByOrgId(orgId);
+    const memberships = await this.txManager.run((tx) => this.membershipRepo.findMembersByOrgId(orgId, tx));
 
     return {
       data: memberships.map((m) => ({
         id: m.id,
         userId: m.userId,
+        name: m.userName,
+        email: m.userEmail,
         roleId: m.roleId,
         status: m.status,
         joinedAt: m.joinedAt.toISOString(),
@@ -121,11 +123,12 @@ export class MembershipsController {
    */
   @Get('organizations/:orgId/invitations')
   async listInvitations(@Param('orgId') orgId: string): Promise<{ data: InvitationResponse[] }> {
-    const invitations = await this.invitationRepo.findByOrgId(orgId);
+    const invitations = await this.txManager.run((tx) => this.invitationRepo.findByOrgId(orgId, tx));
 
     return {
       data: invitations.map((inv) => ({
         id: inv.id,
+        name: inv.name,
         email: inv.email,
         roleId: inv.roleId,
         status: inv.acceptedAt ? 'accepted' : inv.revokedAt ? 'revoked' : 'pending',
@@ -141,13 +144,13 @@ export class MembershipsController {
    */
   @Post('organizations/:orgId/invitations')
   @UsePipes(new ZodValidationPipe(inviteUserSchema))
-  async invite(
-    @Param('orgId') orgId: string,
-    @Body() dto: InviteUserDto,
-  ): Promise<{ data: { invitationId: string } }> {
+  @RequiresPermission('platform:members:invite')
+  @Audit({ action: 'CREATE', entityType: 'invitation' })
+  async invite(@Param('orgId') orgId: string, @Body() dto: InviteUserDto): Promise<{ data: { invitationId: string } }> {
     const userId = TenantContext.requireUserId();
 
     const result = await this.inviteUserUseCase.execute({
+      name: dto.name,
       email: dto.email,
       roleId: dto.roleId,
       organizationId: orgId,
@@ -162,6 +165,15 @@ export class MembershipsController {
    * Accept an invitation (AUTH-3, AUTH-9).
    */
   @Post('invitations/:id/accept')
+  // Accepting creates a membership (AUD-1) — record it as the membership
+  // creation so the audit page's entity filters classify it correctly.
+  // NOTE: the invitee's access token carries NO organizationId (login mints
+  // org-less claims; the org is bound only inside the use case via
+  // runWithOrg), so AuditDbWriter skips the DB persistence for this entry
+  // (it still lands in the in-memory AuditLogger). The membership creation
+  // is itself the authoritative record; org-bound follow-ups (role change,
+  // removal) audit normally.
+  @Audit({ action: 'CREATE', entityType: 'membership' })
   async acceptInvitation(@Param('id') id: string): Promise<{ data: { message: string } }> {
     const userId = TenantContext.requireUserId();
 
@@ -175,22 +187,27 @@ export class MembershipsController {
 
   /**
    * PATCH /v1/memberships/:id/role
-   * Update a member's role (AUTHZ-1, AUTHZ-3).
+   * Update a member's role (AUTHZ-1, AUTHZ-2, AUTHZ-3).
    */
   @Patch('memberships/:id/role')
   @UsePipes(new ZodValidationPipe(updateMemberRoleSchema))
-  async updateRole(
-    @Param('id') id: string,
-    @Body() dto: UpdateMemberRoleDto,
-  ): Promise<{ data: { message: string } }> {
+  @RequiresPermission('platform:members:assign-role')
+  @Audit({ action: 'UPDATE', entityType: 'membership' })
+  async updateRole(@Param('id') id: string, @Body() dto: UpdateMemberRoleDto): Promise<{ data: { message: string } }> {
     const userId = TenantContext.requireUserId();
     const organizationId = TenantContext.requireOrganizationId();
+
+    // AUTHZ-2: ownership is OWNER-managed — the use case needs the ACTOR's
+    // role key (from the access-token claims, minted at switch-org) to reject
+    // an ADMIN demoting an OWNER even when another owner exists.
+    const currentUserRoleKey = TenantContext.getRoles()[0] ?? '';
 
     await this.updateMemberRoleUseCase.execute({
       membershipId: id,
       newRoleId: dto.roleId,
       newRoleKey: '',
       currentUserId: userId,
+      currentUserRoleKey,
       organizationId,
     });
 
@@ -202,17 +219,43 @@ export class MembershipsController {
    * Remove a member (AUTHZ-1, AUTHZ-7).
    */
   @Delete('memberships/:id')
+  @RequiresPermission('platform:members:remove')
+  @Audit({ action: 'SOFT_DELETE', entityType: 'membership' })
   async removeMember(@Param('id') id: string): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
+
+    // AUTHZ-2: only an OWNER may remove an OWNER — pass the actor's role key.
+    const currentUserRoleKey = TenantContext.getRoles()[0] ?? '';
 
     await this.removeMemberUseCase.execute({
       membershipId: id,
       organizationId,
       currentUserId: userId,
+      currentUserRoleKey,
     });
 
     return { data: { message: 'Member removed.' } };
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/invitations/:id/revoke
+   * Revoke a pending invitation (AUTH-9, AUTHZ-8).
+   */
+  @Post('organizations/:orgId/invitations/:id/revoke')
+  @RequiresPermission('platform:members:invite')
+  @Audit({ action: 'UPDATE', entityType: 'invitation' })
+  async revokeInvitation(@Param('id') id: string): Promise<{ data: { message: string } }> {
+    // The caller's org comes from the session, never the path param (TEN-2);
+    // the use case rejects an invitation that belongs to another org (404).
+    const organizationId = TenantContext.requireOrganizationId();
+
+    await this.revokeInvitationUseCase.execute({
+      invitationId: id,
+      organizationId,
+    });
+
+    return { data: { message: 'Invitation revoked.' } };
   }
 
   /**
@@ -224,9 +267,17 @@ export class MembershipsController {
   async switchOrg(@Body() dto: SwitchOrgDto): Promise<{ data: { accessToken: string; refreshToken: string } }> {
     const userId = TenantContext.requireUserId();
 
+    // The session that issued this switch is revoked after the new tokens
+    // are minted (TEN-4) — the old refresh token must not keep re-issuing
+    // access tokens scoped to the previous org. exactOptionalPropertyTypes:
+    // capture into a narrowed local so the key is only present when the
+    // session id is actually a string.
+    const currentSessionId: string | undefined = TenantContext.getSessionId();
+
     const result = await this.switchOrgUseCase.execute({
       userId,
       newOrganizationId: dto.organizationId,
+      ...(currentSessionId !== undefined ? { currentSessionId } : {}),
     });
 
     return { data: result };

@@ -143,5 +143,8 @@ module.exports = {
   options: {
     doNotFollow: 'node_modules',
     includeOnly: '^(apps|packages)',
+    exclude: {
+      path: 'dist/',
+    },
   },
 };

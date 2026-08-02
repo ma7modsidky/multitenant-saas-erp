@@ -1,18 +1,10 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-  UsePipes,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
+import { Audit } from '../../../core/audit/__init__.js';
+import { RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
+import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { ROLE_REPOSITORY, type RoleRepository } from '../ports/index.js';
 import {
@@ -48,18 +40,22 @@ export class RolesController {
     private readonly assignRoleUseCase: AssignRoleUseCase,
     private readonly transferOwnershipUseCase: TransferOwnershipUseCase,
     private readonly getRoleMatrixUseCase: GetRoleMatrixUseCase,
+    private readonly txManager: TransactionManager,
   ) {}
 
   @Get('organizations/:orgId/roles')
   async listRoles(@Param('orgId') orgId: string): Promise<{ data: RoleResponse[] }> {
-    const roles = await this.roleRepo.findByOrgId(orgId);
+    const roles = await this.txManager.run((tx) => this.roleRepo.findByOrgId(orgId, tx));
 
     const mapped = await Promise.all(
       roles.map(async (r) => {
-        const [permissions, memberCount] = await Promise.all([
-          this.roleRepo.getPermissions(r.id),
-          this.roleRepo.countMembersByRoleId(orgId, r.id),
-        ]);
+        const [permissions, memberCount] = await this.txManager.run(async (tx) => {
+          const [perms, count] = await Promise.all([
+            this.roleRepo.getPermissions(r.id, tx),
+            this.roleRepo.countMembersByRoleId(orgId, r.id, tx),
+          ]);
+          return [perms, count] as const;
+        });
 
         return {
           id: r.id,
@@ -91,14 +87,20 @@ export class RolesController {
 
   @Post('organizations/:orgId/roles')
   @UsePipes(new ZodValidationPipe(createRoleSchema))
-  async createRole(
-    @Param('orgId') orgId: string,
-    @Body() dto: CreateRoleDto,
-  ): Promise<{ data: { id: string } }> {
+  @RequiresPermission('platform:roles:manage')
+  @Audit({ action: 'CREATE', entityType: 'role' })
+  async createRole(@Param('orgId') orgId: string, @Body() dto: CreateRoleDto): Promise<{ data: { id: string } }> {
     const userId = TenantContext.requireUserId();
 
     // Build input object — filter out undefined values for exactOptionalPropertyTypes
-    const input: Record<string, unknown> = {
+    const input: {
+      organizationId: string;
+      key: string;
+      nameI18n: Record<string, string>;
+      description?: string;
+      permissionKeys?: string[];
+      createdBy: string;
+    } = {
       organizationId: orgId,
       key: dto.key,
       nameI18n: dto.nameI18n ?? {},
@@ -107,20 +109,26 @@ export class RolesController {
     if (dto.description !== undefined) input.description = dto.description;
     if (dto.permissionKeys !== undefined) input.permissionKeys = dto.permissionKeys;
 
-    const result = await this.createRoleUseCase.execute(input as any);
+    const result = await this.createRoleUseCase.execute(input);
     return { data: result };
   }
 
   @Patch('roles/:id')
   @UsePipes(new ZodValidationPipe(updateRoleSchema))
-  async updateRole(
-    @Param('id') id: string,
-    @Body() dto: UpdateRoleDto,
-  ): Promise<{ data: { message: string } }> {
+  @RequiresPermission('platform:roles:manage')
+  @Audit({ action: 'UPDATE', entityType: 'role' })
+  async updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
 
-    const input: Record<string, unknown> = {
+    const input: {
+      roleId: string;
+      organizationId: string;
+      nameI18n?: Record<string, string>;
+      description?: string | null;
+      permissionKeys?: string[];
+      updatedBy: string;
+    } = {
       roleId: id,
       organizationId,
       updatedBy: userId,
@@ -129,11 +137,13 @@ export class RolesController {
     if (dto.description !== undefined) input.description = dto.description;
     if (dto.permissionKeys !== undefined) input.permissionKeys = dto.permissionKeys;
 
-    await this.updateRoleUseCase.execute(input as any);
+    await this.updateRoleUseCase.execute(input);
     return { data: { message: 'Role updated.' } };
   }
 
   @Delete('roles/:id')
+  @RequiresPermission('platform:roles:manage')
+  @Audit({ action: 'SOFT_DELETE', entityType: 'role' })
   async deleteRole(@Param('id') id: string): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
@@ -149,10 +159,9 @@ export class RolesController {
 
   @Post('memberships/:id/assign-role')
   @UsePipes(new ZodValidationPipe(assignRoleSchema))
-  async assignRole(
-    @Param('id') id: string,
-    @Body() dto: AssignRoleDto,
-  ): Promise<{ data: { message: string } }> {
+  @RequiresPermission('platform:members:assign-role')
+  @Audit({ action: 'UPDATE', entityType: 'membership' })
+  async assignRole(@Param('id') id: string, @Body() dto: AssignRoleDto): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
 
@@ -168,6 +177,8 @@ export class RolesController {
 
   @Post('organizations/:orgId/transfer-ownership')
   @UsePipes(new ZodValidationPipe(transferOwnershipSchema))
+  @RequiresPermission('platform:ownership:transfer')
+  @Audit({ action: 'UPDATE', entityType: 'membership' })
   async transferOwnership(
     @Param('orgId') orgId: string,
     @Body() dto: TransferOwnershipDto,

@@ -6,9 +6,11 @@ import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AccessDenied } from '@/components/shell/access-denied';
+import { NoOrganizationState } from '@/components/shell/no-organization-state';
 import { disableBillingModule, getBilling } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
-
+import { hasPermission } from '@/lib/permissions';
 
 const STATE_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   active: 'default',
@@ -20,7 +22,12 @@ const STATE_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | '
 export default function BillingSettingsPage() {
   const t = useTranslations();
   const queryClient = useQueryClient();
-  const { organizationId } = useSession();
+  const { organizationId, permissions } = useSession();
+
+  // AUTHZ-2/UX: this page is OWNER/ADMIN-only. The backend enforces every
+  // action via @RequiresPermission (OPS-8 — server-authoritative); this gate
+  // covers direct-URL navigation by members.
+  const canManageBilling = hasPermission(permissions, 'platform:billing:manage');
 
   const { data: billing } = useQuery({
     queryKey: ['entitlements', organizationId],
@@ -31,7 +38,8 @@ export default function BillingSettingsPage() {
     enabled: organizationId !== null,
   });
 
-  if (organizationId === null) return null;
+  if (organizationId === null) return <NoOrganizationState />;
+  if (!canManageBilling) return <AccessDenied />;
 
   const subscription = billing?.subscription ?? null;
   const entitlements = billing?.entitlements ?? [];

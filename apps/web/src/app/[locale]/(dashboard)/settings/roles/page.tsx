@@ -4,19 +4,26 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AccessDenied } from '@/components/shell/access-denied';
+import { NoOrganizationState } from '@/components/shell/no-organization-state';
 import { ApiError } from '@/lib/api';
 import { createRole, getRoleMatrix } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
+import { hasPermission } from '@/lib/permissions';
 
 export default function RolesSettingsPage() {
   const t = useTranslations();
   const queryClient = useQueryClient();
-  const { organizationId } = useSession();
+  const { organizationId, permissions } = useSession();
+
+  // AUTHZ-2/UX: this page is OWNER/ADMIN-only. The backend enforces every
+  // action via @RequiresPermission (OPS-8 — server-authoritative); this gate
+  // covers direct-URL navigation by members.
+  const canManageRoles = hasPermission(permissions, 'platform:roles:manage');
 
   const { data: matrix } = useQuery({
     queryKey: ['role-matrix', organizationId],
@@ -33,7 +40,8 @@ export default function RolesSettingsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  if (organizationId === null) return null;
+  if (organizationId === null) return <NoOrganizationState />;
+  if (!canManageRoles) return <AccessDenied />;
 
   const permissionCatalog = matrix?.permissionCatalog ?? [];
   const systemRoles = matrix?.systemRoles ?? [];
@@ -59,7 +67,12 @@ export default function RolesSettingsPage() {
 
   const allRoles = [
     ...systemRoles.map((r) => ({ key: r.key, name: r.key, permissions: r.permissions, system: true })),
-    ...customRoles.map((r) => ({ key: r.key, name: r.nameI18n?.en ?? r.key, permissions: r.permissions, system: false })),
+    ...customRoles.map((r) => ({
+      key: r.key,
+      name: r.nameI18n?.en ?? r.key,
+      permissions: r.permissions,
+      system: false,
+    })),
   ];
 
   return (

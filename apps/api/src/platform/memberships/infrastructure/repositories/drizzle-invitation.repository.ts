@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
+import { fromDbDate, toDbDate } from '../../../../core/database/db-date.js';
 import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.provider.js';
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import { type InvitationData } from '../../domain/index.js';
@@ -24,24 +25,23 @@ export class DrizzleInvitationRepository implements InvitationRepository {
     return {
       id: row.id as string,
       organizationId: row.organization_id as string,
+      name: (row.name as string | null) ?? null,
       email: row.email as string,
       roleId: row.role_id as string,
       tokenHash: row.token_hash as string,
-      expiresAt: row.expires_at as Date,
-      acceptedAt: row.accepted_at as Date | null,
-      revokedAt: row.revoked_at as Date | null,
+      expiresAt: fromDbDate(row.expires_at) as Date,
+      acceptedAt: fromDbDate(row.accepted_at),
+      revokedAt: fromDbDate(row.revoked_at),
       invitedBy: row.invited_by as string | null,
-      createdAt: row.created_at as Date,
-      updatedAt: row.updated_at as Date,
-      deletedAt: row.deleted_at as Date | null,
+      createdAt: fromDbDate(row.created_at) as Date,
+      updatedAt: fromDbDate(row.updated_at) as Date,
+      deletedAt: fromDbDate(row.deleted_at),
     };
   }
 
   async findById(id: string, tx?: TxOrDb): Promise<InvitationData | undefined> {
     const db = this.getDb(tx);
-    const rows = await db.execute<Record<string, unknown>>(
-      sql`SELECT * FROM ${this.table} WHERE id = ${id} LIMIT 1`,
-    );
+    const rows = await db.execute<Record<string, unknown>>(sql`SELECT * FROM ${this.table} WHERE id = ${id} LIMIT 1`);
     const row = rows[0];
     if (!row) return undefined;
     return this.rowToInvitation(row);
@@ -83,11 +83,11 @@ export class DrizzleInvitationRepository implements InvitationRepository {
     const rows = await db.execute<Record<string, unknown>>(
       sql`
         INSERT INTO ${this.table}
-          (id, organization_id, email, role_id, token_hash, expires_at,
+          (id, organization_id, name, email, role_id, token_hash, expires_at,
            invited_by, created_at, updated_at)
         VALUES
-          (${data.id}, ${data.organizationId}, ${data.email}, ${data.roleId}, ${data.tokenHash}, ${data.expiresAt},
-           ${data.invitedBy}, ${data.createdAt}, ${data.updatedAt})
+          (${data.id}, ${data.organizationId}, ${data.name ?? null}, ${data.email}, ${data.roleId}, ${data.tokenHash}, ${toDbDate(data.expiresAt)},
+           ${data.invitedBy}, ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)})
         RETURNING *
       `,
     );
@@ -100,9 +100,9 @@ export class DrizzleInvitationRepository implements InvitationRepository {
     const db = this.getDb(tx);
     const fragments = [sql`updated_at = NOW()`];
 
-    if (data.acceptedAt !== undefined) fragments.push(sql`accepted_at = ${data.acceptedAt}`);
-    if (data.revokedAt !== undefined) fragments.push(sql`revoked_at = ${data.revokedAt}`);
-    if (data.deletedAt !== undefined) fragments.push(sql`deleted_at = ${data.deletedAt}`);
+    if (data.acceptedAt !== undefined) fragments.push(sql`accepted_at = ${toDbDate(data.acceptedAt)}`);
+    if (data.revokedAt !== undefined) fragments.push(sql`revoked_at = ${toDbDate(data.revokedAt)}`);
+    if (data.deletedAt !== undefined) fragments.push(sql`deleted_at = ${toDbDate(data.deletedAt)}`);
 
     const setClause = sql.join(fragments, sql.raw(', '));
     const rows = await db.execute<Record<string, unknown>>(

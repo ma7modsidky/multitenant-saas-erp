@@ -65,7 +65,7 @@ export class UpdateOrganizationUseCase {
       }
     }
 
-    organization.updateProfile(definedUpdates as Parameters<typeof organization.updateProfile>[0]);
+    organization.updateProfile(definedUpdates);
 
     const updated = await this.txManager.run(async (tx) => {
       const persisted = await this.orgRepo.update(input.organizationId, organization.toJSON(), tx);

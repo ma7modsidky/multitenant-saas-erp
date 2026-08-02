@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { NotFoundError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
-import { Role, ROLE_NOT_FOUND } from '../domain/index.js';
+import { Role, ROLE_NOT_FOUND, type RoleData } from '../domain/index.js';
 import { ROLE_REPOSITORY, type RoleRepository } from '../ports/index.js';
 
 @Injectable()
@@ -21,7 +21,9 @@ export class UpdateRoleUseCase {
     permissionKeys?: string[];
     updatedBy: string;
   }): Promise<void> {
-    const roleData = await this.roleRepo.findById(input.roleId);
+    // core_roles is RLS-protected — the read must run inside the tenant-bound
+    // transaction or it fails closed and every update looks like ROLE_NOT_FOUND.
+    const roleData = await this.txManager.run((tx) => this.roleRepo.findById(input.roleId, tx));
     if (!roleData || roleData.organizationId !== input.organizationId) {
       throw new NotFoundError(ROLE_NOT_FOUND, { roleId: input.roleId });
     }
@@ -35,11 +37,11 @@ export class UpdateRoleUseCase {
     role.update(updateData, input.updatedBy);
 
     await this.txManager.run(async (tx) => {
-      const roleUpdate: Record<string, unknown> = { updatedBy: input.updatedBy };
+      const roleUpdate: Partial<RoleData> = { updatedBy: input.updatedBy };
       if (input.nameI18n !== undefined) roleUpdate.nameI18n = role.nameI18n;
       if (input.description !== undefined) roleUpdate.description = role.description;
 
-      await this.roleRepo.update(input.roleId, roleUpdate as any, tx);
+      await this.roleRepo.update(input.roleId, roleUpdate, tx);
 
       // Update permissions if provided
       if (input.permissionKeys !== undefined) {

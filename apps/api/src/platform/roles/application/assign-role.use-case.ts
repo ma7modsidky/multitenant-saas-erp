@@ -22,14 +22,16 @@ export class AssignRoleUseCase {
     newRoleId: string;
     currentUserId: string;
   }): Promise<void> {
-    // Verify the new role exists
-    const newRole = await this.roleRepo.findById(input.newRoleId);
+    // core_roles / core_memberships / core_role_permissions are RLS-protected,
+    // so these reads must run inside the tenant-bound transaction or they
+    // fail closed to zero rows.
+    const newRole = await this.txManager.run((tx) => this.roleRepo.findById(input.newRoleId, tx));
     if (!newRole || newRole.organizationId !== input.organizationId) {
       throw new NotFoundError(ROLE_NOT_FOUND, { roleId: input.newRoleId });
     }
 
     // Verify the membership exists
-    const membership = await this.membershipRepo.findById(input.membershipId);
+    const membership = await this.txManager.run((tx) => this.membershipRepo.findById(input.membershipId, tx));
     if (!membership || membership.organizationId !== input.organizationId) {
       throw new NotFoundError('MEMBERSHIP_NOT_FOUND', { membershipId: input.membershipId });
     }
@@ -40,8 +42,13 @@ export class AssignRoleUseCase {
     }
 
     // AUTHZ-3: Cannot grant a permission you don't hold
-    const assignerPerms = await this.roleRepo.getPermissions(membership.roleId);
-    const newRolePerms = await this.roleRepo.getPermissions(input.newRoleId);
+    const [assignerPerms, newRolePerms] = await this.txManager.run(async (tx) => {
+      const [assigner, target] = await Promise.all([
+        this.roleRepo.getPermissions(membership.roleId, tx),
+        this.roleRepo.getPermissions(input.newRoleId, tx),
+      ]);
+      return [assigner, target] as const;
+    });
     const unowned = newRolePerms.filter((p) => !assignerPerms.includes(p));
     if (unowned.length > 0) {
       throw new ForbiddenError(
@@ -51,10 +58,14 @@ export class AssignRoleUseCase {
     }
 
     await this.txManager.run(async (tx) => {
-      await this.membershipRepo.update(input.membershipId, {
-        roleId: input.newRoleId,
-        updatedBy: input.currentUserId,
-      }, tx);
+      await this.membershipRepo.update(
+        input.membershipId,
+        {
+          roleId: input.newRoleId,
+          updatedBy: input.currentUserId,
+        },
+        tx,
+      );
     });
   }
 }

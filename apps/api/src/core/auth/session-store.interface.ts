@@ -24,6 +24,22 @@ export interface Session {
   revokedAt: string | null;
   /** Reason for revocation (null if active) */
   revokeReason: string | null;
+  /**
+   * Active organization this session was created for (switch-org, TEN-4).
+   * Stored so a token refresh can re-issue the access token with the same
+   * organization instead of resetting it to undefined. Undefined for sessions
+   * created before the user has an organization (signup/login).
+   */
+  organizationId?: string;
+  /**
+   * Role keys + effective permission keys scoped to `organizationId`
+   * (AUTHZ-5). Stored at switch-org so a token refresh re-mints the SAME
+   * authz claims instead of resetting them to empty — PermissionGuard reads
+   * these claims on every guarded request, so an empty set would 403 all
+   * guarded endpoints after the 15-minute access-token expiry.
+   */
+  roles?: string[];
+  permissions?: string[];
 }
 
 /**

@@ -21,6 +21,8 @@ export interface MembershipOrg {
   organizationSlug: string;
   roleId: string;
   status: 'active' | 'invited' | 'disabled';
+  /** Org-level lifecycle status — pending_deletion orgs stay switchable so the owner can cancel (GDPR-2). */
+  organizationStatus: 'active' | 'suspended' | 'pending_deletion';
   joinedAt: string;
   current: boolean;
 }
@@ -28,6 +30,8 @@ export interface MembershipOrg {
 export interface MemberResponse {
   id: string;
   userId: string;
+  name: string;
+  email: string;
   roleId: string;
   status: 'active' | 'invited' | 'disabled';
   joinedAt: string;
@@ -35,6 +39,8 @@ export interface MemberResponse {
 
 export interface InvitationResponse {
   id: string;
+  /** Invitee display name (nullable for pre-0012 invitations). */
+  name: string | null;
   email: string;
   roleId: string;
   status: 'pending' | 'accepted' | 'revoked';
@@ -54,7 +60,13 @@ export interface RoleResponse {
 
 export interface RoleMatrix {
   systemRoles: Array<{ key: string; permissions: string[] }>;
-  customRoles: Array<{ id: string; key: string; nameI18n: Record<string, string>; description: string | null; permissions: string[] }>;
+  customRoles: Array<{
+    id: string;
+    key: string;
+    nameI18n: Record<string, string>;
+    description: string | null;
+    permissions: string[];
+  }>;
   platformPermissions: string[];
   permissionCatalog: string[];
 }
@@ -127,4 +139,25 @@ export interface OrganizationSettingsResponse {
   receiptFooter: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actorUserId: string | null;
+  actorType: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ip: string | null;
+  correlationId: string | null;
+  occurredAt: string;
+}
+
+export interface AuditLogQueryResponse {
+  entries: AuditLogEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

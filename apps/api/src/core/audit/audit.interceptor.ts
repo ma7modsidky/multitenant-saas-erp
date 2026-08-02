@@ -1,7 +1,16 @@
-import { type CallHandler, type ExecutionContext, Injectable, type NestInterceptor } from '@nestjs/common';
+import {
+  type CallHandler,
+  type ExecutionContext,
+  Inject,
+  Injectable,
+  Optional,
+  type NestInterceptor,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, tap } from 'rxjs';
 
+import { type TenantContextData } from '../tenancy/tenant-context.js';
+import { AuditDbWriter } from './audit-db-writer.js';
 import { AuditLogger, type AuditAction } from './audit-logger.js';
 
 /**
@@ -37,6 +46,9 @@ export class AuditInterceptor implements NestInterceptor {
   constructor(
     private readonly auditLogger: AuditLogger,
     private readonly reflector: Reflector,
+    @Optional()
+    @Inject(AuditDbWriter)
+    private readonly dbWriter: AuditDbWriter | null = null,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -48,7 +60,7 @@ export class AuditInterceptor implements NestInterceptor {
 
     const request = context.switchToHttp().getRequest();
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const user = request.user as { sub?: string; email?: string } | undefined;
+    const user = request.user as { sub?: string; email?: string; organizationId?: string; locale?: string } | undefined;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const correlationId = request.headers?.['x-correlation-id'] as string | undefined;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -56,6 +68,19 @@ export class AuditInterceptor implements NestInterceptor {
 
     const actorId = user?.sub ?? 'system';
     const actorEmail = user?.email ?? 'system';
+
+    // Snapshot the tenant context AT INTERCEPT TIME. The interceptor's tap
+    // fires after the handler (and its transaction) has committed, and global
+    // interceptor ordering means the ambient TenantContext may no longer be
+    // bound — so the DB writer rebuilds the context from this snapshot.
+    const tenant: TenantContextData = {
+      userId: user?.sub ?? 'system',
+      sessionId: undefined,
+      organizationId: user?.organizationId,
+      roles: [],
+      permissions: [],
+      locale: user?.locale ?? 'en',
+    };
 
     return next.handle().pipe(
       tap({
@@ -72,6 +97,15 @@ export class AuditInterceptor implements NestInterceptor {
               ...(correlationId !== undefined ? { correlationId } : {}),
               ...(ipAddress !== undefined ? { ipAddress } : {}),
               ...(metadata.captureAfter && request.body ? { after: request.body as Record<string, unknown> } : {}),
+            })
+            .then((entry) => {
+              // Best-effort DB persistence (AUD-1/AUD-2): never awaits the
+              // response, never rejects the request — AuditDbWriter swallows
+              // failures internally.
+              if (this.dbWriter) {
+                return this.dbWriter.write(entry, tenant);
+              }
+              return undefined;
             })
             .catch((err: Error) => {
               // Audit logging must never fail the originating operation (NOTIF-1 pattern)

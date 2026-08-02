@@ -6,6 +6,7 @@ function makeInvitationData(overrides: Partial<InvitationData> = {}): Invitation
   return {
     id: 'inv-1',
     organizationId: 'org-1',
+    name: 'Jane Cooper',
     email: 'jane@example.com',
     roleId: 'role-member',
     tokenHash: 'hashed-token-123',
@@ -35,6 +36,12 @@ describe('Invitation.create()', () => {
     const inv = Invitation.create(makeInvitationData());
     expect(inv.id).toBe('inv-1');
     expect(inv.email).toBe('jane@example.com');
+    expect(inv.name).toBe('Jane Cooper');
+  });
+
+  it('AUTH-9: carries the invitee display name (nullable for legacy rows)', () => {
+    const inv = Invitation.create(makeInvitationData({ name: null }));
+    expect(inv.name).toBeNull();
   });
 });
 
@@ -67,7 +74,9 @@ describe('Invitation.isExpired', () => {
   });
 
   it('returns false when accepted (acceptedAt overrides expiry)', () => {
-    const inv = Invitation.create(makeInvitationData({ acceptedAt: new Date(), expiresAt: new Date(Date.now() - 3600000) }));
+    const inv = Invitation.create(
+      makeInvitationData({ acceptedAt: new Date(), expiresAt: new Date(Date.now() - 3600000) }),
+    );
     expect(inv.isExpired).toBe(false);
   });
 

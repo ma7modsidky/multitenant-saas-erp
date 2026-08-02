@@ -101,6 +101,7 @@ export class JwtTokenService {
     userId: string,
     device?: string,
     ip?: string,
+    claims?: { organizationId?: string; roles?: string[]; permissions?: string[] },
   ): Promise<{ refreshToken: string; session: Session }> {
     const sessionId = randomUUID();
     const tokenFamily = randomUUID();
@@ -121,6 +122,7 @@ export class JwtTokenService {
       createdAt: new Date().toISOString(),
       revokedAt: null,
       revokeReason: null,
+      ...claims,
     };
 
     await this.sessionStore.create(session);
@@ -200,14 +202,19 @@ export class JwtTokenService {
     // Update the session with the new hash (old hash stays in index)
     await this.sessionStore.updateRefreshTokenHash(session.id, newRefreshTokenHash);
 
-    // Generate a new access token
+    // Generate a new access token. The session records the organization it was
+    // created for (switch-org, TEN-4) plus its roles/permissions (AUTHZ-5), so
+    // a refresh KEEPS the same org + authz claims instead of resetting them to
+    // empty — an empty claims set would 403 every guarded endpoint after the
+    // 15-minute access-token expiry. Sessions created before the user has an
+    // organization (signup/login) carry no org and stay unauthenticated.
     const accessToken = await this.generateAccessToken({
       sub: session.userId,
       email: '',
       sessionId: session.id,
-      organizationId: undefined,
-      roles: [],
-      permissions: [],
+      organizationId: session.organizationId,
+      roles: session.roles ?? [],
+      permissions: session.permissions ?? [],
     });
 
     return {

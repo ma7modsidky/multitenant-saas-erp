@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { NotFoundError } from '../../../core/common/errors.js';
+import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { Organization, OrganizationSettings } from '../domain/index.js';
 import { ORGANIZATION_REPOSITORY, type OrganizationRepository } from '../ports/index.js';
 
@@ -30,6 +31,7 @@ export class GetOrganizationUseCase {
   constructor(
     @Inject(ORGANIZATION_REPOSITORY)
     private readonly orgRepo: OrganizationRepository,
+    private readonly txManager: TransactionManager,
   ) {}
 
   async execute(input: GetOrganizationInput): Promise<GetOrganizationOutput> {
@@ -41,8 +43,10 @@ export class GetOrganizationUseCase {
 
     const organization = Organization.fromPersistence(orgData);
 
-    // Load settings (optional — many views don't need them)
-    const settingsData = await this.orgRepo.findSettingsByOrgId(input.organizationId);
+    // Load settings inside a tenant-bound transaction: core_organization_settings
+    // is an RLS-protected table, so reading it outside TransactionManager.run()
+    // fails closed and settings would always be null.
+    const settingsData = await this.txManager.run((tx) => this.orgRepo.findSettingsByOrgId(input.organizationId, tx));
     const settings = settingsData ? OrganizationSettings.fromPersistence(settingsData) : undefined;
 
     return { organization, settings };

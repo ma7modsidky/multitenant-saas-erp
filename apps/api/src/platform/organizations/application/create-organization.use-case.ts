@@ -6,12 +6,9 @@ import type { TxOrDb } from '../../../core/database/repository.base.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { MEMBERSHIP_REPOSITORY, type MembershipRepository } from '../../memberships/ports/index.js';
-import { SYSTEM_ROLES } from '../../roles/domain/index.js';
+import { SYSTEM_ROLES, SYSTEM_ROLE_SEED, type SystemRoleKey } from '../../roles/domain/index.js';
 import { ROLE_REPOSITORY, type RoleRepository } from '../../roles/ports/index.js';
-import {
-  Organization,
-  defaultOrganizationSettings,
-} from '../domain/index.js';
+import { Organization, defaultOrganizationSettings } from '../domain/index.js';
 import { ORGANIZATION_REPOSITORY, type OrganizationRepository } from '../ports/index.js';
 
 /**
@@ -108,7 +105,11 @@ export class CreateOrganizationUseCase {
           await this.orgRepo.upsertSettings(settings, tx);
 
           // AUTH-10: The creating user becomes the organization's OWNER.
-          await this.createOwnerRoleAndMembership(persisted.id, userId, tx);
+          // The full system-role set (owner, admin, manager, member, viewer)
+          // is seeded so every org starts with the documented role matrix
+          // (BUSINESS_RULES.md §3) — the members/invite dropdowns read these
+          // rows.
+          await this.createSystemRolesAndOwnerMembership(persisted.id, userId, tx);
 
           return Organization.fromPersistence(persisted);
         }),
@@ -118,42 +119,59 @@ export class CreateOrganizationUseCase {
   }
 
   /**
-   * AUTH-10 — create the OWNER system role and an active membership for the
-   * creating user, so the org has an administrator from the moment it exists.
+   * AUTH-10 — seed the five system roles (OWNER, ADMIN, MANAGER, MEMBER,
+   * VIEWER) and create an active OWNER membership for the creating user, so
+   * the org has an administrator — and the full role matrix — from the
+   * moment it exists.
+   *
+   * System-role *permissions* are code-defined (SYSTEM_ROLE_PERMISSIONS and
+   * the role-matrix endpoint); only the role rows are persisted per org.
    */
-  private async createOwnerRoleAndMembership(
-    organizationId: string,
-    userId: string,
-    tx: TxOrDb,
-  ): Promise<void> {
+  private async createSystemRolesAndOwnerMembership(organizationId: string, userId: string, tx: TxOrDb): Promise<void> {
     const now = new Date();
+    let ownerRoleId: string | undefined;
 
-    const role = await this.roleRepo.insert({
-      id: crypto.randomUUID(),
-      organizationId,
-      key: SYSTEM_ROLES.OWNER,
-      nameI18n: { en: 'Owner', ar: 'المالك', fr: 'Propriétaire', es: 'Propietario' },
-      description: 'Organization owner with full administrative access.',
-      isSystem: true,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: userId,
-      updatedBy: userId,
-      deletedAt: null,
-    }, tx);
+    for (const key of Object.values(SYSTEM_ROLES) as SystemRoleKey[]) {
+      const seed = SYSTEM_ROLE_SEED[key];
+      const role = await this.roleRepo.insert(
+        {
+          id: crypto.randomUUID(),
+          organizationId,
+          key,
+          nameI18n: seed.nameI18n,
+          description: seed.description,
+          isSystem: true,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: userId,
+          updatedBy: userId,
+          deletedAt: null,
+        },
+        tx,
+      );
 
-    await this.membershipRepo.insert({
-      id: crypto.randomUUID(),
-      organizationId,
-      userId,
-      roleId: role.id,
-      status: 'active',
-      joinedAt: now,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: userId,
-      updatedBy: userId,
-      deletedAt: null,
-    }, tx);
+      if (key === SYSTEM_ROLES.OWNER) ownerRoleId = role.id;
+    }
+
+    if (!ownerRoleId) {
+      throw new Error('OWNER system role must be seeded for a new organization');
+    }
+
+    await this.membershipRepo.insert(
+      {
+        id: crypto.randomUUID(),
+        organizationId,
+        userId,
+        roleId: ownerRoleId,
+        status: 'active',
+        joinedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: userId,
+        updatedBy: userId,
+        deletedAt: null,
+      },
+      tx,
+    );
   }
 }

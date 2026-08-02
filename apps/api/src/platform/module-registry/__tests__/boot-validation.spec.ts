@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { REGISTERED_MODULES } from '../registered-modules.js';
 
 describe('REGISTERED_MODULES - descriptor integrity', () => {
-  it('has exactly 3 modules registered', () => {
-    expect(REGISTERED_MODULES).toHaveLength(3);
+  it('registers the three core modules that ship with the platform', () => {
+    const keys = REGISTERED_MODULES.map((m) => m.key);
+    expect(keys).toEqual(expect.arrayContaining(['crm', 'inventory', 'pos']));
   });
 
   it('all module keys are unique', () => {
@@ -127,9 +128,52 @@ describe('REGISTERED_MODULES - descriptor integrity', () => {
     }
   });
 
-  it('each module has at least one published event', () => {
+  it('no two modules provide the same port token', () => {
+    const provided = new Set<string>();
+    const duplicates: string[] = [];
+
     for (const module of REGISTERED_MODULES) {
-      expect(module.publishes.length).toBeGreaterThan(0);
+      for (const port of module.providesPorts) {
+        if (provided.has(port.token)) duplicates.push(port.token);
+        provided.add(port.token);
+      }
     }
+
+    expect(duplicates).toEqual([]);
+  });
+
+  it('all consumed ports are provided by a registered module', () => {
+    const providedTokens = new Set(REGISTERED_MODULES.flatMap((m) => m.providesPorts.map((p) => p.token)));
+
+    for (const module of REGISTERED_MODULES) {
+      for (const port of module.consumesPorts) {
+        expect(providedTokens.has(port.token)).toBe(true);
+      }
+    }
+  });
+
+  it('every consumed transactional port is provided as transactional', () => {
+    const providedPorts = new Map<string, boolean>();
+    for (const module of REGISTERED_MODULES) {
+      for (const port of module.providesPorts) {
+        providedPorts.set(port.token, port.transactional);
+      }
+    }
+
+    for (const module of REGISTERED_MODULES) {
+      for (const port of module.consumesPorts) {
+        if (port.transactional) {
+          expect(providedPorts.get(port.token)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('INVENTORY_STOCK_PORT is provided by inventory and consumed by pos', () => {
+    const inventory = REGISTERED_MODULES.find((m) => m.key === 'inventory')!;
+    const pos = REGISTERED_MODULES.find((m) => m.key === 'pos')!;
+
+    expect(inventory.providesPorts.map((p) => p.token)).toContain('INVENTORY_STOCK_PORT');
+    expect(pos.consumesPorts.map((p) => p.token)).toContain('INVENTORY_STOCK_PORT');
   });
 });

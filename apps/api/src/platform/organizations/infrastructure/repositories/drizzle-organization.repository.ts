@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
+import { fromDbDate, toDbDate } from '../../../../core/database/db-date.js';
 import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.provider.js';
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import type { OrganizationData, OrganizationSettingsData } from '../../domain/index.js';
@@ -60,9 +61,7 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
   async isSlugTaken(slug: string, excludeOrgId?: string, tx?: TxOrDb): Promise<boolean> {
     const db = this.getDb(tx);
 
-    const condition = excludeOrgId
-      ? sql`slug = ${slug} AND id != ${excludeOrgId}`
-      : sql`slug = ${slug}`;
+    const condition = excludeOrgId ? sql`slug = ${slug} AND id != ${excludeOrgId}` : sql`slug = ${slug}`;
 
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT id FROM ${this.orgTable} WHERE ${condition} LIMIT 1`,
@@ -82,7 +81,7 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
         VALUES
           (${data.id}, ${data.name}, ${data.slug}, ${data.countryCode}, ${data.timezone},
            ${data.baseCurrency}, ${data.defaultLocale}, ${data.status},
-           ${data.deletionScheduledAt}, ${data.createdAt}, ${data.updatedAt})
+           ${toDbDate(data.deletionScheduledAt)}, ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)})
         RETURNING *
       `,
     );
@@ -120,7 +119,7 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
       setFragments.push(sql`status = ${data.status}`);
     }
     if (data.deletionScheduledAt !== undefined) {
-      setFragments.push(sql`deletion_scheduled_at = ${data.deletionScheduledAt}`);
+      setFragments.push(sql`deletion_scheduled_at = ${toDbDate(data.deletionScheduledAt)}`);
     }
 
     const setClause = sql.join(setFragments, sql.raw(', '));
@@ -189,9 +188,9 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
       baseCurrency: row.base_currency as string,
       defaultLocale: row.default_locale as string,
       status: row.status as OrganizationData['status'],
-      deletionScheduledAt: (row.deletion_scheduled_at as Date | null) ?? null,
-      createdAt: row.created_at as Date,
-      updatedAt: row.updated_at as Date,
+      deletionScheduledAt: fromDbDate(row.deletion_scheduled_at),
+      createdAt: fromDbDate(row.created_at) as Date,
+      updatedAt: fromDbDate(row.updated_at) as Date,
     };
   }
 
@@ -202,15 +201,17 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
       locale: row.locale as string,
       timezone: row.timezone as string,
       baseCurrency: row.base_currency as string,
-      numberPreferences: typeof row.number_preferences === 'string'
-        ? JSON.parse(row.number_preferences as string)
-        : (row.number_preferences as Record<string, unknown>),
-      datePreferences: typeof row.date_preferences === 'string'
-        ? JSON.parse(row.date_preferences as string)
-        : (row.date_preferences as Record<string, unknown>),
+      numberPreferences:
+        typeof row.number_preferences === 'string'
+          ? JSON.parse(row.number_preferences)
+          : (row.number_preferences as Record<string, unknown>),
+      datePreferences:
+        typeof row.date_preferences === 'string'
+          ? JSON.parse(row.date_preferences)
+          : (row.date_preferences as Record<string, unknown>),
       receiptFooter: (row.receipt_footer as string | null) ?? null,
-      createdAt: row.created_at as Date,
-      updatedAt: row.updated_at as Date,
+      createdAt: fromDbDate(row.created_at) as Date,
+      updatedAt: fromDbDate(row.updated_at) as Date,
     };
   }
 }

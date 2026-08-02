@@ -1,5 +1,7 @@
 export { Button, buttonVariants } from './button';
 export type { ButtonProps } from './button';
+export { Combobox } from './combobox';
+export type { ComboboxOption } from './combobox';
 export { Input } from './input';
 export type { InputProps } from './input';
 export { Label } from './label';
