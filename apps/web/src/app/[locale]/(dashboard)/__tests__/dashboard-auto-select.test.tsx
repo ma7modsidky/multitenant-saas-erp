@@ -32,6 +32,7 @@ vi.mock('@/lib/auth/session-context', () => ({
 
 vi.mock('@/lib/entitlements', () => ({
   useNavigation: () => ({ data: [], isLoading: false }),
+  useDashboardWidgets: () => ({ data: [], isLoading: false }),
   useEntitlements: () => ({ data: undefined }),
 }));
 
