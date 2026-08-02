@@ -431,7 +431,7 @@ apps/web/src/
 ├── app/
 │   ├── (auth)/                   # login, signup, invitation acceptance, password reset
 │   ├── (marketing)/
-│   └── [locale]/(app)/
+│   └── [locale]/(dashboard)/
 │       ├── layout.tsx            # shell: nav from GET /me/navigation, org switcher, locale + dir
 │       ├── dashboard/
 │       ├── settings/             # org, members, roles, billing, modules marketplace

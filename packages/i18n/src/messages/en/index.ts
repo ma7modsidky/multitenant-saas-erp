@@ -133,6 +133,8 @@ const en = {
     noActivity: 'No recent activity yet. Start using modules to see your activity here.',
     noModulesTitle: 'No active modules yet',
     noModulesHint: 'Enable modules to start working.',
+    widgetsTitle: 'Module widgets',
+    widgetPlaceholder: 'Content will appear here when the module is in use.',
     stats: {
       activeModules: 'Active Modules',
       modulesHint: 'Start a trial to activate',
@@ -406,6 +408,10 @@ const en = {
         companies: 'Companies',
         deals: 'Deals',
       },
+      widgets: {
+        recent_deals: 'Recent deals',
+        upcoming_activities: 'Upcoming activities',
+      },
     },
     inventory: {
       name: 'Inventory',
@@ -415,6 +421,10 @@ const en = {
         warehouses: 'Warehouses',
         stock: 'Stock',
       },
+      widgets: {
+        low_stock: 'Low stock',
+        stock_valuation: 'Stock valuation',
+      },
     },
     pos: {
       name: 'POS',
@@ -423,6 +433,10 @@ const en = {
         register: 'Register',
         shifts: 'Shifts',
         reports: 'Reports',
+      },
+      widgets: {
+        daily_sales: 'Daily sales',
+        open_shifts: 'Open shifts',
       },
     },
     trialDays: '{days}-day free trial',

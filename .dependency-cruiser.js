@@ -24,11 +24,17 @@ module.exports = {
     },
 
     // Rule: platform/ never imports modules/
+    // Exception: registered-modules.ts IS the composition root (alongside
+    // app.module.ts) and is the only platform file allowed to import a module's
+    // public barrel (see the module-public-only-from-composition-root rule).
     {
       name: 'platform-no-import-modules',
-      comment: 'platform/ must not import from modules/. Depend inward.',
+      comment: 'platform/ must not import from modules/ (composition root excepted). Depend inward.',
       severity: 'error',
-      from: { path: '^apps/api/src/platform/' },
+      from: {
+        path: '^apps/api/src/platform/',
+        pathNot: '^apps/api/src/platform/module-registry/registered-modules\\.ts$',
+      },
       to: { path: '^apps/api/src/modules/' },
     },
 

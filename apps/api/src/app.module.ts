@@ -12,6 +12,7 @@ import { EventsModule } from './core/events/events.module.js';
 import { I18nModule } from './core/i18n/i18n.module.js';
 import { JobsModule } from './core/jobs/jobs.module.js';
 import { NotificationsModule } from './core/notifications/notifications.module.js';
+import { PortsModule } from './core/ports/ports.module.js';
 import { ObservabilityModule } from './core/observability/observability.module.js';
 import { StorageModule } from './core/storage/storage.module.js';
 import { TenancyModule } from './core/tenancy/tenancy.module.js';
@@ -53,6 +54,7 @@ import { UsersModule } from './platform/users/users.module.js';
     JobsModule,
     StorageModule,
     NotificationsModule,
+    PortsModule,
     // Platform modules
     OrganizationsModule,
     UsersModule,

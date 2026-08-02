@@ -159,8 +159,30 @@ describe('architecture', () => {
     const violations: string[] = [];
 
     for (const [file, deps] of imports) {
+      // registered-modules.ts is the composition root (alongside app.module.ts)
+      // and is the only platform file allowed to import a module's public barrel.
+      const normalizedFile = file.replace(/\\/g, '/');
+      if (normalizedFile.endsWith('apps/api/src/platform/module-registry/registered-modules.ts')) {
+        continue;
+      }
       for (const dep of deps) {
         if (dep.includes('@/modules') || dep.includes('../modules')) {
+          violations.push(`${file} imports "${dep}"`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it('modules never import platform', () => {
+    const imports = findImports('apps/api/src/modules/**/*.ts');
+
+    const violations: string[] = [];
+
+    for (const [file, deps] of imports) {
+      for (const dep of deps) {
+        if (dep.includes('@/platform') || dep.includes('../platform')) {
           violations.push(`${file} imports "${dep}"`);
         }
       }
@@ -196,9 +218,10 @@ describe('architecture', () => {
     const violations: string[] = [];
 
     for (const [file, deps] of imports) {
-      // Skip files in the composition root
-      // globSync returns paths with forward slashes on all platforms
-      if (compositionRoot.some((cr) => file.endsWith(cr))) {
+      // Skip files in the composition root. Normalize separators because
+      // globSync returns native separators on Windows (backslashes).
+      const normalizedFile = file.replace(/\\/g, '/');
+      if (compositionRoot.some((cr) => normalizedFile.endsWith(cr))) {
         continue;
       }
 

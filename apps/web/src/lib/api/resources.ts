@@ -4,6 +4,7 @@
 import type {
   AuditLogQueryResponse,
   BillingResponse,
+  DashboardWidgetGroup,
   InvitationResponse,
   MemberResponse,
   MembershipOrg,
@@ -222,6 +223,10 @@ export function getModuleCatalog(): Promise<ModuleDefinition[]> {
 
 export function getNavigation(): Promise<NavigationGroup[]> {
   return apiFetch<NavigationGroup[]>('/v1/me/navigation');
+}
+
+export function getDashboardWidgets(): Promise<DashboardWidgetGroup[]> {
+  return apiFetch<DashboardWidgetGroup[]>('/v1/me/dashboard/widgets');
 }
 
 export function enableModule(orgId: string, moduleKey: string): Promise<{ message: string }> {

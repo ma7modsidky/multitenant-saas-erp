@@ -660,11 +660,11 @@ document) · [ARCHITECTURE.md §3, §4, §6, §7](./docs/ARCHITECTURE.md)
 
 1. **`defineModule()`** helper — validates a `ModuleDescriptor` at definition
    time.
-2. **`ModuleDescriptor` type** — `key`, `version`, `name` (i18n key),
-   `description` (i18n key), `icon`, `tablePrefix`, `dependsOn`,
+2. **`ModuleDescriptor` type** — `key`, `version`, `nameKey` (i18n key),
+   `descriptionKey` (i18n key), `icon`, `tablePrefix`, `dependsOn`,
    `stripePriceKey`, `trialDays`, `permissions`, `navigation`, `publishes`,
    `consumes`, `providesPorts`, `consumesPorts`, `searchContributor`,
-   `dashboardWidgets`, `onEnableSeed`, `dataRetention`.
+   `dashboardWidgets`, `onEnableSeed`, `dataRetentionDays`.
 3. **Validation rules** from
    [MODULE_GUIDE.md §2](./docs/MODULE_GUIDE.md#descriptor-rules): `key`
    permanent; `name`/`labelKey` are i18n keys; `tablePrefix` unique.
@@ -685,8 +685,9 @@ document) · [ARCHITECTURE.md §3, §4, §6, §7](./docs/ARCHITECTURE.md)
    `__tests__/unit/`, `__tests__/integration/`,
    `__tests__/isolation/<key>.isolation.spec.ts`.
 3. Generates the frontend counterpart:
-   `apps/web/src/app/[locale]/(app)/m/<key>/`, `apps/web/src/features/<key>/`,
-   `packages/i18n/src/messages/<locale>/modules.<key>.json`.
+   `apps/web/src/app/[locale]/(dashboard)/m/<key>/`,
+   `apps/web/src/features/<key>/`, and inserts `modules.<key>` keys into
+   `packages/i18n/src/messages/<locale>/index.ts` for all 4 locales.
 4. Auto-registers the module in `registered-modules.ts` and `app.module.ts` (the
    only two files outside the module folder).
 
@@ -739,15 +740,15 @@ This is the **framework validation milestone**: if adding `demo` required any
 
 ### Phase 3 — Definition of Done
 
-- [ ] `defineModule()` + `ModuleDescriptor` type in `@modubiz/contracts/module`
-- [ ] `pnpm generate:module <key>` produces a valid, compiling module
-- [ ] Boot validation catches all descriptor conflicts
-- [ ] Port registry infrastructure works
-- [ ] **Framework proof**: `demo` module added with zero `core/` changes, only 2
-      files touched outside the module
-- [ ] Architecture test: "only the composition root imports a module's public
+- [x] `defineModule()` + `ModuleDescriptor` type in `@modubiz/contracts/module`
+- [x] `pnpm generate:module <key>` produces a valid, compiling module
+- [x] Boot validation catches all descriptor conflicts
+- [x] Port registry infrastructure works
+- [x] **Framework proof**: `demo` module added with zero `core/` changes (only
+      composition-root + contracts + i18n edits outside the module folder)
+- [x] Architecture test: "only the composition root imports a module's public
       barrel" is green
-- [ ] The generator is the documented source of truth — no copy-paste of
+- [x] The generator is the documented source of truth — no copy-paste of
       existing modules
 
 ---
@@ -856,7 +857,7 @@ event contract tests validate payloads against schemas.
 
 ### 4.8 Frontend
 
-1. Routes under `app/[locale]/(app)/m/crm/` — contacts, companies, deals
+1. Routes under `app/[locale]/(dashboard)/m/crm/` — contacts, companies, deals
    (pipeline board), activities.
 2. Feature code in `features/crm/` — components, hooks (TanStack Query), forms
    (react-hook-form + shared Zod schemas).

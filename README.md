@@ -8,8 +8,9 @@ Think of it as a modern, opinionated alternative to Odoo: far simpler, genuinely
 multi-language (including RTL) and multi-currency from day one, and architected
 so that adding the tenth module is as cheap as adding the third.
 
-> **Status: documentation phase.** The stack and architecture are locked;
-> implementation has not started. **AI agents and new contributors: read
+> **Status: Phases 0–3 complete.** Stack and architecture locked; core kernel,
+> platform capabilities, frontend shell, and the module framework + generator
+> are built and tested. **AI agents and new contributors: read
 > [AGENTS.md](./AGENTS.md) first.**
 
 ---
@@ -38,12 +39,18 @@ Full detail, including rejected alternatives:
 | Module                                                  | Key         | Status  | Depends on         |
 | ------------------------------------------------------- | ----------- | ------- | ------------------ |
 | Platform core (orgs, users, RBAC, billing, audit, i18n) | —           | MVP     | —                  |
-| CRM                                                     | `crm`       | MVP     | —                  |
-| Inventory                                               | `inventory` | MVP     | —                  |
-| Point of Sale                                           | `pos`       | MVP     | `inventory`        |
+| CRM                                                     | `crm`       | Planned | —                  |
+| Inventory                                               | `inventory` | Planned | —                  |
+| Point of Sale                                           | `pos`       | Planned | `inventory`        |
 | E-commerce                                              | `ecommerce` | Planned | `inventory`        |
 | Food Ordering & Delivery                                | `food`      | Planned | `inventory`, `pos` |
 | HR                                                      | `hr`        | Planned | —                  |
+
+Modules are built with `pnpm generate:module <key>` — the module framework
+(descriptor system, registry wiring, port infrastructure, generator) is the
+Phase 3 deliverable. Adding a module must require **zero** changes to
+`apps/api/src/core/` and only composition-root + contracts + i18n edits outside
+the module folder.
 
 Adding a module follows [docs/MODULE_GUIDE.md](./docs/MODULE_GUIDE.md) and must
 require **zero** changes to `apps/api/src/core/`.
@@ -70,7 +77,7 @@ modubiz/
 │   ├── i18n/                 # locale catalogs and formatters
 │   └── ui/                   # shadcn/ui component library
 ├── docs/                     # the specification set
-├── tooling/generators/       # pnpm generate:module
+├── tooling/generators/module/ # pnpm generate:module — canonical module scaffolder
 ├── AGENTS.md                 # rules for AI agents and contributors
 └── CLAUDE.md                 # pointer to AGENTS.md
 ```

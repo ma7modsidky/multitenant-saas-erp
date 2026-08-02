@@ -6,4 +6,5 @@ export {
   type DisableModuleDto,
   type ModuleCatalogResponse,
   type NavigationResponse,
+  type DashboardWidgetsResponse,
 } from './dto/index.js';

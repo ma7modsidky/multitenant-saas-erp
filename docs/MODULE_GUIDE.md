@@ -39,15 +39,13 @@ One declarative file is the entire integration surface with the platform.
 
 ```typescript
 // apps/api/src/modules/inventory/inventory.descriptor.ts
-import { defineModule } from '@modubiz/contracts/module';
-import { MODULE_KEYS, PERMISSIONS, EVENTS } from '@modubiz/contracts';
-import { INVENTORY_STOCK_PORT } from '@modubiz/contracts/ports';
+import { defineModule, type ModuleDescriptor } from '@modubiz/contracts';
 
-export const inventoryDescriptor = defineModule({
+export const inventoryDescriptor: ModuleDescriptor = defineModule({
   key: MODULE_KEYS.INVENTORY, // 'inventory' — stable, lowercase, never renamed
   version: '1.0.0',
-  name: 'modules.inventory.name', // i18n key, NOT a display string
-  description: 'modules.inventory.description',
+  nameKey: 'modules.inventory.name', // i18n key, NOT a display string
+  descriptionKey: 'modules.inventory.description',
   icon: 'package',
   tablePrefix: 'inv_',
 
@@ -59,68 +57,71 @@ export const inventoryDescriptor = defineModule({
   trialDays: 14,
 
   permissions: [
-    {
-      key: PERMISSIONS.INVENTORY.PRODUCT_READ,
-      defaultRoles: ['OWNER', 'ADMIN', 'MANAGER', 'MEMBER', 'VIEWER'],
-    },
-    {
-      key: PERMISSIONS.INVENTORY.PRODUCT_WRITE,
-      defaultRoles: ['OWNER', 'ADMIN', 'MANAGER'],
-    },
-    {
-      key: PERMISSIONS.INVENTORY.STOCK_ADJUST,
-      defaultRoles: ['OWNER', 'ADMIN', 'MANAGER'],
-    },
-    {
-      key: PERMISSIONS.INVENTORY.STOCK_COUNT,
-      defaultRoles: ['OWNER', 'ADMIN', 'MANAGER', 'MEMBER'],
-    },
-    {
-      key: PERMISSIONS.INVENTORY.WAREHOUSE_WRITE,
-      defaultRoles: ['OWNER', 'ADMIN'],
-    },
+    'inventory:product:read',
+    'inventory:product:write',
+    'inventory:stock:adjust',
+    'inventory:stock:count',
+    'inventory:warehouse:write',
   ],
 
   navigation: [
     {
-      labelKey: 'modules.inventory.nav.root',
-      path: '/m/inventory',
-      requiresPermission: PERMISSIONS.INVENTORY.PRODUCT_READ,
-      children: [
-        {
-          labelKey: 'modules.inventory.nav.products',
-          path: '/m/inventory/products',
-        },
-        { labelKey: 'modules.inventory.nav.stock', path: '/m/inventory/stock' },
-        {
-          labelKey: 'modules.inventory.nav.warehouses',
-          path: '/m/inventory/warehouses',
-          requiresPermission: PERMISSIONS.INVENTORY.WAREHOUSE_WRITE,
-        },
-      ],
+      labelKey: 'modules.inventory.nav.products',
+      href: '/m/inventory/products',
+      icon: 'package',
+    },
+    {
+      labelKey: 'modules.inventory.nav.stock',
+      href: '/m/inventory/stock',
+      icon: 'bar-chart',
+    },
+    {
+      labelKey: 'modules.inventory.nav.warehouses',
+      href: '/m/inventory/warehouses',
+      icon: 'warehouse',
     },
   ],
 
   // Public contract: what other modules may rely on.
   publishes: [
-    EVENTS.INVENTORY.PRODUCT_CREATED_V1,
-    EVENTS.INVENTORY.STOCK_LEVEL_CHANGED_V1,
-    EVENTS.INVENTORY.STOCK_DEPLETED_V1,
-    EVENTS.INVENTORY.REORDER_POINT_REACHED_V1,
+    'inventory.product.created.v1',
+    'inventory.product.archived.v1',
+    'inventory.stock.level_changed.v1',
+    'inventory.stock.depleted.v1',
+    'inventory.reorder_point.reached.v1',
   ],
   consumes: [],
 
-  providesPorts: [INVENTORY_STOCK_PORT],
+  providesPorts: [
+    {
+      token: 'INVENTORY_STOCK_PORT',
+      description: 'Stock availability, reservation, and deduction',
+      transactional: true,
+    },
+  ],
   consumesPorts: [],
 
   searchContributor: true,
-  dashboardWidgets: ['inventory.low-stock', 'inventory.stock-value'],
+  dashboardWidgets: [
+    {
+      id: 'low-stock',
+      titleKey: 'modules.inventory.widgets.low_stock',
+      width: 2,
+      height: 2,
+    },
+    {
+      id: 'stock-valuation',
+      titleKey: 'modules.inventory.widgets.stock_valuation',
+      width: 2,
+      height: 1,
+    },
+  ],
 
   // Rows created when the module is enabled for an org. Must be idempotent.
   onEnableSeed: 'inventory/db/seed-on-enable.ts',
 
-  // What happens to data when the module is disabled.
-  dataRetention: { onDisableDays: 90 },
+  // Days until data is purged after the module is disabled.
+  dataRetentionDays: 365,
 });
 ```
 
@@ -128,14 +129,39 @@ export const inventoryDescriptor = defineModule({
 
 1. `key` is permanent. Renaming it breaks entitlements, permissions, and billing
    history.
-2. `name`/`description`/`labelKey` are **i18n keys**. A literal display string
-   here is a bug.
+2. `nameKey`/`descriptionKey`/`labelKey` are **i18n keys**. A literal display
+   string here is a bug (the generator and `defineModule()` enforce the
+   `modules.` prefix).
 3. `publishes` and `consumes` are the module's **public API**. Anything not
    listed is internal and may change freely.
 4. `dependsOn` is validated at boot and at enable time — enabling POS without
    Inventory must fail with `MODULE_DEPENDENCY_MISSING`.
 5. `tablePrefix` is unique across the system and is asserted by the architecture
-   tests.
+   tests and `validateDescriptors()`.
+6. Permissions are `<module>:<resource>:<action>` strings; published events are
+   `<module>.<aggregate>.<action>.v<major>` strings — both must start with the
+   module key (enforced by `defineModule()`).
+7. Module keys (and their derived table prefixes) may contain **digits after a
+   leading letter** — `demo2`, `food1` — matching the generator's key rule. A
+   leading digit is invalid (SQL table names must not start with one).
+   `defineModule()` enforces `/^[a-z][a-z0-9]*_$/` for `tablePrefix`.
+
+### Removing a module
+
+Removal is manual (the generator is add-only): delete the module's folder, then
+hand-revert the four registration edits — the MODULE_KEYS entry in
+`@modubiz/contracts`, the descriptor import/entry in `registered-modules.ts`,
+the module class in `app.module.ts`, and the `modules.<key>` block in all four
+locale catalogs — and rebuild `@modubiz/contracts`
+(`cd packages/contracts && npx tsc -b`) so the derived permission/event type
+unions drop the removed key.
+
+**The catalog is a two-way mirror at boot:** `BootValidationService` upserts
+registered descriptors _and prunes_ rows for keys no longer registered — so a
+module removed from `registered-modules.ts` stops appearing in the marketplace
+(`GET /v1/modules`) on the next boot. Rows still referenced by an entitlement
+are kept (FK-protected) and logged. Verified end-to-end with a `demo2`
+generate→boot→remove→boot cycle (2026-08-02).
 
 ---
 
@@ -181,12 +207,12 @@ apps/api/src/modules/<key>/
     └── isolation/<key>.isolation.spec.ts
 ```
 
-Frontend counterpart:
+Frontend counterpart (generated under the committed `(dashboard)` shell):
 
 ```
-apps/web/src/app/[locale]/(app)/m/<key>/...
+apps/web/src/app/[locale]/(dashboard)/m/<key>/page.tsx
 apps/web/src/features/<key>/{components,hooks,api,schemas}/
-packages/i18n/src/messages/<locale>/modules.<key>.json
+packages/i18n/src/messages/<locale>/index.ts   # modules.<key> keys inserted here
 ```
 
 ---
@@ -365,28 +391,30 @@ export class PosSaleCompletedHandler {
 
 ### Step 8 — Register the module
 
-The only change outside the module folder. Two lines, both in the composition
-root — the only place allowed to import a module's `public/` barrel:
+`pnpm generate:module <key>` does this automatically. The only backend changes
+outside the module folder are two edits in the composition root — the only place
+allowed to import a module's `public/` barrel (plus the MODULE_KEYS entry in
+`@modubiz/contracts` and the `modules.<key>` i18n keys, which the generator also
+inserts):
 
 ```typescript
 // apps/api/src/platform/module-registry/registered-modules.ts
-export const REGISTERED_MODULES = [
+import { posDescriptor } from '../../modules/pos/public/index.js';
+
+export const REGISTERED_MODULES: ModuleDescriptor[] = [
   crmDescriptor,
   inventoryDescriptor,
   posDescriptor, // <-- add
-] as const;
+];
 ```
 
 ```typescript
 // apps/api/src/app.module.ts
-imports: [
-  CoreModule,
-  PlatformModule,
-  CrmModule,
-  InventoryModule,
-  PosModule /* <-- add */,
-];
+imports: [...PosModule /* <-- add */];
 ```
+
+Never hand-edit these when the generator can do it — the generator is the source
+of truth for scaffolding (PLAN §3.2).
 
 ### Step 9 — Billing
 
@@ -399,7 +427,7 @@ imports: [
 
 ### Step 10 — Frontend
 
-- Routes under `app/[locale]/(app)/m/<key>/`, wrapped in
+- Routes under `app/[locale]/(dashboard)/m/<key>/`, wrapped in
   `<ModuleGate module="<key>">`.
 - Feature code in `features/<key>/`, using the regenerated
   `@modubiz/api-client`.

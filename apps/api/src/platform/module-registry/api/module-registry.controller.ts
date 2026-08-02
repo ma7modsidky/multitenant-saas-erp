@@ -10,6 +10,7 @@ import {
   EnableModuleUseCase,
   DisableModuleUseCase,
   GetNavigationUseCase,
+  GetDashboardWidgetsUseCase,
 } from '../application/index.js';
 
 import {
@@ -19,6 +20,7 @@ import {
   type DisableModuleDto,
   type ModuleCatalogResponse,
   type NavigationResponse,
+  type DashboardWidgetsResponse,
 } from './dto/index.js';
 
 @Controller('v1')
@@ -30,6 +32,7 @@ export class ModuleRegistryController {
     private readonly enableModuleUseCase: EnableModuleUseCase,
     private readonly disableModuleUseCase: DisableModuleUseCase,
     private readonly getNavigationUseCase: GetNavigationUseCase,
+    private readonly getDashboardWidgetsUseCase: GetDashboardWidgetsUseCase,
   ) {}
 
   /**
@@ -51,6 +54,17 @@ export class ModuleRegistryController {
   async getNavigation(): Promise<{ data: NavigationResponse[] }> {
     const orgId = TenantContext.requireOrganizationId();
     const result = await this.getNavigationUseCase.execute({ organizationId: orgId });
+    return { data: result };
+  }
+
+  /**
+   * GET /v1/me/dashboard/widgets — Widgets derived from entitlements + descriptors.
+   * Returns only widgets from modules the current org is entitled to.
+   */
+  @Get('me/dashboard/widgets')
+  async getDashboardWidgets(): Promise<{ data: DashboardWidgetsResponse[] }> {
+    const orgId = TenantContext.requireOrganizationId();
+    const result = await this.getDashboardWidgetsUseCase.execute({ organizationId: orgId });
     return { data: result };
   }
 

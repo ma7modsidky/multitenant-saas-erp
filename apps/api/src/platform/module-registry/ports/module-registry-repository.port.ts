@@ -54,6 +54,28 @@ export interface ModuleRegistryRepository {
   /** Upsert a permission key. */
   upsertPermission(key: string, moduleKey: string, description: string | null, tx?: TxOrDb): Promise<void>;
 
+  /**
+   * Remove catalog rows (and their permissions) for modules that are no longer
+   * registered.
+   *
+   * The catalog is mirrored from descriptors at boot, so a true mirror must also
+   * prune stale entries — otherwise a module removed from `registered-modules.ts`
+   * keeps showing up in the marketplace forever.
+   *
+   * Rows still referenced by a dependent row are kept (the FK is NO ACTION and
+   * `core_module_entitlements` / `core_role_permissions` are RLS-protected, so we
+   * cannot pre-check from the boot context — the FK violation itself is the
+   * guard) and reported in `kept`.
+   *
+   * MUST be called outside an explicit transaction: the keep-on-FK-violation
+   * behavior relies on per-statement autocommit. Inside a transaction, a 23503
+   * aborts the whole transaction, so no `tx` parameter is accepted.
+   *
+   * @returns `{ removed, kept }` — the pruned module keys and the ones that were
+   *          left in place because a dependent row still references them.
+   */
+  pruneStaleModules(registeredKeys: string[]): Promise<{ removed: string[]; kept: string[] }>;
+
   /** Get all registered permission keys. */
   listPermissions(tx?: TxOrDb): Promise<Array<{ key: string; moduleKey: string; description: string | null }>>;
 

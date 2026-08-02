@@ -172,9 +172,13 @@ export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
   if (!d.tablePrefix.endsWith('_')) {
     throw new Error(`defineModule("${d.key}"): tablePrefix must end with "_", got "${d.tablePrefix}"`);
   }
-  if (!/^[a-z]+_$/.test(d.tablePrefix)) {
+  // Module keys allow digits after a leading letter (generator rule), so a
+  // prefix derived from the key (`<key>_`) must too: `demo2_`, `food1_`. A
+  // leading digit is still rejected because SQL table names must not start
+  // with a digit.
+  if (!/^[a-z][a-z0-9]*_$/.test(d.tablePrefix)) {
     throw new Error(
-      `defineModule("${d.key}"): tablePrefix must be lowercase letters followed by "_", got "${d.tablePrefix}"`,
+      `defineModule("${d.key}"): tablePrefix must start with a lowercase letter, contain only lowercase letters/digits, and end with "_", got "${d.tablePrefix}"`,
     );
   }
 
@@ -203,4 +207,159 @@ export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
   // exactly one registered module.
 
   return Object.freeze({ ...d });
+}
+
+// ─── Cross-descriptor error codes ───────────────────────────────────────────
+//
+// Boot-time validation of a *collection* of descriptors. The registry calls
+// `validateDescriptors()` so that the error codes are stable and shared between
+// the validation logic, the boot service, and the tests (PLAN.md §3.1, §3.3).
+
+export const DESCRIPTOR_ERROR = {
+  DUPLICATE_KEY: 'MODULE_DUPLICATE_KEY',
+  DUPLICATE_TABLE_PREFIX: 'MODULE_DUPLICATE_TABLE_PREFIX',
+  DUPLICATE_PERMISSION: 'MODULE_DUPLICATE_PERMISSION',
+  DUPLICATE_EVENT: 'MODULE_DUPLICATE_EVENT',
+  DUPLICATE_PORT: 'MODULE_DUPLICATE_PORT',
+  DEPENDENCY_MISSING: 'MODULE_DEPENDENCY_MISSING',
+  CONSUMED_EVENT_MISSING: 'MODULE_CONSUMED_EVENT_MISSING',
+  CONSUMED_PORT_MISSING: 'MODULE_CONSUMED_PORT_MISSING',
+} as const;
+
+export type DescriptorErrorCode = (typeof DESCRIPTOR_ERROR)[keyof typeof DESCRIPTOR_ERROR];
+
+/**
+ * A single descriptor-level conflict found while validating a collection.
+ * `code` is a stable error code (see {@link DESCRIPTOR_ERROR}); `message` is a
+ * human-readable explanation suitable for boot logs.
+ */
+export interface DescriptorValidationError {
+  code: DescriptorErrorCode;
+  message: string;
+}
+
+/**
+ * Validates a collection of module descriptors at boot time.
+ *
+ * Cross-descriptor checks (none of which can be done in `defineModule()` because
+ * they require seeing *all* descriptors at once):
+ *  - no two modules share a `key`
+ *  - no two modules share a `tablePrefix`
+ *  - no two modules declare the same permission key
+ *  - no two modules publish the same event name
+ *  - no two modules provide the same port token
+ *  - every `dependsOn` references a registered module key
+ *  - every consumed event is published by a registered module
+ *  - every consumed port is provided by a registered module
+ *
+ * Returns an array of validation errors. An empty array means the descriptor
+ * set is internally consistent. The registry is expected to throw on a non-empty
+ * result (see `BootValidationService`).
+ */
+export function validateDescriptors(descriptors: ReadonlyArray<ModuleDescriptor>): DescriptorValidationError[] {
+  const errors: DescriptorValidationError[] = [];
+  const keys = new Set<string>();
+  const tablePrefixes = new Map<string, string>();
+  const permissions = new Map<string, string>();
+  const publishedEvents = new Map<string, string>();
+  const providedPorts = new Map<string, string>();
+
+  for (const d of descriptors) {
+    // duplicate key
+    if (keys.has(d.key)) {
+      errors.push({
+        code: DESCRIPTOR_ERROR.DUPLICATE_KEY,
+        message: `Duplicate module key "${d.key}".`,
+      });
+    }
+    keys.add(d.key);
+
+    // duplicate tablePrefix — this is the PLAN.md §3.1 requirement
+    const priorPrefix = tablePrefixes.get(d.tablePrefix);
+    if (priorPrefix !== undefined) {
+      errors.push({
+        code: DESCRIPTOR_ERROR.DUPLICATE_TABLE_PREFIX,
+        message: `Table prefix "${d.tablePrefix}" is used by modules "${priorPrefix}" and "${d.key}".`,
+      });
+    } else {
+      tablePrefixes.set(d.tablePrefix, d.key);
+    }
+
+    // duplicate permissions
+    for (const perm of d.permissions) {
+      const prior = permissions.get(perm);
+      if (prior !== undefined) {
+        errors.push({
+          code: DESCRIPTOR_ERROR.DUPLICATE_PERMISSION,
+          message: `Permission "${perm}" is declared by modules "${prior}" and "${d.key}".`,
+        });
+      } else {
+        permissions.set(perm, d.key);
+      }
+    }
+
+    // duplicate published events
+    for (const event of d.publishes) {
+      const prior = publishedEvents.get(event);
+      if (prior !== undefined) {
+        errors.push({
+          code: DESCRIPTOR_ERROR.DUPLICATE_EVENT,
+          message: `Event "${event}" is published by modules "${prior}" and "${d.key}".`,
+        });
+      } else {
+        publishedEvents.set(event, d.key);
+      }
+    }
+
+    // duplicate provided port tokens
+    for (const port of d.providesPorts) {
+      const prior = providedPorts.get(port.token);
+      if (prior !== undefined) {
+        errors.push({
+          code: DESCRIPTOR_ERROR.DUPLICATE_PORT,
+          message: `Port "${port.token}" is provided by modules "${prior}" and "${d.key}".`,
+        });
+      } else {
+        providedPorts.set(port.token, d.key);
+      }
+    }
+  }
+
+  // dependsOn references registered keys
+  for (const d of descriptors) {
+    for (const dep of d.dependsOn) {
+      if (!keys.has(dep)) {
+        errors.push({
+          code: DESCRIPTOR_ERROR.DEPENDENCY_MISSING,
+          message: `Module "${d.key}" depends on "${dep}" which is not registered.`,
+        });
+      }
+    }
+  }
+
+  // consumed events are published by a registered module
+  for (const d of descriptors) {
+    for (const event of d.consumes) {
+      if (!publishedEvents.has(event)) {
+        errors.push({
+          code: DESCRIPTOR_ERROR.CONSUMED_EVENT_MISSING,
+          message: `Module "${d.key}" consumes event "${event}" which is not published by any registered module.`,
+        });
+      }
+    }
+  }
+
+  // consumed ports are provided by a registered module
+  for (const d of descriptors) {
+    for (const port of d.consumesPorts) {
+      if (!providedPorts.has(port.token)) {
+        errors.push({
+          code: DESCRIPTOR_ERROR.CONSUMED_PORT_MISSING,
+          message: `Module "${d.key}" consumes port "${port.token}" which is not provided by any registered module.`,
+        });
+      }
+    }
+  }
+
+  return errors;
 }

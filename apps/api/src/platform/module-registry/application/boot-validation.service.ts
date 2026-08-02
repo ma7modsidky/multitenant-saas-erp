@@ -1,14 +1,7 @@
-import type { ModuleDescriptor } from '@modubiz/contracts';
+import { validateDescriptors, type ModuleDescriptor } from '@modubiz/contracts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import {
-  MODULE_DEPENDENCY_MISSING,
-  MODULE_DUPLICATE_PERMISSION,
-  MODULE_DUPLICATE_EVENT,
-  MODULE_DUPLICATE_TABLE_PREFIX,
-  MODULE_DUPLICATE_PORT,
-  MODULE_CONSUMED_PORT_MISSING,
-} from '../domain/index.js';
+import { MODULE_BOOT_VALIDATION_FAILED } from '../domain/index.js';
 import { type ModuleRegistryRepository, MODULE_REGISTRY_REPOSITORY } from '../ports/index.js';
 import { REGISTERED_MODULES } from '../registered-modules.js';
 
@@ -37,112 +30,31 @@ export class BootValidationService {
 
   async validateAndSync(): Promise<void> {
     const descriptors = REGISTERED_MODULES;
-    const errors: string[] = [];
-    const keys = new Set<string>();
 
-    // Build module key index
-    for (const d of descriptors) {
-      keys.add(d.key);
-    }
+    // Shared cross-descriptor validation lives in @modubiz/contracts so the
+    // error codes (DESCRIPTOR_ERROR) are stable and identical between the
+    // validation logic, this boot service, and the unit tests (PLAN §3.1, §3.3).
+    const validationErrors = validateDescriptors(descriptors);
 
-    // Check dependencies
-    for (const d of descriptors) {
-      for (const dep of d.dependsOn) {
-        if (!keys.has(dep)) {
-          errors.push(`Module "${d.key}" depends on "${dep}" which is not registered. (${MODULE_DEPENDENCY_MISSING})`);
-        }
-      }
-    }
-
-    // Check duplicate table prefixes
-    const tablePrefixes = new Map<string, string>();
-    for (const d of descriptors) {
-      const existing = tablePrefixes.get(d.tablePrefix);
-      if (existing) {
-        errors.push(
-          `Table prefix "${d.tablePrefix}" is used by modules "${existing}" and "${d.key}". (${MODULE_DUPLICATE_TABLE_PREFIX})`,
-        );
-      }
-      tablePrefixes.set(d.tablePrefix, d.key);
-    }
-
-    // Check duplicate permission keys across modules
-    const permissionMap = new Map<string, string>();
-    for (const d of descriptors) {
-      for (const perm of d.permissions) {
-        const existing = permissionMap.get(perm);
-        if (existing) {
-          errors.push(
-            `Permission "${perm}" is declared by modules "${existing}" and "${d.key}". (${MODULE_DUPLICATE_PERMISSION})`,
-          );
-        }
-        permissionMap.set(perm, d.key);
-      }
-    }
-
-    // Check duplicate published event names across modules
-    const eventMap = new Map<string, string>();
-    for (const d of descriptors) {
-      for (const event of d.publishes) {
-        const existing = eventMap.get(event);
-        if (existing) {
-          errors.push(
-            `Event "${event}" is published by modules "${existing}" and "${d.key}". (${MODULE_DUPLICATE_EVENT})`,
-          );
-        }
-        eventMap.set(event, d.key);
-      }
-    }
-
-    // Validate consumed events are published by a registered module
-    for (const d of descriptors) {
-      for (const event of d.consumes) {
-        if (!eventMap.has(event)) {
-          errors.push(
-            `Module "${d.key}" consumes event "${event}" which is not published by any registered module. (${MODULE_DEPENDENCY_MISSING})`,
-          );
-        }
-      }
-    }
-
-    // Check duplicate provided port tokens across modules
-    const providedPortMap = new Map<string, string>();
-    for (const d of descriptors) {
-      for (const port of d.providesPorts) {
-        const existing = providedPortMap.get(port.token);
-        if (existing) {
-          errors.push(
-            `Port "${port.token}" is provided by modules "${existing}" and "${d.key}". (${MODULE_DUPLICATE_PORT})`,
-          );
-        }
-        providedPortMap.set(port.token, d.key);
-      }
-    }
-
-    // Validate consumed ports are provided by a registered module
-    for (const d of descriptors) {
-      for (const port of d.consumesPorts) {
-        if (!providedPortMap.has(port.token)) {
-          errors.push(
-            `Module "${d.key}" consumes port "${port.token}" which is not provided by any registered module. (${MODULE_CONSUMED_PORT_MISSING})`,
-          );
-        }
-      }
-    }
-
-    if (errors.length > 0) {
-      const message = `Module registry boot validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}`;
+    if (validationErrors.length > 0) {
+      const message = `Module registry boot validation failed:\n${validationErrors
+        .map((e) => `  - ${e.message} (${e.code})`)
+        .join('\n')}`;
       this.logger.error(message);
-      throw new Error(message);
+      throw new Error(`${MODULE_BOOT_VALIDATION_FAILED}: ${message}`);
     }
 
-    this.logger.log(`Boot validation passed for ${descriptors.length} module(s): ${[...keys].join(', ')}`);
+    this.logger.log(
+      `Boot validation passed for ${descriptors.length} module(s): ${descriptors.map((d) => d.key).join(', ')}`,
+    );
 
     // Sync descriptors to database tables
     await this.syncToDatabase(descriptors);
   }
 
   private async syncToDatabase(descriptors: ModuleDescriptor[]): Promise<void> {
+    const registeredKeys = descriptors.map((d) => d.key);
+
     for (const d of descriptors) {
       await this.repo.upsertModule({
         key: d.key,
@@ -159,6 +71,23 @@ export class BootValidationService {
       for (const perm of d.permissions) {
         await this.repo.upsertPermission(perm, d.key, null);
       }
+    }
+
+    // The catalog is mirrored from descriptors at boot, so a true mirror must
+    // also remove entries for modules that are no longer registered. Without
+    // this, a module removed from registered-modules.ts keeps appearing in the
+    // marketplace (GET /v1/modules reads core_module_catalog) — see the demo
+    // module cleanup in Phase 3.
+    const { removed, kept } = await this.repo.pruneStaleModules(registeredKeys);
+    if (removed.length > 0) {
+      this.logger.warn(
+        `Pruned ${removed.length} stale catalog entr${removed.length === 1 ? 'y' : 'ies'} no longer registered: ${removed.join(', ')}`,
+      );
+    }
+    if (kept.length > 0) {
+      this.logger.warn(
+        `Kept ${kept.length} catalog entr${kept.length === 1 ? 'y' : 'ies'} still referenced by a dependent row (entitlement or role permission): ${kept.join(', ')}`,
+      );
     }
 
     this.logger.log(`Synced ${descriptors.length} module(s) and their permissions to the database.`);

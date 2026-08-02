@@ -1,0 +1,13 @@
+{
+  "name": "@modubiz/generator-module",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scaffolds a new business module from the canonical skeleton (pnpm generate:module <key>).",
+  "scripts": {
+    "generate": "node ./src/index.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

@@ -114,6 +114,20 @@ export interface ModuleDefinition {
   trialDays: number;
 }
 
+export interface DashboardWidget {
+  id: string;
+  titleKey: string;
+  width: number;
+  height: number;
+  icon?: string;
+}
+
+export interface DashboardWidgetGroup {
+  moduleKey: string;
+  labelKey: string;
+  widgets: DashboardWidget[];
+}
+
 export interface OrganizationResponse {
   id: string;
   name: string;

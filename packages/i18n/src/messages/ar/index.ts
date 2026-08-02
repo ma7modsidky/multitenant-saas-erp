@@ -133,6 +133,8 @@ const ar = {
     noActivity: 'لا يوجد نشاط بعد. ابدأ باستخدام الوحدات لرؤية نشاطك هنا.',
     noModulesTitle: 'لا توجد وحدات مفعلة بعد',
     noModulesHint: 'فعّل الوحدات لبدء العمل.',
+    widgetsTitle: 'ودجات الوحدات',
+    widgetPlaceholder: 'سيظهر المحتوى هنا عند استخدام الوحدة.',
     stats: {
       activeModules: 'الوحدات النشطة',
       modulesHint: 'ابدأ نسخة تجريبية للتفعيل',
@@ -405,6 +407,10 @@ const ar = {
         companies: 'الشركات',
         deals: 'الصفقات',
       },
+      widgets: {
+        recent_deals: 'الصفقات الأخيرة',
+        upcoming_activities: 'الأنشطة القادمة',
+      },
     },
     inventory: {
       name: 'المخزون',
@@ -414,6 +420,10 @@ const ar = {
         warehouses: 'المستودعات',
         stock: 'المخزون',
       },
+      widgets: {
+        low_stock: 'مخزون منخفض',
+        stock_valuation: 'تقييم المخزون',
+      },
     },
     pos: {
       name: 'نقطة البيع',
@@ -422,6 +432,10 @@ const ar = {
         register: 'سجل البيع',
         shifts: 'الورديات',
         reports: 'التقارير',
+      },
+      widgets: {
+        daily_sales: 'مبيعات اليوم',
+        open_shifts: 'ورديات مفتوحة',
       },
     },
     trialDays: 'نسخة تجريبية مجانية لمدة {days} يوماً',

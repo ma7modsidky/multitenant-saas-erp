@@ -109,6 +109,63 @@ export class DrizzleModuleRegistryRepository implements ModuleRegistryRepository
     }));
   }
 
+  async pruneStaleModules(registeredKeys: string[]): Promise<{ removed: string[]; kept: string[] }> {
+    const db = this.getDb();
+
+    if (registeredKeys.length === 0) {
+      // Nothing to keep — never emit `NOT IN ()`, which is invalid SQL. (The
+      // boot registry always registers the core modules, so this is defensive.)
+      return { removed: [], kept: [] };
+    }
+
+    // The catalog is mirrored from descriptors at boot, so any row whose key is
+    // not among the registered descriptors is stale and must be removed. This
+    // keeps the marketplace (which reads core_module_catalog) in sync when a
+    // module is removed from registered-modules.ts.
+    const stale = await db.execute<Record<string, unknown>>(
+      sql`SELECT key FROM core_module_catalog WHERE key NOT IN (${sql.join(
+        registeredKeys.map((k) => sql`${k}`),
+        sql.raw(', '),
+      )})`,
+    );
+
+    const removed: string[] = [];
+    const kept: string[] = [];
+
+    for (const row of stale) {
+      const key = row.key as string;
+
+      // A module still referenced by a dependent row cannot be pruned. The FK
+      // constraints are NO ACTION and `core_module_entitlements` /
+      // `core_role_permissions` are RLS-protected, so from the boot context (no
+      // tenant bound) we cannot pre-check references — the FK violation itself
+      // is the guard. Because these are global non-RLS tables, the app role can
+      // DELETE directly (no TransactionManager tenant context needed).
+      try {
+        // Permissions MUST go first: core_permissions.module_key FKs to the
+        // catalog, so the catalog row cannot be deleted while its permissions
+        // exist. This delete throws 23503 only if a core_role_permissions row
+        // still references a permission — in that case the whole key is kept.
+        await db.execute(sql`DELETE FROM core_permissions WHERE module_key = ${key}`);
+        await db.execute(sql`DELETE FROM core_module_catalog WHERE key = ${key}`);
+        removed.push(key);
+      } catch (err) {
+        const code = (err as { code?: string } | undefined)?.code;
+        if (code !== '23503') {
+          throw err;
+        }
+        // A dependent row (entitlement or role permission) still references this
+        // module — keep the catalog row so that reference stays valid. Note the
+        // permissions may already be gone in the entitlement-only case; this is
+        // benign because permissions are re-mirrored from the descriptor if the
+        // module ever registers again, and a kept module is unregistered.
+        kept.push(key);
+      }
+    }
+
+    return { removed, kept };
+  }
+
   async upsertPermission(key: string, moduleKey: string, description: string | null, tx?: TxOrDb): Promise<void> {
     const db = this.getDb(tx);
     await db.execute(sql`

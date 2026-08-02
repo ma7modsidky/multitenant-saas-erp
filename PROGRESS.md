@@ -1,8 +1,7 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 19 — Phase 2 verified + committed; invite-500 fixed;
-Phase 3 leftovers removed **Current phase:** Phase 3 — Module Framework &
-Generator (clean start)
+**Last updated:** Session 20 — Phase 3 (Module Framework & Generator) complete
+and verified **Current phase:** Phase 4 — CRM Module
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -16,11 +15,103 @@ Generator (clean start)
 | 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                |
 | 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                               |
 | 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19) |
-| 3 — Module Framework & Generator      | ⬜ Not started | Clean start — all demo leftovers removed                      |
+| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |
 | 4 — CRM Module                        | ⬜ Not started |                                                               |
 | 5 — Inventory Module                  | ⬜ Not started |                                                               |
 | 6 — POS Module                        | ⬜ Not started |                                                               |
 | 7 — Production Hardening & Deployment | ⬜ Not started |                                                               |
+
+---
+
+## Phase 3 — Detailed progress
+
+### 3.1 Module descriptor system (`@modubiz/contracts/module`)
+
+- [x] `defineModule()` — validates `ModuleDescriptor` at definition time (i18n
+      keys, table prefix format, permission/event prefix rules)
+- [x] `validateDescriptors()` + `DESCRIPTOR_ERROR` codes — shared cross-
+      descriptor validation (duplicate key/prefix/permission/event/port, missing
+      dependency, missing consumed event/port)
+- [x] `module.spec.ts` — 18 unit tests (packages/contracts/**tests**/)
+- [x] `MODULE_KEYS` grows `DEMO: 'demo'` for the framework proof
+
+### 3.2 Module generator (`tooling/generators/module`)
+
+- [x] `@modubiz/generator-module` package — `pnpm generate:module <key>`
+- [x] Scaffolds the canonical backend skeleton (28 files): descriptor, module
+      class, api/ + dto/, application/ + ports/, domain/ + errors,
+      infrastructure/, events/ (published + handlers), jobs/, search/
+      contributor, db/ (schema, seed-on-enable, 0001_init.sql + 0002_rls.sql),
+      public/index.ts, and **tests**/{unit,integration,isolation}
+- [x] Scaffolds the frontend counterpart: `(dashboard)/m/<key>/page.tsx` (gated
+      by `<ModuleGate>`) + `features/<key>/`
+- [x] Auto-registration: MODULE_KEYS entry (contract-first), descriptor in
+      `registered-modules.ts`, module class in `app.module.ts`, and
+      `modules.<key>` i18n keys inserted into all 4 locale catalogs
+- [x] Idempotent: re-running skips existing files and registrations
+- [x] Key validation (lowercase 2–24 chars) + CRLF-aware file editing
+
+### 3.3 Registry wiring & boot validation
+
+- [x] `BootValidationService` refactored to use the shared
+      `validateDescriptors()` from contracts (single source of truth for error
+      codes)
+- [x] `boot-validation.service.spec.ts` — 7 service-level tests (incl. prune
+      mirror-semantics coverage)
+- [x] **Catalog prune on boot** — `syncToDatabase` now calls
+      `pruneStaleModules(registeredKeys)`: catalog rows + permissions for
+      modules no longer registered are deleted (FK-guarded — a row referenced by
+      an entitlement is kept and logged). Fixes the leftover-module-in-
+      marketplace bug where a module removed from `registered-modules.ts` kept
+      showing up in `GET /v1/modules` because the DB mirror only upserted.
+- [x] **Dashboard widget registration** — `GetDashboardWidgetsUseCase` (derived
+      from entitlements + descriptors) + `GET /v1/me/dashboard/widgets` endpoint
+- [x] Frontend `useDashboardWidgets()` hook + widget grid on the dashboard page
+      (registered widgets render; never hardcoded)
+- [x] `get-dashboard-widgets.spec.ts` — 4 tests
+
+### 3.4 Port registration infrastructure
+
+- [x] `TransactionRef` type in `@modubiz/contracts` (opaque, minted only by
+      TransactionManager) + `PortToken` type
+- [x] `core/ports/` — `PortRegistry` (register/resolve/has/tokens) + global
+      `PortsModule`, wired into AppModule
+- [x] `port-registry.spec.ts` — 6 tests (duplicate provider, missing token,
+      transactional port resolve)
+
+### 3.5 Framework proof (throwaway `demo` module)
+
+- [x] `pnpm generate:module demo` produced 28 backend files + web page + i18n
+      keys
+- [x] API + web typecheck pass with demo registered; demo unit/integration/
+      isolation specs run green; API lint 0 errors; all 8 arch tests pass;
+      depcruise 0 errors
+- [x] Demo deleted + all registration edits reverted — framework unchanged (git
+      diff clean of demo)
+- [x] **Zero `core/` changes were required to add the module** — framework
+      validation milestone met
+
+### Phase 3 — Framework fixes (done as part of the phase)
+
+- [x] Search contributor contract moved to `@modubiz/contracts`
+      (`SearchContributor`, `SearchResult`, `SEARCH_CONTRIBUTORS` token) so
+      modules can implement search without importing `platform/`
+- [x] Arch test: "modules never import platform" added
+- [x] depcruise + arch tests: `registered-modules.ts` explicitly allowed as
+      composition root (platform→modules exception)
+- [x] Arch tests hardened for Windows path separators (normalized `\` → `/`)
+
+### Phase 3 — Definition of Done
+
+| #   | Criterion                                                                 | Status                                   |
+| --- | ------------------------------------------------------------------------- | ---------------------------------------- |
+| 1   | `defineModule()` + `ModuleDescriptor` type in `@modubiz/contracts/module` | ✅                                       |
+| 2   | `pnpm generate:module <key>` produces a valid, compiling module           | ✅ (verified with demo)                  |
+| 3   | Boot validation catches all descriptor conflicts                          | ✅ (shared validateDescriptors + tests)  |
+| 4   | Port registry infrastructure works                                        | ✅ (core/ports + tests)                  |
+| 5   | Framework proof: demo added with zero `core/` changes                     | ✅ (verified + reverted)                 |
+| 6   | Arch test: "only composition root imports a module's public barrel" green | ✅ (incl. Windows path handling)         |
+| 7   | Generator is the documented source of truth                               | ✅ (MODULE_GUIDE §3 aligns to generator) |
 
 ---
 
@@ -422,6 +513,62 @@ Generator (clean start)
 ---
 
 ## Session log
+
+### Session 20 — Phase 3 complete: descriptor system, generator, registry wiring, ports, demo proof
+
+- **3.1 Descriptor system finished:** contracts tests moved to
+  `packages/contracts/__tests__/` (matching the money package layout); test
+  fixtures fixed for the stricter `defineModule` validation (tablePrefix format,
+  permissions/events key-prefixed). `validateDescriptors()` + `DESCRIPTOR_ERROR`
+  codes are the single shared source of boot-validation truth.
+- **3.3 Registry wiring:** `BootValidationService` refactored to call
+  `validateDescriptors()` from contracts (no duplicated logic); new
+  `boot-validation.service.spec.ts` (5 tests). Added **dashboard widget
+  registration**: `GetDashboardWidgetsUseCase` + `GET /v1/me/dashboard/widgets`
+  (mirrors the navigation endpoint — derived from entitlements, never
+  hardcoded) + frontend `useDashboardWidgets()` hook + widget grid on the
+  dashboard page. Widget i18n keys (recent_deals, low_stock, daily_sales, …)
+  - `dashboard.widgetsTitle/widgetPlaceholder` added to all 4 catalogs.
+- **3.4 Port infrastructure:** `TransactionRef` (opaque, minted only by
+  TransactionManager) + `PortToken` in `@modubiz/contracts`; new `core/ports/`
+  with `PortRegistry` + global `PortsModule` wired into AppModule;
+  `port-registry.spec.ts` (6 tests).
+- **Framework fixes:** the search contributor contract (`SearchContributor`,
+  `SearchResult`, `SEARCH_CONTRIBUTORS`) moved from `platform/search/ports` to
+  `@modubiz/contracts` so modules can implement search without importing
+  `platform/`; added the "modules never import platform" arch test; depcruise +
+  vitest arch tests now allow `registered-modules.ts` as composition root
+  (platform→modules exception) and normalize Windows path separators.
+- **3.2 Generator built:** `tooling/generators/module/`
+  (`@modubiz/generator-module`, plain Node ESM, no build step).
+  `pnpm generate:module <key>` scaffolds the full canonical skeleton (28 backend
+  files incl. isolation test + web page + features folder), registers the
+  descriptor + module class in the two composition-root files, adds the
+  MODULE_KEYS entry, and inserts `modules.<key>` i18n keys into all 4 locale
+  catalogs. Idempotent, CRLF-aware.
+- **3.5 Framework proof:** ran the generator for `demo`; API + web typecheck
+  green, demo unit/integration/isolation specs pass (3/3), API lint 0 errors,
+  all 8 arch tests pass, depcruise 0 errors. Then deleted the demo module and
+  reverted every registration edit — **the framework is unchanged**, and zero
+  `core/` files were touched to add the module.
+- **Post-3.5 live verification (demo2 cycle):** generated `demo2`, booted the
+  API — descriptor synced to `core_module_catalog` (4 modules) — then removed
+  the module and re-booted. The new **catalog prune** deleted the stale `demo2`
+  row (log: `Pruned 1 stale catalog entry no longer registered: demo2`); catalog
+  back to 3 rows, 0 permissions. Confirmed the original `modules.demo.name`
+  marketplace bug was a stale-DB-row artifact of the one-way mirror, now fixed
+  by two-way sync.
+- **Two generator bugs found and fixed during the demo2 cycle:** (1)
+  `defineModule` tablePrefix regex `/^[a-z]+_$/` rejected digit keys (`demo2_`),
+  while the generator's key rule explicitly allows digits — relaxed to
+  `/^[a-z][a-z0-9]*_$/` + tests; (2) the generator registered `MODULE_KEYS` but
+  never rebuilt `@modubiz/contracts`, so the derived `PermissionKey`/`EventName`
+  unions in `dist/` stayed stale and the generated module failed typecheck
+  (crashing a watch-mode dev server on reload) — the generator now runs `tsc -b`
+  in contracts after registering. Docs updated (MODULE_GUIDE §2).
+- **Validation:** 1193 unit tests (72 files) pass, `test:arch` 8/8, API + web
+  typecheck clean, API lint 0 errors (pre-existing warnings only), i18n keys in
+  all 4 locales.
 
 ### Session 19 — Phase 2 verified & committed; invite-500 root cause; Phase 3 leftovers removed
 

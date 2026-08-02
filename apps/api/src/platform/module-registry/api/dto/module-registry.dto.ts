@@ -36,3 +36,17 @@ export interface NavigationResponse {
     children?: Array<{ labelKey: string; href: string; icon?: string }>;
   }>;
 }
+
+export interface DashboardWidgetResponse {
+  id: string;
+  titleKey: string;
+  width: number;
+  height: number;
+  icon?: string;
+}
+
+export interface DashboardWidgetsResponse {
+  moduleKey: string;
+  labelKey: string;
+  widgets: DashboardWidgetResponse[];
+}

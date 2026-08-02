@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
 import { createOrganization, getActiveOrganization } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
-import { useEntitlements, useNavigation } from '@/lib/entitlements';
+import { useDashboardWidgets, useEntitlements, useNavigation } from '@/lib/entitlements';
 import { useOrgLocalization } from '@/lib/hooks/use-org-localization';
 
 const MODULE_ICONS: Record<string, typeof Package> = {
@@ -174,6 +174,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const { status, organizationId, switchOrg } = useSession();
   const { data: navigation } = useNavigation(organizationId !== null);
+  const { data: dashboardWidgets } = useDashboardWidgets(organizationId !== null);
   const { data: billing } = useEntitlements();
   const { data: activeOrg } = useQuery({
     queryKey: ['organization', organizationId],
@@ -225,6 +226,15 @@ export default function DashboardPage() {
 
   const activeModules =
     billing?.entitlements?.filter((e) => ['active', 'trialing', 'past_due'].includes(e.state)).length ?? 0;
+
+  // Widgets are registered by modules (PLAN §3.3) and served by
+  // GET /v1/me/dashboard/widgets — the dashboard never hardcodes a widget list.
+  const registeredWidgets = (dashboardWidgets ?? []).flatMap((group) =>
+    group.widgets.map((widget) => ({
+      ...widget,
+      icon: MODULE_ICONS[group.moduleKey] ?? Puzzle,
+    })),
+  );
 
   const stats = [
     {
@@ -315,17 +325,38 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t('dashboard.recentActivity')}</CardTitle>
-          <CardDescription>{t('dashboard.recentActivitySubtitle')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-sm text-muted-foreground">{t('dashboard.noActivity')}</p>
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">{t('dashboard.widgetsTitle')}</h2>
+        </div>
+        {registeredWidgets.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t('dashboard.noModulesTitle')}</CardTitle>
+              <CardDescription>{t('dashboard.noModulesHint')}</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {registeredWidgets.map((widget) => {
+              const Icon = widget.icon;
+              return (
+                <Card key={widget.id} className="transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="size-4" aria-hidden="true" />
+                      </div>
+                      <p className="text-sm font-medium">{t(widget.titleKey)}</p>
+                    </div>
+                    <p className="mt-4 text-xs text-muted-foreground">{t('dashboard.widgetPlaceholder')}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
   );
 }

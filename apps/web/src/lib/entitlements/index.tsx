@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from '../api';
 import type { BillingResponse, EntitlementState, NavigationGroup } from '../api/types';
+import { getDashboardWidgets } from '../api/resources';
 import { useSession } from '../auth/session-context';
 
 const ACTIVE_STATES: EntitlementState[] = ['active', 'trialing', 'past_due'];
@@ -15,6 +16,15 @@ export function useNavigation(enabled = true) {
   return useQuery({
     queryKey: ['navigation', organizationId],
     queryFn: () => apiFetch<NavigationGroup[]>('/v1/me/navigation', {}, { auth: true }),
+    enabled: enabled && organizationId !== null,
+  });
+}
+
+export function useDashboardWidgets(enabled = true) {
+  const { organizationId } = useSession();
+  return useQuery({
+    queryKey: ['dashboard-widgets', organizationId],
+    queryFn: () => getDashboardWidgets(),
     enabled: enabled && organizationId !== null,
   });
 }

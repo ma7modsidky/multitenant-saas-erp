@@ -188,6 +188,13 @@ casting `::uuid` on the next org-less query served by that pooled connection
 | `core_module_catalog` | Registered modules, mirrored from descriptors at boot                                                                               | No (read-only reference)                           |
 | `core_permissions`    | Permission catalog, mirrored from descriptors at boot                                                                               | No (read-only reference)                           |
 
+The mirror is two-way at boot (`BootValidationService.validateAndSync`):
+registered descriptors are upserted, and catalog rows for keys **no longer
+registered** are pruned (permissions first, then the catalog row). A row still
+referenced by a `core_module_entitlements` FK is kept — the FK (NO ACTION) is
+what protects tenant entitlement rows from being orphaned; the app role cannot
+pre-check entitlements from the boot context because they are RLS-protected.
+
 ### 4.2 Tenant-scoped platform tables (all RLS-protected)
 
 | Table                        | Purpose                                                                  | Key columns                                                                                                                                                                                                                                    |
@@ -459,7 +466,7 @@ Critical rules:
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Business entity deleted by user | Soft delete (`deleted_at`); excluded from all reads; restorable by an admin within 30 days                                                                                      |
 | Ledger row "deleted"            | Not possible. A compensating entry is appended                                                                                                                                  |
-| Module disabled                 | Data retained for `dataRetention.onDisableDays` (default 90); `purge_after` set on the entitlement; a job purges module tables for that org afterwards                          |
+| Module disabled                 | Data retained for `dataRetentionDays` (descriptor, default 90); `purge_after` set on the entitlement; a job purges module tables for that org afterwards                        |
 | Organization deleted            | 30-day `pending_deletion` grace period, then hard delete of all tenant rows across all module prefixes, driven by the module registry (each module registers its purge routine) |
 | GDPR erasure of a person        | Personal fields pseudonymized in place; ledger and audit rows retained with the identity replaced by a stable pseudonym, preserving financial integrity                         |
 | Audit log                       | Retained ≥ 12 months, then archived to cold storage; never modified                                                                                                             |

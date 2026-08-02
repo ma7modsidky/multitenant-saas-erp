@@ -6,6 +6,7 @@ import {
   EnableModuleUseCase,
   DisableModuleUseCase,
   GetNavigationUseCase,
+  GetDashboardWidgetsUseCase,
   ListModulesUseCase,
 } from './application/index.js';
 import { ModuleRegistryController } from './api/index.js';
@@ -20,6 +21,7 @@ import { MODULE_REGISTRY_REPOSITORY } from './ports/index.js';
     EnableModuleUseCase,
     DisableModuleUseCase,
     GetNavigationUseCase,
+    GetDashboardWidgetsUseCase,
     ListModulesUseCase,
     {
       provide: MODULE_REGISTRY_REPOSITORY,

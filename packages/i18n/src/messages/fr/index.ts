@@ -134,6 +134,8 @@ const fr = {
     noActivity: 'Aucune activité récente. Commencez à utiliser les modules pour voir votre activité ici.',
     noModulesTitle: 'Aucun module actif pour le moment',
     noModulesHint: 'Activez des modules pour commencer à travailler.',
+    widgetsTitle: 'Widgets des modules',
+    widgetPlaceholder: 'Le contenu apparaîtra ici lorsque le module sera utilisé.',
     stats: {
       activeModules: 'Modules actifs',
       modulesHint: 'Lancez un essai pour activer',
@@ -408,6 +410,10 @@ const fr = {
         companies: 'Entreprises',
         deals: 'Affaires',
       },
+      widgets: {
+        recent_deals: 'Affaires récentes',
+        upcoming_activities: 'Activités à venir',
+      },
     },
     inventory: {
       name: 'Inventaire',
@@ -417,6 +423,10 @@ const fr = {
         warehouses: 'Entrepôts',
         stock: 'Stock',
       },
+      widgets: {
+        low_stock: 'Stock faible',
+        stock_valuation: 'Valorisation du stock',
+      },
     },
     pos: {
       name: 'PDV',
@@ -425,6 +435,10 @@ const fr = {
         register: 'Caisse',
         shifts: 'Quarts',
         reports: 'Rapports',
+      },
+      widgets: {
+        daily_sales: 'Ventes du jour',
+        open_shifts: 'Quarts ouverts',
       },
     },
     trialDays: 'Essai gratuit de {days} jours',
