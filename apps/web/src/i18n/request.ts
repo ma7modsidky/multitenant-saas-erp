@@ -25,7 +25,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
   const rawLocale = await requestLocale;
 
   // Ensure a valid locale is used
-  const locale: Locale = rawLocale && routing.locales.includes(rawLocale as Locale) ? (rawLocale as Locale) : routing.defaultLocale;
+  const locale: Locale =
+    rawLocale && routing.locales.includes(rawLocale as Locale) ? (rawLocale as Locale) : routing.defaultLocale;
 
   // Load messages from @modubiz/i18n workspace package
   const messages = (await catalogs[locale]()).default;

@@ -9,11 +9,7 @@ interface SeparatorProps extends HTMLAttributes<HTMLDivElement> {
 function Separator({ className, orientation = 'horizontal', ...props }: SeparatorProps) {
   return (
     <div
-      className={cn(
-        'shrink-0 bg-border',
-        orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px',
-        className,
-      )}
+      className={cn('shrink-0 bg-border', orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px', className)}
       role="separator"
       aria-orientation={orientation}
       {...props}

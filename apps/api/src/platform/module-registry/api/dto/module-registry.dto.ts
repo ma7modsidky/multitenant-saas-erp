@@ -1,14 +1,18 @@
 import { z } from 'zod';
 
-export const enableModuleSchema = z.object({
-  moduleKey: z.string().min(1).max(64),
-}).strict();
+export const enableModuleSchema = z
+  .object({
+    moduleKey: z.string().min(1).max(64),
+  })
+  .strict();
 
 export type EnableModuleDto = z.infer<typeof enableModuleSchema>;
 
-export const disableModuleSchema = z.object({
-  moduleKey: z.string().min(1).max(64),
-}).strict();
+export const disableModuleSchema = z
+  .object({
+    moduleKey: z.string().min(1).max(64),
+  })
+  .strict();
 
 export type DisableModuleDto = z.infer<typeof disableModuleSchema>;
 

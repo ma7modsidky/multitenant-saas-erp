@@ -21,11 +21,7 @@ export class DisableModuleUseCase {
     private readonly txManager: TransactionManager,
   ) {}
 
-  async execute(input: {
-    organizationId: string;
-    moduleKey: string;
-    updatedBy: string;
-  }): Promise<void> {
+  async execute(input: { organizationId: string; moduleKey: string; updatedBy: string }): Promise<void> {
     // Verify the module exists
     const descriptor = REGISTERED_MODULES.find((m) => m.key === input.moduleKey);
     if (!descriptor) {
@@ -52,13 +48,7 @@ export class DisableModuleUseCase {
       }
 
       // Set entitlement to disabled
-      await this.repo.updateEntitlementState(
-        input.organizationId,
-        input.moduleKey,
-        'disabled',
-        input.updatedBy,
-        tx,
-      );
+      await this.repo.updateEntitlementState(input.organizationId, input.moduleKey, 'disabled', input.updatedBy, tx);
     });
   }
 }

@@ -30,17 +30,11 @@ export interface RefreshTokenOutput {
  */
 @Injectable()
 export class RefreshTokenUseCase {
-  constructor(
-    private readonly jwtTokenService: JwtTokenService,
-  ) {}
+  constructor(private readonly jwtTokenService: JwtTokenService) {}
 
   async execute(input: RefreshTokenInput): Promise<RefreshTokenOutput> {
     try {
-      const result = await this.jwtTokenService.refreshAccessToken(
-        input.refreshToken,
-        input.device,
-        input.ip,
-      );
+      const result = await this.jwtTokenService.refreshAccessToken(input.refreshToken, input.device, input.ip);
 
       return {
         accessToken: result.accessToken,

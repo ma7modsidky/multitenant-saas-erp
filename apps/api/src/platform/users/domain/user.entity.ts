@@ -47,16 +47,36 @@ export class User {
 
   // ─── Getters ────────────────────────────────────────────────────────────────
 
-  get id(): string { return this.data.id; }
-  get email(): string { return this.data.email; }
-  get passwordHash(): string { return this.data.passwordHash; }
-  get name(): string { return this.data.name; }
-  get preferredLocale(): string | null { return this.data.preferredLocale; }
-  get emailVerifiedAt(): Date | null { return this.data.emailVerifiedAt; }
-  get createdAt(): Date { return this.data.createdAt; }
-  get updatedAt(): Date { return this.data.updatedAt; }
-  get failedLoginAttempts(): number { return this.data.failedLoginAttempts; }
-  get lockedUntil(): Date | null { return this.data.lockedUntil; }
+  get id(): string {
+    return this.data.id;
+  }
+  get email(): string {
+    return this.data.email;
+  }
+  get passwordHash(): string {
+    return this.data.passwordHash;
+  }
+  get name(): string {
+    return this.data.name;
+  }
+  get preferredLocale(): string | null {
+    return this.data.preferredLocale;
+  }
+  get emailVerifiedAt(): Date | null {
+    return this.data.emailVerifiedAt;
+  }
+  get createdAt(): Date {
+    return this.data.createdAt;
+  }
+  get updatedAt(): Date {
+    return this.data.updatedAt;
+  }
+  get failedLoginAttempts(): number {
+    return this.data.failedLoginAttempts;
+  }
+  get lockedUntil(): Date | null {
+    return this.data.lockedUntil;
+  }
 
   /** Whether the user's email has been verified (AUTH-3). */
   get isEmailVerified(): boolean {

@@ -3,19 +3,12 @@ import { z } from 'zod';
 /**
  * Zod schema for updating user profile.
  */
-export const updateProfileSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(100)
-    .optional(),
-  preferredLocale: z
-    .string()
-    .min(2)
-    .max(10)
-    .nullable()
-    .optional(),
-}).strict();
+export const updateProfileSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    preferredLocale: z.string().min(2).max(10).nullable().optional(),
+  })
+  .strict();
 
 export type UpdateProfileDto = z.infer<typeof updateProfileSchema>;
 

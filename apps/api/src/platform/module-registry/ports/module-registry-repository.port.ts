@@ -7,23 +7,49 @@ import type { TxOrDb } from '../../../core/database/repository.base.js';
  */
 export interface ModuleRegistryRepository {
   /** Get a module catalog entry by key. */
-  getModule(key: string, tx?: TxOrDb): Promise<{ key: string; name: string; description: string | null; icon: string | null; dependsOn: string[]; stripePriceKey: string | null; trialDays: number } | undefined>;
+  getModule(
+    key: string,
+    tx?: TxOrDb,
+  ): Promise<
+    | {
+        key: string;
+        name: string;
+        description: string | null;
+        icon: string | null;
+        dependsOn: string[];
+        stripePriceKey: string | null;
+        trialDays: number;
+      }
+    | undefined
+  >;
 
   /** Upsert a module catalog entry. */
-  upsertModule(data: {
-    key: string;
-    version: string;
-    name: string;
-    description: string | null;
-    icon: string | null;
-    dependsOn: string[];
-    tablePrefix: string;
-    stripePriceKey: string | null;
-    trialDays: number;
-  }, tx?: TxOrDb): Promise<void>;
+  upsertModule(
+    data: {
+      key: string;
+      version: string;
+      name: string;
+      description: string | null;
+      icon: string | null;
+      dependsOn: string[];
+      tablePrefix: string;
+      stripePriceKey: string | null;
+      trialDays: number;
+    },
+    tx?: TxOrDb,
+  ): Promise<void>;
 
   /** Get all module catalog entries. */
-  listModules(tx?: TxOrDb): Promise<Array<{ key: string; name: string; description: string | null; icon: string | null; dependsOn: string[]; trialDays: number }>>;
+  listModules(tx?: TxOrDb): Promise<
+    Array<{
+      key: string;
+      name: string;
+      description: string | null;
+      icon: string | null;
+      dependsOn: string[];
+      trialDays: number;
+    }>
+  >;
 
   /** Upsert a permission key. */
   upsertPermission(key: string, moduleKey: string, description: string | null, tx?: TxOrDb): Promise<void>;
@@ -41,7 +67,13 @@ export interface ModuleRegistryRepository {
   getDependentModules(moduleKey: string, tx?: TxOrDb): Promise<string[]>;
 
   /** Set entitlement state. */
-  updateEntitlementState(organizationId: string, moduleKey: string, state: string, updatedBy: string, tx?: TxOrDb): Promise<void>;
+  updateEntitlementState(
+    organizationId: string,
+    moduleKey: string,
+    state: string,
+    updatedBy: string,
+    tx?: TxOrDb,
+  ): Promise<void>;
 }
 
 export const MODULE_REGISTRY_REPOSITORY = Symbol('MODULE_REGISTRY_REPOSITORY');

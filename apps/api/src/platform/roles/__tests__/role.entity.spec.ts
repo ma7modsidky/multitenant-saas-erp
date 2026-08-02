@@ -291,10 +291,9 @@ describe('Role.update()', () => {
   it('throws SYSTEM_ROLE_IMMUTABLE when renaming a system role', () => {
     const role = Role.create(makeOwnerRoleData());
 
-    expectRoleError(
-      () => { role.update({ nameI18n: { en: 'Super Owner' } }, 'user-2'); },
-      SYSTEM_ROLE_IMMUTABLE,
-    );
+    expectRoleError(() => {
+      role.update({ nameI18n: { en: 'Super Owner' } }, 'user-2');
+    }, SYSTEM_ROLE_IMMUTABLE);
   });
 
   it('allows description update on system roles', () => {
@@ -343,39 +342,32 @@ describe('Role.delete()', () => {
   it('throws SYSTEM_ROLE_IMMUTABLE when deleting a system role', () => {
     const role = Role.create(makeOwnerRoleData());
 
-    expectRoleError(
-      () => { role.delete(false, 'user-2'); },
-      SYSTEM_ROLE_IMMUTABLE,
-    );
+    expectRoleError(() => {
+      role.delete(false, 'user-2');
+    }, SYSTEM_ROLE_IMMUTABLE);
   });
 
   it('throws LAST_OWNER_ROLE when deleting the last owner role', () => {
     const role = Role.create(makeCustomRoleData());
 
-    expectRoleError(
-      () => { role.delete(true, 'user-2'); },
-      LAST_OWNER_ROLE,
-    );
+    expectRoleError(() => {
+      role.delete(true, 'user-2');
+    }, LAST_OWNER_ROLE);
   });
 
   it('LAST_OWNER_ROLE takes priority for custom roles with isLastOwnerRole=true', () => {
     const role = Role.create(makeCustomRoleData());
 
-    expectRoleError(
-      () => { role.delete(true, 'user-2'); },
-      LAST_OWNER_ROLE,
-    );
+    expectRoleError(() => {
+      role.delete(true, 'user-2');
+    }, LAST_OWNER_ROLE);
   });
 });
 
 describe('AUTHZ-4: Custom roles cannot include platform-admin permissions', () => {
   it('allows custom permissions that are not platform-admin', () => {
     expect(() => {
-      Role.validateCustomPermissions([
-        'crm:contact:read',
-        'inventory:stock:adjust',
-        'pos:sale:create',
-      ]);
+      Role.validateCustomPermissions(['crm:contact:read', 'inventory:stock:adjust', 'pos:sale:create']);
     }).not.toThrow();
   });
 
@@ -394,11 +386,12 @@ describe('AUTHZ-4: Custom roles cannot include platform-admin permissions', () =
 
   it('rejects multiple platform-admin permissions', () => {
     expectRoleError(
-      () => Role.validateCustomPermissions([
-        'platform:billing:manage',
-        'platform:organization:delete',
-        'platform:roles:manage',
-      ]),
+      () =>
+        Role.validateCustomPermissions([
+          'platform:billing:manage',
+          'platform:organization:delete',
+          'platform:roles:manage',
+        ]),
       CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED,
     );
   });
@@ -412,30 +405,20 @@ describe('AUTHZ-4: Custom roles cannot include platform-admin permissions', () =
 
   it('rejects when a module permission is mixed with a platform permission', () => {
     expectRoleError(
-      () => Role.validateCustomPermissions([
-        'crm:contact:read',
-        'platform:settings:manage',
-        'inventory:product:read',
-      ]),
+      () => Role.validateCustomPermissions(['crm:contact:read', 'platform:settings:manage', 'inventory:product:read']),
       CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED,
     );
   });
 
   it('does not reject permissions that only partially match the platform prefix', () => {
     expect(() => {
-      Role.validateCustomPermissions([
-        'platform:data:read',
-        'platform:data:write',
-      ]);
+      Role.validateCustomPermissions(['platform:data:read', 'platform:data:write']);
     }).not.toThrow();
   });
 
   it('rejects each individual platform permission', () => {
     for (const perm of PLATFORM_PERMISSIONS) {
-      expectRoleError(
-        () => Role.validateCustomPermissions([perm]),
-        CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED,
-      );
+      expectRoleError(() => Role.validateCustomPermissions([perm]), CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED);
     }
   });
 });

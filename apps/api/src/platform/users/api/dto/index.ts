@@ -16,11 +16,5 @@ export type {
   PasswordChangeDto,
   AuthResponse,
 } from './auth.dto.js';
-export {
-  updateProfileSchema,
-} from './user.dto.js';
-export type {
-  UpdateProfileDto,
-  SessionResponse,
-  UserProfileResponse,
-} from './user.dto.js';
+export { updateProfileSchema } from './user.dto.js';
+export type { UpdateProfileDto, SessionResponse, UserProfileResponse } from './user.dto.js';

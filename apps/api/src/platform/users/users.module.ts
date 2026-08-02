@@ -31,9 +31,7 @@ import { USER_REPOSITORY } from './ports/index.js';
  * @see BUSINESS_RULES.md — AUTH-1 through AUTH-9
  */
 @Module({
-  imports: [
-    AuthModule,
-  ],
+  imports: [AuthModule],
   controllers: [AuthController, UsersController],
   providers: [
     // Repository
@@ -49,10 +47,6 @@ import { USER_REPOSITORY } from './ports/index.js';
     PasswordChangeUseCase,
     SessionManagementUseCase,
   ],
-  exports: [
-    USER_REPOSITORY,
-    SignupUseCase,
-    LoginUseCase,
-  ],
+  exports: [USER_REPOSITORY, SignupUseCase, LoginUseCase],
 })
 export class UsersModule {}

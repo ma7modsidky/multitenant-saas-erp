@@ -54,9 +54,7 @@ describe('GetFxRateUseCase', () => {
     const repo = createMockRepo();
     const useCase = new GetFxRateUseCase(repo);
 
-    await expect(
-      useCase.execute({ baseCurrency: 'XYZ', quoteCurrency: 'USD' }),
-    ).rejects.toThrow(NotFoundError);
+    await expect(useCase.execute({ baseCurrency: 'XYZ', quoteCurrency: 'USD' })).rejects.toThrow(NotFoundError);
 
     try {
       await useCase.execute({ baseCurrency: 'XYZ', quoteCurrency: 'USD' });
@@ -71,9 +69,7 @@ describe('GetFxRateUseCase', () => {
     const repo = createMockRepo();
     const useCase = new GetFxRateUseCase(repo);
 
-    await expect(
-      useCase.execute({ baseCurrency: 'USD', quoteCurrency: 'XYZ' }),
-    ).rejects.toThrow(NotFoundError);
+    await expect(useCase.execute({ baseCurrency: 'USD', quoteCurrency: 'XYZ' })).rejects.toThrow(NotFoundError);
 
     try {
       await useCase.execute({ baseCurrency: 'USD', quoteCurrency: 'XYZ' });
@@ -91,9 +87,7 @@ describe('GetFxRateUseCase', () => {
     });
     const useCase = new GetFxRateUseCase(repo);
 
-    await expect(
-      useCase.execute({ baseCurrency: 'USD', quoteCurrency: 'JPY' }),
-    ).rejects.toThrow(NotFoundError);
+    await expect(useCase.execute({ baseCurrency: 'USD', quoteCurrency: 'JPY' })).rejects.toThrow(NotFoundError);
 
     try {
       await useCase.execute({ baseCurrency: 'USD', quoteCurrency: 'JPY' });

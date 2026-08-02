@@ -13,9 +13,7 @@ import { USER_NOT_FOUND } from '../domain/errors.js';
  */
 @Injectable()
 export class SessionManagementUseCase {
-  constructor(
-    private readonly jwtTokenService: JwtTokenService,
-  ) {}
+  constructor(private readonly jwtTokenService: JwtTokenService) {}
 
   /**
    * List all active sessions for a user.

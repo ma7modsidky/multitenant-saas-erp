@@ -1,7 +1,14 @@
 'use client';
 
 import { cva, type VariantProps } from 'class-variance-authority';
-import { forwardRef, isValidElement, cloneElement, Children, type ButtonHTMLAttributes, type ReactElement } from 'react';
+import {
+  forwardRef,
+  isValidElement,
+  cloneElement,
+  Children,
+  type ButtonHTMLAttributes,
+  type ReactElement,
+} from 'react';
 
 import { cn } from '../cn';
 
@@ -31,9 +38,7 @@ const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   /** Render a different element instead of <button> */
   asChild?: boolean;
   /** Show a loading spinner */
@@ -77,13 +82,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     }
 
     return (
-      <button
-        className={classes}
-        ref={ref}
-        disabled={disabled || loading}
-        aria-busy={loading}
-        {...props}
-      >
+      <button className={classes} ref={ref} disabled={disabled || loading} aria-busy={loading} {...props}>
         {loading ? [spinner, children] : children}
       </button>
     );

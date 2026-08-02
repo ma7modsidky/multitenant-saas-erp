@@ -17,7 +17,11 @@ export class DrizzleFxRatesRepository implements FxRatesRepository {
     return (tx ?? this.db) as PostgresJsDatabase;
   }
 
-  async getLatestRate(baseCurrency: string, quoteCurrency: string, tx?: TxOrDb): Promise<{ rate: string; validOn: string; source: string } | undefined> {
+  async getLatestRate(
+    baseCurrency: string,
+    quoteCurrency: string,
+    tx?: TxOrDb,
+  ): Promise<{ rate: string; validOn: string; source: string } | undefined> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT rate::text, valid_on::text, source FROM core_fx_rates
@@ -33,7 +37,12 @@ export class DrizzleFxRatesRepository implements FxRatesRepository {
     };
   }
 
-  async getRateForDate(baseCurrency: string, quoteCurrency: string, date: string, tx?: TxOrDb): Promise<{ rate: string; validOn: string; source: string } | undefined> {
+  async getRateForDate(
+    baseCurrency: string,
+    quoteCurrency: string,
+    date: string,
+    tx?: TxOrDb,
+  ): Promise<{ rate: string; validOn: string; source: string } | undefined> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT rate::text, valid_on::text, source FROM core_fx_rates
@@ -49,7 +58,10 @@ export class DrizzleFxRatesRepository implements FxRatesRepository {
     };
   }
 
-  async insertRate(data: { baseCurrency: string; quoteCurrency: string; rate: string; validOn: string; source: string }, tx?: TxOrDb): Promise<void> {
+  async insertRate(
+    data: { baseCurrency: string; quoteCurrency: string; rate: string; validOn: string; source: string },
+    tx?: TxOrDb,
+  ): Promise<void> {
     const db = this.getDb(tx);
     await db.execute(sql`
       INSERT INTO core_fx_rates (id, base_currency, quote_currency, rate, valid_on, source, created_at)
@@ -71,7 +83,10 @@ export class DrizzleFxRatesRepository implements FxRatesRepository {
     }));
   }
 
-  async getLatestRatesForBase(baseCurrency: string, tx?: TxOrDb): Promise<Array<{ quoteCurrency: string; rate: string; validOn: string }>> {
+  async getLatestRatesForBase(
+    baseCurrency: string,
+    tx?: TxOrDb,
+  ): Promise<Array<{ quoteCurrency: string; rate: string; validOn: string }>> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT DISTINCT ON (quote_currency) quote_currency, rate::text, valid_on::text

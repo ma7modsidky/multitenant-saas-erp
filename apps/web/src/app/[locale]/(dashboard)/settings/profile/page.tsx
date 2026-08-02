@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -61,7 +60,9 @@ export default function ProfileSettingsPage() {
       setPwNotice('settings.saved');
     } catch (err) {
       setPwError(
-        err instanceof ApiError && err.code === 'AUTH_INVALID_CREDENTIALS' ? 'settings.errors.currentPassword' : 'auth.errors.unknown',
+        err instanceof ApiError && err.code === 'AUTH_INVALID_CREDENTIALS'
+          ? 'settings.errors.currentPassword'
+          : 'auth.errors.unknown',
       );
     } finally {
       setIsChanging(false);
@@ -84,7 +85,13 @@ export default function ProfileSettingsPage() {
           <form onSubmit={(e) => void handleSave(e)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="profile-name">{t('common.name')}</Label>
-              <Input id="profile-name" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
+              <Input
+                id="profile-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                autoComplete="name"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile-email">{t('auth.email')}</Label>
@@ -92,11 +99,7 @@ export default function ProfileSettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile-locale">{t('settings.profile.locale')}</Label>
-              <Select
-                id="profile-locale"
-                value={preferredLocale}
-                onValueChange={setPreferredLocale}
-              >
+              <Select id="profile-locale" value={preferredLocale} onValueChange={setPreferredLocale}>
                 {routing.locales.map((code) => (
                   <SelectItem key={code} value={code}>
                     {code.toUpperCase()}

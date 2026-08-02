@@ -3,11 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DomainError, UnauthorizedError } from '../../../core/common/errors.js';
 import { PasswordService } from '../../../core/auth/password.service.js';
 import { JwtTokenService } from '../../../core/auth/jwt-token.service.js';
-import {
-  User,
-  AUTH_INVALID_CREDENTIALS,
-  AUTH_ACCOUNT_LOCKED,
-} from '../domain/index.js';
+import { User, AUTH_INVALID_CREDENTIALS, AUTH_ACCOUNT_LOCKED } from '../domain/index.js';
 import { USER_REPOSITORY, type UserRepository } from '../ports/index.js';
 
 /**
@@ -55,11 +51,13 @@ export class LoginUseCase {
       // Fake verify to prevent timing attacks (keeps response time constant).
       // argon2.verify() can throw if the hash is structurally invalid; we catch
       // any thrown error and proceed to throw AUTH_INVALID_CREDENTIALS regardless.
-      await this.passwordService.verify(
-        // A structurally valid argon2id hash whose password will never match
-        '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA$RdescudvJCsgt3ub+b+dWRWJTmaaJObG',
-        input.password,
-      ).catch(() => undefined);
+      await this.passwordService
+        .verify(
+          // A structurally valid argon2id hash whose password will never match
+          '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA$RdescudvJCsgt3ub+b+dWRWJTmaaJObG',
+          input.password,
+        )
+        .catch(() => undefined);
       throw new UnauthorizedError(AUTH_INVALID_CREDENTIALS);
     }
 
@@ -76,7 +74,10 @@ export class LoginUseCase {
     if (!passwordValid) {
       // Record failed attempt (AUTH-7)
       user.recordFailedLogin();
-      await this.userRepo.update(user.id, { failedLoginAttempts: user.failedLoginAttempts, lockedUntil: user.lockedUntil });
+      await this.userRepo.update(user.id, {
+        failedLoginAttempts: user.failedLoginAttempts,
+        lockedUntil: user.lockedUntil,
+      });
 
       throw new UnauthorizedError(AUTH_INVALID_CREDENTIALS);
     }
@@ -87,11 +88,7 @@ export class LoginUseCase {
 
     // Generate refresh token first so the session exists and its ID can be
     // embedded in the access token (AUTH-5 current-session marking).
-    const { refreshToken, session } = await this.jwtTokenService.generateRefreshToken(
-      user.id,
-      input.device,
-      input.ip,
-    );
+    const { refreshToken, session } = await this.jwtTokenService.generateRefreshToken(user.id, input.device, input.ip);
 
     // Generate tokens (AUTH-4)
     const accessToken = await this.jwtTokenService.generateAccessToken({

@@ -140,7 +140,10 @@ export class Organization {
     }
 
     if (this.data.status === 'suspended') {
-      throw new OrganizationError('ORG_CANNOT_DELETE_SUSPENDED', 'A suspended organization cannot be deleted. Reactivate first.');
+      throw new OrganizationError(
+        'ORG_CANNOT_DELETE_SUSPENDED',
+        'A suspended organization cannot be deleted. Reactivate first.',
+      );
     }
 
     this.data.status = 'pending_deletion';

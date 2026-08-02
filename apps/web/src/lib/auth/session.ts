@@ -36,13 +36,14 @@ export function decodeJwtPayload(token: string): Record<string, unknown> | null 
     const part = token.split('.')[1];
     if (!part) return null;
     const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
-    const json = typeof atob === 'function'
-      ? decodeURIComponent(
-          Array.from(atob(base64))
-            .map((c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
-            .join(''),
-        )
-      : Buffer.from(base64, 'base64').toString('utf-8');
+    const json =
+      typeof atob === 'function'
+        ? decodeURIComponent(
+            Array.from(atob(base64))
+              .map((c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
+              .join(''),
+          )
+        : Buffer.from(base64, 'base64').toString('utf-8');
     // JSON.parse returns `any`; the caller narrows against the known claim shape.
     // eslint-disable-next-line no-restricted-syntax -- unavoidable boundary cast at the JSON boundary
     return JSON.parse(json) as Record<string, unknown>;

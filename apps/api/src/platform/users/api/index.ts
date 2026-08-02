@@ -9,9 +9,4 @@ export {
   passwordChangeSchema,
   buildAuthResponse,
 } from './dto/index.js';
-export type {
-  SignupDto,
-  LoginDto,
-  RefreshTokenDto,
-  AuthResponse,
-} from './dto/index.js';
+export type { SignupDto, LoginDto, RefreshTokenDto, AuthResponse } from './dto/index.js';

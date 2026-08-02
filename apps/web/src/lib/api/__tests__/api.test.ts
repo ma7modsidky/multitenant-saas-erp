@@ -28,7 +28,10 @@ describe('apiFetch', () => {
   });
 
   it('returns the data field of a success envelope', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { data: { ok: true } })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => jsonResponse(200, { data: { ok: true } })),
+    );
     await expect(apiFetch<{ ok: boolean }>('/v1/test')).resolves.toEqual({ ok: true });
   });
 
@@ -44,7 +47,10 @@ describe('apiFetch', () => {
   });
 
   it('throws EMPTY_RESPONSE when the envelope has no data', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { something: true })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => jsonResponse(200, { something: true })),
+    );
     const err = asApiError(await apiFetch<unknown>('/v1/test').catch((e: unknown) => e));
     expect(err.code).toBe('EMPTY_RESPONSE');
   });

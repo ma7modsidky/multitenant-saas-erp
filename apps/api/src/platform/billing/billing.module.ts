@@ -31,10 +31,6 @@ import { BILLING_REPOSITORY, STRIPE_PORT } from './ports/index.js';
     ReconcileEntitlementsUseCase,
     GetBillingUseCase,
   ],
-  exports: [
-    BILLING_REPOSITORY,
-    STRIPE_PORT,
-    ReconcileEntitlementsUseCase,
-  ],
+  exports: [BILLING_REPOSITORY, STRIPE_PORT, ReconcileEntitlementsUseCase],
 })
 export class BillingModule {}

@@ -3,83 +3,76 @@ import { z } from 'zod';
 /**
  * Zod schema for creating an organization.
  */
-export const createOrganizationSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Organization name is required')
-    .max(200, 'Organization name must be at most 200 characters'),
-  slug: z
-    .string()
-    .min(2, 'Slug must be at least 2 characters')
-    .max(100, 'Slug must be at most 100 characters')
-    .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, 'Slug must start and end with a letter/number and contain only lowercase letters, numbers, and hyphens'),
-  countryCode: z
-    .string()
-    .length(2, 'Country code must be 2 characters (ISO 3166-1 alpha-2)')
-    .regex(/^[A-Z]{2}$/, 'Country code must be uppercase (e.g., US, GB, AE)'),
-  timezone: z
-    .string()
-    .min(1, 'Timezone is required')
-    .max(50)
-    .default('UTC'),
-  baseCurrency: z
-    .string()
-    .length(3, 'Currency must be a 3-letter ISO 4217 code')
-    .regex(/^[A-Z]{3}$/, 'Currency must be uppercase (e.g., USD, EUR, AED)'),
-  defaultLocale: z
-    .string()
-    .min(2)
-    .max(10)
-    .default('en'),
-}).strict();
+export const createOrganizationSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, 'Organization name is required')
+      .max(200, 'Organization name must be at most 200 characters'),
+    slug: z
+      .string()
+      .min(2, 'Slug must be at least 2 characters')
+      .max(100, 'Slug must be at most 100 characters')
+      .regex(
+        /^[a-z0-9][a-z0-9-]*[a-z0-9]$/,
+        'Slug must start and end with a letter/number and contain only lowercase letters, numbers, and hyphens',
+      ),
+    countryCode: z
+      .string()
+      .length(2, 'Country code must be 2 characters (ISO 3166-1 alpha-2)')
+      .regex(/^[A-Z]{2}$/, 'Country code must be uppercase (e.g., US, GB, AE)'),
+    timezone: z.string().min(1, 'Timezone is required').max(50).default('UTC'),
+    baseCurrency: z
+      .string()
+      .length(3, 'Currency must be a 3-letter ISO 4217 code')
+      .regex(/^[A-Z]{3}$/, 'Currency must be uppercase (e.g., USD, EUR, AED)'),
+    defaultLocale: z.string().min(2).max(10).default('en'),
+  })
+  .strict();
 
 export type CreateOrganizationDto = z.infer<typeof createOrganizationSchema>;
 
 /**
  * Zod schema for updating an organization.
  */
-export const updateOrganizationSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Organization name is required')
-    .max(200)
-    .optional(),
-  countryCode: z
-    .string()
-    .length(2)
-    .regex(/^[A-Z]{2}$/)
-    .optional(),
-  timezone: z
-    .string()
-    .min(1)
-    .max(50)
-    .optional(),
-  baseCurrency: z
-    .string()
-    .length(3)
-    .regex(/^[A-Z]{3}$/)
-    .optional(),
-  defaultLocale: z
-    .string()
-    .min(2)
-    .max(10)
-    .optional(),
-  hasMonetaryRecords: z.boolean().optional(),
-}).strict();
+export const updateOrganizationSchema = z
+  .object({
+    name: z.string().min(1, 'Organization name is required').max(200).optional(),
+    countryCode: z
+      .string()
+      .length(2)
+      .regex(/^[A-Z]{2}$/)
+      .optional(),
+    timezone: z.string().min(1).max(50).optional(),
+    baseCurrency: z
+      .string()
+      .length(3)
+      .regex(/^[A-Z]{3}$/)
+      .optional(),
+    defaultLocale: z.string().min(2).max(10).optional(),
+    hasMonetaryRecords: z.boolean().optional(),
+  })
+  .strict();
 
 export type UpdateOrganizationDto = z.infer<typeof updateOrganizationSchema>;
 
 /**
  * Zod schema for updating organization settings.
  */
-export const updateOrganizationSettingsSchema = z.object({
-  locale: z.string().min(2).max(10).optional(),
-  timezone: z.string().min(1).max(50).optional(),
-  baseCurrency: z.string().length(3).regex(/^[A-Z]{3}$/).optional(),
-  numberPreferences: z.record(z.unknown()).optional(),
-  datePreferences: z.record(z.unknown()).optional(),
-  receiptFooter: z.string().max(500).nullable().optional(),
-}).strict();
+export const updateOrganizationSettingsSchema = z
+  .object({
+    locale: z.string().min(2).max(10).optional(),
+    timezone: z.string().min(1).max(50).optional(),
+    baseCurrency: z
+      .string()
+      .length(3)
+      .regex(/^[A-Z]{3}$/)
+      .optional(),
+    numberPreferences: z.record(z.unknown()).optional(),
+    datePreferences: z.record(z.unknown()).optional(),
+    receiptFooter: z.string().max(500).nullable().optional(),
+  })
+  .strict();
 
 export type UpdateOrganizationSettingsDto = z.infer<typeof updateOrganizationSettingsSchema>;
 

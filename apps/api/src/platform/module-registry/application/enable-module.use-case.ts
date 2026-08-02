@@ -2,11 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError, NotFoundError, ForbiddenError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
-import {
-  MODULE_NOT_FOUND,
-  MODULE_ALREADY_ENABLED,
-  MODULE_DEPENDENCY_NOT_ENTITLED,
-} from '../domain/index.js';
+import { MODULE_NOT_FOUND, MODULE_ALREADY_ENABLED, MODULE_DEPENDENCY_NOT_ENTITLED } from '../domain/index.js';
 import { MODULE_REGISTRY_REPOSITORY, type ModuleRegistryRepository } from '../ports/index.js';
 import { REGISTERED_MODULES } from '../registered-modules.js';
 
@@ -25,11 +21,7 @@ export class EnableModuleUseCase {
     private readonly txManager: TransactionManager,
   ) {}
 
-  async execute(input: {
-    organizationId: string;
-    moduleKey: string;
-    updatedBy: string;
-  }): Promise<void> {
+  async execute(input: { organizationId: string; moduleKey: string; updatedBy: string }): Promise<void> {
     // Verify the module exists in the catalog
     const descriptor = REGISTERED_MODULES.find((m) => m.key === input.moduleKey);
     if (!descriptor) {
@@ -59,13 +51,7 @@ export class EnableModuleUseCase {
       }
 
       // Set entitlement to active
-      await this.repo.updateEntitlementState(
-        input.organizationId,
-        input.moduleKey,
-        'active',
-        input.updatedBy,
-        tx,
-      );
+      await this.repo.updateEntitlementState(input.organizationId, input.moduleKey, 'active', input.updatedBy, tx);
     });
   }
 }

@@ -4,7 +4,8 @@ import { INVALID_STATE_TRANSITION } from './errors.js';
 /**
  * Subscription status values from Stripe.
  */
-export type SubscriptionStatus = 'incomplete' | 'incomplete_expired' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid';
+export type SubscriptionStatus =
+  'incomplete' | 'incomplete_expired' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid';
 
 /**
  * Subscription entity data (persisted to core_subscriptions).
@@ -25,13 +26,13 @@ export interface SubscriptionData {
  * Allowed entitlement state transitions per BILL-3, BILL-6, BILL-7.
  */
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  available:  ['trialing', 'active'],
-  trialing:   ['active', 'expired', 'disabled'],
-  active:     ['past_due', 'disabled', 'expired'],
-  past_due:   ['active', 'suspended'],
-  expired:    ['active', 'disabled'],
-  suspended:  ['active'],
-  disabled:   ['available', 'active'],
+  available: ['trialing', 'active'],
+  trialing: ['active', 'expired', 'disabled'],
+  active: ['past_due', 'disabled', 'expired'],
+  past_due: ['active', 'suspended'],
+  expired: ['active', 'disabled'],
+  suspended: ['active'],
+  disabled: ['available', 'active'],
 };
 
 /**
@@ -41,10 +42,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 export function validateStateTransition(from: string, to: string): void {
   const allowed = VALID_TRANSITIONS[from];
   if (!allowed?.includes(to)) {
-    throw new DomainError(
-      INVALID_STATE_TRANSITION,
-      `Cannot transition from '${from}' to '${to}'`,
-    );
+    throw new DomainError(INVALID_STATE_TRANSITION, `Cannot transition from '${from}' to '${to}'`);
   }
 }
 
@@ -68,13 +66,27 @@ export class Billing {
 
   // ─── Getters ────────────────────────────────────────────────────────────────
 
-  get id(): string { return this.data.id; }
-  get organizationId(): string { return this.data.organizationId; }
-  get stripeCustomerId(): string { return this.data.stripeCustomerId; }
-  get stripeSubscriptionId(): string { return this.data.stripeSubscriptionId; }
-  get status(): SubscriptionStatus { return this.data.status; }
-  get billingCurrency(): string { return this.data.billingCurrency; }
-  get currentPeriodEnd(): Date | null { return this.data.currentPeriodEnd; }
+  get id(): string {
+    return this.data.id;
+  }
+  get organizationId(): string {
+    return this.data.organizationId;
+  }
+  get stripeCustomerId(): string {
+    return this.data.stripeCustomerId;
+  }
+  get stripeSubscriptionId(): string {
+    return this.data.stripeSubscriptionId;
+  }
+  get status(): SubscriptionStatus {
+    return this.data.status;
+  }
+  get billingCurrency(): string {
+    return this.data.billingCurrency;
+  }
+  get currentPeriodEnd(): Date | null {
+    return this.data.currentPeriodEnd;
+  }
 
   toJSON(): SubscriptionData {
     return { ...this.data };

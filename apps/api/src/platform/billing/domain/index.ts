@@ -1,4 +1,10 @@
-export { Billing, validateStateTransition, ENTITLEMENT_STATE_LABELS, type SubscriptionData, type SubscriptionStatus } from './billing.entity.js';
+export {
+  Billing,
+  validateStateTransition,
+  ENTITLEMENT_STATE_LABELS,
+  type SubscriptionData,
+  type SubscriptionStatus,
+} from './billing.entity.js';
 export {
   SUBSCRIPTION_ALREADY_EXISTS,
   SUBSCRIPTION_NOT_FOUND,

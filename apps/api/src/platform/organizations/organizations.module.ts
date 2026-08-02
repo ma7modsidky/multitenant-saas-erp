@@ -42,10 +42,6 @@ import { ORGANIZATION_REPOSITORY } from './ports/index.js';
     CancelDeletionUseCase,
     UpdateOrganizationSettingsUseCase,
   ],
-  exports: [
-    ORGANIZATION_REPOSITORY,
-    CreateOrganizationUseCase,
-    GetOrganizationUseCase,
-  ],
+  exports: [ORGANIZATION_REPOSITORY, CreateOrganizationUseCase, GetOrganizationUseCase],
 })
 export class OrganizationsModule {}

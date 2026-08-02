@@ -130,11 +130,7 @@ export class UnauthorizedError extends AppError {
   override readonly httpStatus = 401;
   override readonly code: string;
 
-  constructor(
-    code = 'UNAUTHORIZED',
-    message?: string,
-    params?: Record<string, unknown>,
-  ) {
+  constructor(code = 'UNAUTHORIZED', message?: string, params?: Record<string, unknown>) {
     super(message ?? 'Authentication required', params);
     this.code = code;
   }

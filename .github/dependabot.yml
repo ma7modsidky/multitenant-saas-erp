@@ -101,11 +101,9 @@ updates:
           - 'typescript'
           - 'eslint'
           - 'vitest'
-          - 'posted'...
+          - 'postcss'
           - 'prettier'
           - 'turbo'
-...
-<diff truncated>
     labels:
       - 'dependencies'
       - 'web'

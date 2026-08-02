@@ -27,10 +27,7 @@ export interface StripePort {
   /**
    * Add a subscription item (module) to an existing subscription.
    */
-  addSubscriptionItem(params: {
-    subscriptionId: string;
-    priceKey: string;
-  }): Promise<{ subscriptionItemId: string }>;
+  addSubscriptionItem(params: { subscriptionId: string; priceKey: string }): Promise<{ subscriptionItemId: string }>;
 
   /**
    * Remove a subscription item from a subscription.

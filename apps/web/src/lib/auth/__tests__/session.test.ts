@@ -12,7 +12,12 @@ function sign(payload: Record<string, unknown>): string {
 
 describe('decodeJwtPayload', () => {
   it('extracts claims from a token payload', () => {
-    const token = sign({ sub: 'user-1', sessionId: 'session-1', organizationId: 'org-1', permissions: ['crm:contact:read'] });
+    const token = sign({
+      sub: 'user-1',
+      sessionId: 'session-1',
+      organizationId: 'org-1',
+      permissions: ['crm:contact:read'],
+    });
     const payload = decodeJwtPayload(token);
     expect(payload).toEqual({
       sub: 'user-1',

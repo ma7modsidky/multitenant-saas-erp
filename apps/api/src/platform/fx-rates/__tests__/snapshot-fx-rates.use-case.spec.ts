@@ -53,16 +53,16 @@ describe('SnapshotFxRatesUseCase', () => {
     // USD→USD and EUR→EUR should NOT be stored
     const calls = (repo.insertRate as ReturnType<typeof vi.fn>).mock.calls;
     const selfPairs = calls.filter(
-      (call: unknown[]) => (call[0] as { baseCurrency: string; quoteCurrency: string }).baseCurrency === (call[0] as { baseCurrency: string; quoteCurrency: string }).quoteCurrency,
+      (call: unknown[]) =>
+        (call[0] as { baseCurrency: string; quoteCurrency: string }).baseCurrency ===
+        (call[0] as { baseCurrency: string; quoteCurrency: string }).quoteCurrency,
     );
     expect(selfPairs).toHaveLength(0);
   });
 
   it('returns 0 pairs when fewer than 2 currencies exist', async () => {
     const repo = createMockRepo({
-      listCurrencies: vi.fn().mockResolvedValue([
-        { code: 'USD', exponent: 2, symbol: '$', name: 'US Dollar' },
-      ]),
+      listCurrencies: vi.fn().mockResolvedValue([{ code: 'USD', exponent: 2, symbol: '$', name: 'US Dollar' }]),
     });
     const useCase = new SnapshotFxRatesUseCase(repo);
 

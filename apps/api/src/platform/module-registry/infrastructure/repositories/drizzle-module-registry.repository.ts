@@ -17,10 +17,21 @@ export class DrizzleModuleRegistryRepository implements ModuleRegistryRepository
     return (tx ?? this.db) as PostgresJsDatabase;
   }
 
-  async getModule(key: string, tx?: TxOrDb): Promise<{
-    key: string; name: string; description: string | null; icon: string | null;
-    dependsOn: string[]; stripePriceKey: string | null; trialDays: number;
-  } | undefined> {
+  async getModule(
+    key: string,
+    tx?: TxOrDb,
+  ): Promise<
+    | {
+        key: string;
+        name: string;
+        description: string | null;
+        icon: string | null;
+        dependsOn: string[];
+        stripePriceKey: string | null;
+        trialDays: number;
+      }
+    | undefined
+  > {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT key, name, description, icon, depends_on, stripe_price_key, trial_days
@@ -39,16 +50,28 @@ export class DrizzleModuleRegistryRepository implements ModuleRegistryRepository
     };
   }
 
-  async upsertModule(data: {
-    key: string; version: string; name: string; description: string | null;
-    icon: string | null; dependsOn: string[]; tablePrefix: string;
-    stripePriceKey: string | null; trialDays: number;
-  }, tx?: TxOrDb): Promise<void> {
+  async upsertModule(
+    data: {
+      key: string;
+      version: string;
+      name: string;
+      description: string | null;
+      icon: string | null;
+      dependsOn: string[];
+      tablePrefix: string;
+      stripePriceKey: string | null;
+      trialDays: number;
+    },
+    tx?: TxOrDb,
+  ): Promise<void> {
     const db = this.getDb(tx);
     await db.execute(sql`
       INSERT INTO core_module_catalog (key, version, name, description, icon, depends_on, table_prefix, stripe_price_key, trial_days, created_at, updated_at)
       VALUES (${data.key}, ${data.version}, ${data.name}, ${data.description}, ${data.icon},
-              ARRAY[${sql.join(data.dependsOn.map((d) => sql`${d}`), sql.raw(','))}]::text[], ${data.tablePrefix}, ${data.stripePriceKey}, ${data.trialDays}, NOW(), NOW())
+              ARRAY[${sql.join(
+                data.dependsOn.map((d) => sql`${d}`),
+                sql.raw(','),
+              )}]::text[], ${data.tablePrefix}, ${data.stripePriceKey}, ${data.trialDays}, NOW(), NOW())
       ON CONFLICT (key) DO UPDATE SET
         version = EXCLUDED.version,
         name = EXCLUDED.name,
@@ -62,10 +85,16 @@ export class DrizzleModuleRegistryRepository implements ModuleRegistryRepository
     `);
   }
 
-  async listModules(tx?: TxOrDb): Promise<Array<{
-    key: string; name: string; description: string | null; icon: string | null;
-    dependsOn: string[]; trialDays: number;
-  }>> {
+  async listModules(tx?: TxOrDb): Promise<
+    Array<{
+      key: string;
+      name: string;
+      description: string | null;
+      icon: string | null;
+      dependsOn: string[];
+      trialDays: number;
+    }>
+  > {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT key, name, description, icon, depends_on, trial_days FROM core_module_catalog ORDER BY key`,
@@ -129,7 +158,13 @@ export class DrizzleModuleRegistryRepository implements ModuleRegistryRepository
     return rows.map((r) => r.key as string);
   }
 
-  async updateEntitlementState(organizationId: string, moduleKey: string, state: string, _updatedBy: string, tx?: TxOrDb): Promise<void> {
+  async updateEntitlementState(
+    organizationId: string,
+    moduleKey: string,
+    state: string,
+    _updatedBy: string,
+    tx?: TxOrDb,
+  ): Promise<void> {
     const db = this.getDb(tx);
     await db.execute(sql`
       UPDATE core_module_entitlements SET state = ${state}, updated_at = NOW()

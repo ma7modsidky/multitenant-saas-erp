@@ -8,17 +8,20 @@ import type { TxOrDb } from '../../../core/database/repository.base.js';
  */
 export interface AuditLogRepository {
   /** Query audit entries with filters and pagination. */
-  query(filters: {
-    organizationId: string;
-    actorUserId?: string;
-    entityType?: string;
-    entityId?: string;
-    action?: string;
-    fromDate?: string;
-    toDate?: string;
-    limit?: number;
-    offset?: number;
-  }, tx?: TxOrDb): Promise<{
+  query(
+    filters: {
+      organizationId: string;
+      actorUserId?: string;
+      entityType?: string;
+      entityId?: string;
+      action?: string;
+      fromDate?: string;
+      toDate?: string;
+      limit?: number;
+      offset?: number;
+    },
+    tx?: TxOrDb,
+  ): Promise<{
     entries: Array<{
       id: string;
       actorUserId: string | null;

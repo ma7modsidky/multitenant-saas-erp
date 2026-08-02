@@ -27,15 +27,26 @@ export function Select({ value, onValueChange, placeholder, className, children,
           className,
         )}
       >
-        {placeholder !== undefined && <option value="" disabled>{placeholder}</option>}
+        {placeholder !== undefined && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
         {children}
       </select>
-      <ChevronDown className="pointer-events-none absolute end-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <ChevronDown
+        className="pointer-events-none absolute end-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        aria-hidden="true"
+      />
     </div>
   );
 }
 
-export function SelectItem({ value, children, ...props }: React.OptionHTMLAttributes<HTMLOptionElement> & { value: string }) {
+export function SelectItem({
+  value,
+  children,
+  ...props
+}: React.OptionHTMLAttributes<HTMLOptionElement> & { value: string }) {
   return (
     <option {...props} value={value}>
       {children}

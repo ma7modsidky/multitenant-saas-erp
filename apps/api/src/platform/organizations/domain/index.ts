@@ -1,4 +1,9 @@
-export { Organization, OrganizationError, type OrganizationData, type OrganizationStatus } from './organization.entity.js';
+export {
+  Organization,
+  OrganizationError,
+  type OrganizationData,
+  type OrganizationStatus,
+} from './organization.entity.js';
 export {
   OrganizationSettings,
   defaultOrganizationSettings,

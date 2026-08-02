@@ -28,9 +28,6 @@ import { ROLE_REPOSITORY } from './ports/index.js';
     TransferOwnershipUseCase,
     GetRoleMatrixUseCase,
   ],
-  exports: [
-    ROLE_REPOSITORY,
-    GetRoleMatrixUseCase,
-  ],
+  exports: [ROLE_REPOSITORY, GetRoleMatrixUseCase],
 })
 export class RolesModule {}

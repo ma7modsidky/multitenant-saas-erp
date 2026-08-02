@@ -15,15 +15,17 @@ export class ListModulesUseCase {
     private readonly repo: ModuleRegistryRepository,
   ) {}
 
-  async execute(): Promise<Array<{
-    key: string;
-    nameKey: string;
-    descriptionKey: string | null;
-    icon: string | null;
-    dependsOn: string[];
-    trialDays: number;
-    permissions: string[];
-  }>> {
+  async execute(): Promise<
+    Array<{
+      key: string;
+      nameKey: string;
+      descriptionKey: string | null;
+      icon: string | null;
+      dependsOn: string[];
+      trialDays: number;
+      permissions: string[];
+    }>
+  > {
     const modules = await this.repo.listModules();
 
     // Map catalog data to descriptor shape

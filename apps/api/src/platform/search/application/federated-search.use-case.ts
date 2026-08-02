@@ -15,11 +15,13 @@ export class FederatedSearchUseCase {
     private readonly contributors: SearchContributor[],
   ) {}
 
-  async execute(input: {
-    query: string;
-    organizationId: string;
-    limit?: number;
-  }): Promise<Array<{ moduleKey: string; labelKey: string; results: Array<{ id: string; title: string; description?: string; href: string; icon?: string }> }>> {
+  async execute(input: { query: string; organizationId: string; limit?: number }): Promise<
+    Array<{
+      moduleKey: string;
+      labelKey: string;
+      results: Array<{ id: string; title: string; description?: string; href: string; icon?: string }>;
+    }>
+  > {
     const limitPerContributor = Math.min(input.limit ?? 5, 20);
     const trimmedQuery = input.query.trim();
 
@@ -40,7 +42,11 @@ export class FederatedSearchUseCase {
     );
 
     // Collect successful results, log failures (non-blocking)
-    const aggregated: Array<{ moduleKey: string; labelKey: string; results: Array<{ id: string; title: string; description?: string; href: string; icon?: string }> }> = [];
+    const aggregated: Array<{
+      moduleKey: string;
+      labelKey: string;
+      results: Array<{ id: string; title: string; description?: string; href: string; icon?: string }>;
+    }> = [];
 
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value.results.length > 0) {

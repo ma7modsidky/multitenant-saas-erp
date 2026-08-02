@@ -12,20 +12,19 @@ import { type StripePort } from '../../ports/index.js';
 @Injectable()
 export class FakeStripeAdapter implements StripePort {
   private readonly customers = new Map<string, { id: string; name: string; email: string; orgId: string }>();
-  private readonly subscriptions = new Map<string, {
-    id: string;
-    customerId: string;
-    billingCurrency: string;
-    items: Array<{ id: string; priceKey: string }>;
-    status: string;
-    currentPeriodEnd: Date;
-  }>();
+  private readonly subscriptions = new Map<
+    string,
+    {
+      id: string;
+      customerId: string;
+      billingCurrency: string;
+      items: Array<{ id: string; priceKey: string }>;
+      status: string;
+      currentPeriodEnd: Date;
+    }
+  >();
 
-  async createCustomer(
-    organizationId: string,
-    name: string,
-    email: string,
-  ): Promise<{ customerId: string }> {
+  async createCustomer(organizationId: string, name: string, email: string): Promise<{ customerId: string }> {
     const customerId = `cus_fake_${crypto.randomUUID().slice(0, 8)}`;
     this.customers.set(customerId, { id: customerId, name, email, orgId: organizationId });
     return { customerId };

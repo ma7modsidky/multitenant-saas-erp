@@ -164,12 +164,7 @@ export const REGISTERED_MODULES: ModuleDescriptor[] = [
         icon: 'file-text',
       },
     ],
-    publishes: [
-      'pos.sale.completed.v1',
-      'pos.sale.refunded.v1',
-      'pos.shift.opened.v1',
-      'pos.shift.closed.v1',
-    ],
+    publishes: ['pos.sale.completed.v1', 'pos.sale.refunded.v1', 'pos.shift.opened.v1', 'pos.shift.closed.v1'],
     consumes: ['inventory.stock.depleted.v1'],
     providesPorts: [],
     consumesPorts: [
