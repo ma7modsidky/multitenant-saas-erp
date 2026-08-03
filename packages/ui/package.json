@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@modubiz/tsconfig": "workspace:*",
-    "@types/react": "^19.0.2",
+    "@types/react": "^19.2.18",
     "typescript": "^5.7.2"
   }
 }
