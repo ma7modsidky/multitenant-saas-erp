@@ -2,6 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'tooling/*'
+  - 'tooling/*/*'
 allowBuilds:
   '@nestjs/core': true
   '@scarf/scarf': false

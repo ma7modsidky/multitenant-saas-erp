@@ -9,67 +9,13 @@
 
 import { defineModule, type ModuleDescriptor } from '@modubiz/contracts';
 
+import { crmDescriptor } from '../../modules/crm/public/index.js';
+
 /**
  * All registered business modules.
  * Bootstrap collects this array at startup — fail fast on any validation error.
  */
 export const REGISTERED_MODULES: ModuleDescriptor[] = [
-  defineModule({
-    key: 'crm',
-    version: '1.0.0',
-    nameKey: 'modules.crm.name',
-    descriptionKey: 'modules.crm.description',
-    icon: 'users',
-    tablePrefix: 'crm_',
-    dependsOn: [],
-    stripePriceKey: 'price_crm_monthly',
-    trialDays: 14,
-    permissions: [
-      'crm:contact:read',
-      'crm:contact:write',
-      'crm:company:read',
-      'crm:company:write',
-      'crm:deal:read',
-      'crm:deal:write',
-      'crm:activity:read',
-      'crm:activity:write',
-      'crm:pipeline:manage',
-    ],
-    navigation: [
-      {
-        labelKey: 'modules.crm.nav.contacts',
-        href: '/m/crm/contacts',
-        icon: 'contact',
-      },
-      {
-        labelKey: 'modules.crm.nav.companies',
-        href: '/m/crm/companies',
-        icon: 'building',
-      },
-      {
-        labelKey: 'modules.crm.nav.deals',
-        href: '/m/crm/deals',
-        icon: 'target',
-      },
-    ],
-    publishes: [
-      'crm.contact.created.v1',
-      'crm.contact.updated.v1',
-      'crm.deal.stage_changed.v1',
-      'crm.deal.won.v1',
-      'crm.deal.lost.v1',
-    ],
-    consumes: [],
-    providesPorts: [],
-    consumesPorts: [],
-    searchContributor: true,
-    dashboardWidgets: [
-      { id: 'recent-deals', titleKey: 'modules.crm.widgets.recent_deals', width: 2, height: 1 },
-      { id: 'upcoming-activities', titleKey: 'modules.crm.widgets.upcoming_activities', width: 2, height: 1 },
-    ],
-    dataRetentionDays: 90,
-  }),
-
   defineModule({
     key: 'inventory',
     version: '1.0.0',
@@ -181,4 +127,5 @@ export const REGISTERED_MODULES: ModuleDescriptor[] = [
     ],
     dataRetentionDays: 365,
   }),
+  crmDescriptor,
 ];

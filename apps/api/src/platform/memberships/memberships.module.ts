@@ -1,7 +1,10 @@
-import { Module } from '@nestjs/common';
+import { MEMBERSHIP_READ_PORT } from '@modubiz/contracts';
+import { Module, type OnModuleInit } from '@nestjs/common';
 
 import { AuthModule } from '../../core/auth/auth.module.js';
+import { PortRegistry } from '../../core/ports/port-registry.js';
 import { UsersModule } from '../users/users.module.js';
+
 import { MembershipsController } from './api/index.js';
 import {
   InviteUserUseCase,
@@ -11,6 +14,7 @@ import {
   UpdateMembershipRoleUseCase,
   SwitchOrgUseCase,
 } from './application/index.js';
+import { DrizzleMembershipReadPort } from './infrastructure/read-ports/drizzle-membership-read.port.js';
 import { DrizzleInvitationRepository } from './infrastructure/repositories/drizzle-invitation.repository.js';
 import { DrizzleMembershipRepository } from './infrastructure/repositories/drizzle-membership.repository.js';
 import { INVITATION_REPOSITORY, MEMBERSHIP_REPOSITORY } from './ports/index.js';
@@ -22,6 +26,8 @@ import { INVITATION_REPOSITORY, MEMBERSHIP_REPOSITORY } from './ports/index.js';
     // Repositories
     { provide: MEMBERSHIP_REPOSITORY, useClass: DrizzleMembershipRepository },
     { provide: INVITATION_REPOSITORY, useClass: DrizzleInvitationRepository },
+    // Level 2 read port implementation (consumed by business modules)
+    DrizzleMembershipReadPort,
     // Use cases
     InviteUserUseCase,
     AcceptInvitationUseCase,
@@ -32,4 +38,15 @@ import { INVITATION_REPOSITORY, MEMBERSHIP_REPOSITORY } from './ports/index.js';
   ],
   exports: [MEMBERSHIP_REPOSITORY, INVITATION_REPOSITORY, InviteUserUseCase],
 })
-export class MembershipsModule {}
+export class MembershipsModule implements OnModuleInit {
+  constructor(
+    private readonly portRegistry: PortRegistry,
+    // Concrete class here (not the contracts interface): Nest DI resolves
+    // runtime providers, and TS interfaces are erased at compile time.
+    private readonly membershipReadPort: DrizzleMembershipReadPort,
+  ) {}
+
+  onModuleInit(): void {
+    this.portRegistry.register(MEMBERSHIP_READ_PORT, this.membershipReadPort);
+  }
+}

@@ -71,12 +71,16 @@ export function registerDescriptor(key) {
   }
 
   const importLine = `import { ${descriptorName} } from '../../modules/${key}/public/index.js';`;
-  // Insert the import on its own line after the existing @modubiz/contracts import
-  // (with a blank line between groups per import/order).
-  const importAnchor = `import { defineModule, type ModuleDescriptor } from '@modubiz/contracts';`;
-  if (!content.includes(importAnchor)) {
-    throw new Error(`Cannot register descriptor: import anchor not found in ${path}`);
+  // Insert the import on its own line after the existing @modubiz/contracts import.
+  // Match by line so the anchor stays valid when other named imports are added to
+  // the contracts import (e.g. CRM_EVENTS) — an exact-string anchor silently
+  // breaks registration for every later module.
+  const anchorPattern = /^import \{ [^}]*defineModule[^}]* \} from '@modubiz\/contracts';$/m;
+  const anchorMatch = content.match(anchorPattern);
+  if (!anchorMatch) {
+    throw new Error(`Cannot register descriptor: @modubiz/contracts import (with defineModule) not found in ${path}`);
   }
+  const importAnchor = anchorMatch[0];
   let updated = content.replace(importAnchor, `${importAnchor}\n${importLine}`);
 
   // Append the descriptor to REGISTERED_MODULES array (before the final `];`).
@@ -104,19 +108,26 @@ export function registerModuleClass(key) {
   }
 
   const importLine = `import { ${className} } from './modules/${key}/public/index.js';`;
-  // Insert the import after the last platform import.
-  const importAnchor = `import { FxRatesModule } from './platform/fx-rates/fx-rates.module.js';`;
-  if (!content.includes(importAnchor)) {
-    throw new Error(`Cannot register module: import anchor not found in ${path}`);
+  // Insert the import after the last platform import. Match by line so the anchor
+  // stays valid if the final platform module import changes (same rationale as
+  // the descriptor anchor above).
+  const anchorPattern = /^import \{ \w+Module \} from '\.\/platform\/[^']+';\.?$/gm;
+  const matches = [...content.matchAll(anchorPattern)];
+  if (matches.length === 0) {
+    throw new Error(`Cannot register module: platform module import not found in ${path}`);
   }
+  const importAnchor = matches[matches.length - 1][0];
   let updated = content.replace(importAnchor, `${importAnchor}\n${importLine}`);
 
-  // Add the module class to the imports array (before the closing `  ],`).
-  const importsEnd = '\n    FxRatesModule,\n  ],';
-  if (!updated.includes(importsEnd)) {
-    throw new Error(`Cannot register module: imports terminator not found in ${path}`);
+  // Add the module class to the imports array (before the closing `],` of the
+  // `imports: [...]` block). Match the last array entry generically so the
+  // anchor stays valid as platform modules are added or reordered.
+  const importsEndPattern = /(\n    \w+Module,\n)(  \],)/m;
+  const importsEndMatch = updated.match(importsEndPattern);
+  if (!importsEndMatch) {
+    throw new Error(`Cannot register module: imports array terminator not found in ${path}`);
   }
-  updated = updated.replace(importsEnd, `\n    FxRatesModule,\n    ${className},\n  ],`);
+  updated = updated.replace(importsEndPattern, `$1    ${className},\n$2`);
 
   writeLines(path, updated.split('\n'), eol);
   log(`  [ok]   module class registered in app.module.ts`);

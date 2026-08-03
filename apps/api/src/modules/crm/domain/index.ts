@@ -1,0 +1,10 @@
+export { CrmError, CRM_ERROR_CODE } from './errors.js';
+export type { CrmErrorCode } from './errors.js';
+export { Contact } from './contact.entity.js';
+export type { ContactData } from './contact.entity.js';
+export { Pipeline, PipelineStage } from './pipeline.entity.js';
+export type { PipelineData, PipelineStageData } from './pipeline.entity.js';
+export { Deal } from './deal.entity.js';
+export type { DealData, DealStageHistoryData, DealStatus } from './deal.entity.js';
+export { Activity } from './activity.entity.js';
+export type { ActivityData, ActivityType } from './activity.entity.js';

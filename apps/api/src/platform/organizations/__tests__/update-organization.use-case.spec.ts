@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DomainError, NotFoundError } from '../../../core/common/errors.js';
-import { Organization, type OrganizationData } from '../domain/index.js';
 import { UpdateOrganizationUseCase } from '../application/update-organization.use-case.js';
+import { Organization, type OrganizationData } from '../domain/index.js';
 
 function makeOrg(overrides: Partial<OrganizationData> = {}): OrganizationData {
   return {

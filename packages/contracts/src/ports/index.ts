@@ -100,3 +100,60 @@ export interface SearchResult {
  * token; modules register their contributor through the composition root.
  */
 export const SEARCH_CONTRIBUTORS = Symbol('SEARCH_CONTRIBUTORS');
+
+// ─── Platform read ports (Level 2) ──────────────────────────────────────────
+//
+// Business modules (crm, inventory, pos) must never import `platform/`
+// (architecture test). Reads of platform-owned data go through declared read
+// ports: the interface + stable token live here, the implementation lives in
+// the owning platform module and is registered in the core PortRegistry
+// (PLAN §3.4). A consuming module injects PortRegistry and resolves the token.
+//
+// @see ARCHITECTURE.md §6 — Level 2: read-only query port
+
+/**
+ * A stable snapshot of an FX rate (plain shape — no @modubiz/money import in
+ * the contracts package). `rate` is the numeric conversion factor.
+ */
+export interface FxRateRead {
+  rate: number;
+  source: string;
+  validOn: Date;
+}
+
+/**
+ * MembershipReadPort — org membership reads (CRM-14 needs active member ids).
+ *
+ * Implemented by the platform memberships module.
+ */
+export const MEMBERSHIP_READ_PORT = 'MEMBERSHIP_READ_PORT' as const;
+export interface MembershipReadPort {
+  /** Ids of ACTIVE, non-deleted members of the organization. */
+  listActiveMemberIds(organizationId: string): Promise<string[]>;
+}
+
+/**
+ * OrganizationReadPort — org profile reads (CRM-8 needs the base currency).
+ *
+ * Implemented by the platform organizations module.
+ */
+export const ORGANIZATION_READ_PORT = 'ORGANIZATION_READ_PORT' as const;
+export interface OrganizationReadPort {
+  /** The organization's base currency (ISO 4217). Throws ORG_NOT_FOUND. */
+  getBaseCurrency(organizationId: string): Promise<string>;
+}
+
+/**
+ * FxRateReadPort — FX rate reads (CRM-8 snapshots the rate at write time).
+ *
+ * Implemented by the platform fx-rates module.
+ */
+export const FX_RATE_READ_PORT = 'FX_RATE_READ_PORT' as const;
+export interface FxRateReadPort {
+  /**
+   * Latest rate for a pair (base → quote), or undefined when no snapshot
+   * exists (CUR-6: closest prior snapshot). Undefined lets the deal domain
+   * decide the error (DEAL_FX_RATE_REQUIRED) instead of a platform 404.
+   */
+  getRate(baseCurrency: string, quoteCurrency: string): Promise<FxRateRead | undefined>;
+}

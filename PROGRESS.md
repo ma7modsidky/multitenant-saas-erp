@@ -1,7 +1,7 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 23 — Phase 4 Step 4.0.2 complete (OpenAPI + api-client
-pipeline) **Current phase:** Phase 4 — CRM Module (Step 4.1 pending)
+**Last updated:** Session 29 — Phase 4 Step 4.6 complete (CRM API layer)
+**Current phase:** Phase 4 — CRM Module (Step 4.7 web UI pending)
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -15,8 +15,7 @@ pipeline) **Current phase:** Phase 4 — CRM Module (Step 4.1 pending)
 | 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                |
 | 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                               |
 | 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19) |
-| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |
-| 4 — CRM Module                        | ⬜ Not started |                                                               |
+| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |     | 4 — CRM Module | 🔄 In progress | Steps 4.1–4.6: contracts, scaffold, schema, domain, application, API (Sessions 24–29) |
 | 5 — Inventory Module                  | ⬜ Not started |                                                               |
 | 6 — POS Module                        | ⬜ Not started |                                                               |
 | 7 — Production Hardening & Deployment | ⬜ Not started |                                                               |
@@ -513,6 +512,379 @@ pipeline) **Current phase:** Phase 4 — CRM Module (Step 4.1 pending)
 ---
 
 ## Session log
+
+### Session 29 — Phase 4 Step 4.6: CRM API layer
+
+- **Level 2 read ports — `PortRegistry` gets its first production consumers.**
+  Three cross-boundary reads (CRM-14 active members, CRM-8 base currency, CRM-8
+  FX rate) declared in `@modubiz/contracts`
+  (`packages/contracts/src/ports/index.ts`):
+  `MembershipReadPort`/`MEMBERSHIP_READ_PORT`, `OrganizationReadPort`/
+  `ORGANIZATION_READ_PORT`, `FxRateReadPort`/`FX_RATE_READ_PORT` — the
+  contracts-first declaration per ARCHITECTURE §6 Level 2.
+- **Read-port adapters (3):** `DrizzleMembershipReadPort` (active members of an
+  org, excluding deleted), `DrizzleOrganizationReadPort` (base currency),
+  `DrizzleFxRateReadPort` (latest prior-snapshot rate via the existing FX
+  repository) — each a thin RLS-scoped `TransactionManager.run()` read over the
+  provider module's own repository. Registered in the core `PortRegistry` by
+  each platform module's `onModuleInit`.
+- **CRM DTOs (`api/dto/crm.dto.ts`)** — zod request schemas
+  (CreateContact/UpdateContact/MergeContacts/CreateDeal/MoveDealStage/
+  CloseDeal/ReopenDeal/CreateActivity/CompleteActivity) + `createZodDto`
+  classes + response envelope classes (`ContactsEnvelopeResponse`, …), matching
+  the platform DTO conventions from 4.0.2. Email/phone refine mirrors CRM-1;
+  lostReasonCode required when toStage is lost (CRM-7).
+- **Three controllers (one per resource, matching the platform convention):**
+  `api/contacts.controller.ts`, `api/deals.controller.ts`,
+  `api/activities.controller.ts` — each with class-level
+  `@RequiresModule('crm')` (entitlement) + `@RequiresPermission` on the mutation
+  routes (RBAC runs after entitlement per authorization module); `@Audit`
+  metadata on every mutating route (AUD-1 entries from the core interceptor);
+  Zod DTO validation pipes; typed `@ApiCreatedResponse/@ApiOkResponse`
+  envelopes. Routes: `POST /v1/crm/contacts`, `PATCH /v1/crm/contacts/:id`,
+  `POST /v1/crm/contacts/merge`, `POST /v1/crm/deals`,
+  `POST /v1/crm/deals/:id/move-stage`, `POST /v1/crm/deals/:id/close`,
+  `POST /v1/crm/deals/:id/reopen`, `POST /v1/crm/activities`,
+  `POST /v1/crm/activities/:id/complete`. Scaffold `status` probe +
+  `GetStatusUseCase` removed (all routes are real gated business routes — no
+  dead code per DoD).
+- **CRM-14 wiring:** the controller resolves the org's active-member ids via the
+  `MembershipReadPort` and passes them into `CreateActivityUseCase` — the
+  cross-module read happens at the boundary (controller), never as an import.
+  Similarly `CreateDealUseCase` receives `baseCurrency` (OrganizationReadPort)
+  - FX rate (FxRateReadPort) — RLS-scoped reads, one transaction each.
+- **Bug found & fixed — interfaces as Nest DI tokens:** the three platform
+  modules injected the contracts _interface_ types
+  (`MembershipReadPort`/`OrganizationReadPort`/`FxRateReadPort`) as Nest DI
+  tokens in their module class constructors. Interfaces are erased at compile
+  time, so Nest resolved them as `undefined` and the whole app failed to boot
+  with `Nest can't resolve dependencies of the FxRatesModule (PortRegistry, ?)`.
+  The error was invisible because `generate-openapi.ts` ran with `logger: false`
+  and `process.exit(1)` truncated the async error write — instrumented the
+  entrypoint with synchronous `writeSync(2, …)` diagnostics, then fixed the
+  three modules to inject the **concrete class** (Nest resolves runtime
+  providers) while keeping the interface only for the property annotation. The
+  app boots cleanly (`ModuBiz API started, port 4000`) and generation works.
+- **`generate-openapi.ts` hardened:** error handler now writes synchronously to
+  fd 2 (never truncates the failure reason on `process.exit`). The temporary
+  `exit` event diagnostic + debug progress markers were removed once the boot
+  bug was fixed. This is the same entrypoint used by `pnpm generate:api-client`.
+- **Port resolution timing documented** — platform modules register read ports
+  in `onModuleInit`, which Nest runs AFTER all providers are instantiated;
+  consumers (CRM controllers) therefore resolve ports lazily at REQUEST time,
+  never in the constructor. This contract is documented on the registration
+  sites and in both controllers that resolve ports.
+- **Review-driven fixes (4):** (1) the single 10-param `CrmController` was
+  **split into three controllers** (contacts/deals/activities) — fixes the
+  `max-params` 10 + `max-lines` 311 lint warnings structurally and matches the
+  platform one-controller-per-resource convention; (2) **13 new unit tests**:
+  `crm.controllers.spec.ts` (6 — AUTHZ-6 entitlement metadata on all three
+  controllers + permission/audit metadata on every route),
+  `drizzle-membership-read.port.spec.ts` (3 — CRM-14 active-only ids,
+  fail-closed empty set), `drizzle-organization-read.port.spec.ts` (2 — CRM-8
+  base currency + ORG_NOT_FOUND), `drizzle-fx-rate-read.port.spec.ts` (2 — rate
+  snapshot + undefined when no snapshot); (3) fixtures fixed to the real
+  `MembershipData`/`OrganizationData` shapes (`roleId`, `joinedAt`,
+  `deletionScheduledAt`); (4) unused `process.on('exit')` diagnostic removed.
+- **OpenAPI regenerated (DoD gate):** `openapi.json` now contains the 4 CRM
+  route families (`/v1/crm/contacts`, `/v1/crm/contacts/merge`, `/v1/crm/deals`,
+  `/v1/crm/activities`; 9 CRM path refs) alongside the 19 platform paths;
+  `@modubiz/api-client` regenerated from it (9 `v1/crm` refs in the typed
+  client).
+- **Validation:** full unit suite **1321/1321** (+13 new), arch **8/8**,
+  `pnpm typecheck` 7/7, API tsc clean, `pnpm lint` 0 errors (33 style warnings —
+  `max-params`/`max-lines`, matching the platform baseline), format gate clean,
+  app boots to `http://127.0.0.1:4000`, `generate:api-client` chain green, CRM
+  integration **5/5** still green.
+
+### Session 28 — Phase 4 Step 4.5: CRM application layer
+
+- **Application ports (6):** `contact-repository.port.ts`,
+  `pipeline-repository.port.ts`, `deal-repository.port.ts` (incl.
+  `appendHistory` — append-only ledger + `reassignContact` for CRM-12),
+  `activity-repository.port.ts` (incl. `reassignRelated`),
+  `note-repository.port.ts`, `attachment-repository.port.ts` — each bound to a
+  `Symbol` DI token.
+- **Drizzle repositories (6):**
+  `drizzle-contact|pipeline|deal|activity|note|attachment.repository.ts` —
+  raw-SQL (`sql` template) with RLS-scoped queries (no manual organization_id
+  filters), `RETURNING *` on insert/update, `deleted_at IS NULL` guards, bigint
+  money columns (`BigInt(row.value_amount_minor)`), Date conversion via
+  `fromDbDate`/`toDbDate`.
+- **`EnsureDefaultPipelineUseCase` (CRM-3)** — lazy idempotent `ensure(tx)`
+  called INSIDE the caller's transaction: `findDefault` → no-op if present, else
+  creates the standard pipeline (New 10% → Qualified 40% → Won 100% → Lost 0%).
+  No framework hook — the generated `db/seed-on-enable.ts` scaffold was
+  **deleted** per PLAN 4.5.
+- **Contact use cases:** `CreateContactUseCase` (CRM-1 identity + CRM-2
+  duplicate-email guard via `findByEmail`, publishes `crm.contact.created.v1`),
+  `UpdateContactUseCase` (partial update — exactOptionalPropertyTypes-clean
+  conditional props, re-validates CRM-1, CRM-2 against OTHER non-deleted
+  contacts, publishes `crm.contact.updated.v1`), `MergeContactsUseCase` (CRM-12
+  — reassigns activities/notes/attachments/deals via
+  `reassignRelated`/`reassignContact`, soft-deletes source, rejects self-merge).
+- **Deal use cases:** `CreateDealUseCase` (CRM-3 lazy ensure, CRM-10
+  contact-or-company, CRM-8 FX snapshot via
+  `deal.setValue(Money, baseCurrency, fxRate)`), `MoveDealStageUseCase` (CRM-6
+  history append + CRM-7 lost-reason + CRM-9 close; publishes
+  `crm.deal.stage_changed.v1` + `crm.deal.won.v1`/`crm.deal.lost.v1`),
+  `CloseDealUseCase` (resolves the pipeline's won/lost stage, delegates to
+  MoveDealStage — one event path), `ReopenDealUseCase` (CRM-9 — requires
+  `crm:deal:write` permission from `TenantContext.getPermissions()`, moves to
+  first open stage, appends history, never clears
+  `closed_at`/`lost_reason_code`).
+- **Activity use cases:** `CreateActivityUseCase` (CRM-14 —
+  `assignTo(userId, activeMemberIds)` rejects non-active assignees; API layer
+  resolves the active-member set in Step 4.6 via a read port),
+  `CompleteActivityUseCase` (CRM-13 — idempotent complete for retries).
+- **All mutating use cases** run inside `TransactionManager.run()` (RLS-bound
+  `SET LOCAL`), collect events on `UnitOfWork.addEvent()` and publish via
+  `publishEvents()` AFTER commit (OPS-3). Audit entries are recorded by the API
+  layer's `@Audit` interceptor in Step 4.6 (AUD-1) — use cases stay pure
+  (established Phase 2 pattern).
+- **`crm.module.ts` wired:** all 6 repository port-token bindings + 10 use cases
+  as providers. **`seed-on-enable.ts` deleted** (CRM-3 is lazy — no dead code
+  per DoD).
+- **Integration tests — `tests/integration/crm.integration.test.ts` (5 tests,
+  real Postgres + RLS, `modubiz_app` role):**
+  - `CRM-3: first deal write ensures exactly one default pipeline; a second call is a no-op`
+  - `CRM-6: appends a row to crm_deal_stage_history on every stage change` (2
+    moves → 2 rows, durations ≥ 0; closed deal rejects direct move CRM-9)
+  - `CRM-8: deal value in non-base currency stores FX rate snapshot` (€100 @ 1.1
+    → exchange_rate 1.1, base_amount_minor 11000)
+  - `CRM-12: merge moves activities, notes, deals, attachments to the surviving contact`
+  - `publishes crm.deal.won.v1 only after commit` (rolled-back lost-move without
+    reason publishes nothing; won move publishes stage_changed + won after
+    commit)
+- **Validation:** full unit suite **1308/1308**, CRM integration **5/5** (full
+  integration suite re-run), arch **8/8**, API + root typecheck clean,
+  `pnpm lint` 0 errors (19 style warnings on the new files —
+  `max-params`/`max-lines`, consistent with the platform baseline), format gate
+  clean.
+
+### Session 27 — Phase 4 Step 4.4: CRM domain layer
+
+- **Dependency:** `@modubiz/money@workspace:*` added to `apps/api` (Deal value
+  - FX snapshot per hard rule #3 — money never leaves the Money value object;
+    lockfile + frozen-lockfile verified).
+- **`domain/errors.ts`** — replaced the scaffold `CrmDomainError` with
+  **`CrmError extends DomainError`** (→ 422 via the shared error model) + a
+  stable `CRM_ERROR_CODE` map: `CONTACT_REQUIRES_IDENTITY` (CRM-1),
+  `CONTACT_DUPLICATE_EMAIL` (CRM-2), `PIPELINE_DEFAULT_DELETE` (CRM-3),
+  `PIPELINE_INVALID_STAGES` (CRM-4), `PIPELINE_POSITIONS_NOT_CONTIGUOUS`
+  (CRM-5), `LOST_REASON_REQUIRED` (CRM-7), `DEAL_FX_RATE_REQUIRED` (CUR-5),
+  `DEAL_VALUE_NEGATIVE` (DATA_MODEL §5), `DEAL_REOPEN_PERMISSION`,
+  `DEAL_NOT_CLOSED`, `DEAL_CLOSED_CANNOT_MOVE` (CRM-9),
+  `DEAL_REQUIRES_REFERENCE` (CRM-10), `ACTIVITY_COMPLETED_IMMUTABLE` (CRM-13),
+  `ACTIVITY_ASSIGNEE_NOT_ACTIVE_MEMBER` (CRM-14), `ACTIVITY_RELATED_PAIR` (DB
+  CHECK).
+- **`domain/contact.entity.ts`** — `Contact` enforcing **CRM-1** (at least one
+  of email/phone, re-validated on `update`) and **CRM-2** (`assertEmailUniqueIn`
+  — case-insensitive compare matching the citext column, throws
+  `CRM_CONTACT_DUPLICATE_EMAIL`), plus `markDeleted` (CRM-11 soft delete).
+- **`domain/pipeline.entity.ts`** — `Pipeline` + `PipelineStage` enforcing
+  **CRM-3** (default pipeline cannot be deleted), **CRM-4** (≥1 stage, exactly
+  one `is_won` + one `is_lost`), **CRM-5** (positions contiguous 0..n-1;
+  `reorderStages` rewrites positions atomically). Stage probability range 0..100
+  mirrors the DB CHECK.
+- **`domain/deal.entity.ts`** — `Deal` enforcing **CRM-6** (`moveToStage`
+  appends a `DealStageHistoryData` entry with elapsed `durationSeconds` in the
+  previous stage), **CRM-7** (lost target requires `lost_reason_code`),
+  **CRM-8** (`setValue(value: Money, baseCurrency, fxRate)` — snapshots
+  `exchange_rate` + `base_amount_minor` via `Money.convertTo` when the value
+  currency differs from the org base; refuses to store a foreign-currency value
+  without a rate), **CRM-9** (`moveToStage` to a won/lost stage sets `status` +
+  `closed_at`; closed deals cannot move directly; `reopen` requires
+  `crm:deal:write` and appends history while **never clearing timestamps**),
+  **CRM-10** (requires contact or company). Stage history entries carry the
+  id/org/deal/from/to/moved fields of `crm_deal_stage_history`.
+- **`domain/activity.entity.ts`** — `Activity` enforcing **CRM-13** (completed
+  activities reject all edits — notes are appended in `crm_notes`, never on the
+  row; `complete()` is idempotent for retries) and **CRM-14** (`assignTo`
+  rejects any user outside the org's active-member set). Related-pair CHECK
+  enforced.- **Tests (55 rule-cited, in `__tests__/unit/`):** contact 11,
+  pipeline 17, deal 18, activity 10 — every PLAN 4.4 required case present
+  verbatim: `CRM-1: rejects a contact with neither email nor phone`,
+  `CRM-2: rejects a duplicate email per organization`,
+  `CRM-4: rejects a pipeline without exactly one is_won and one is_lost stage`,
+  `CRM-5: rejects non-contiguous stage positions`,
+  `CRM-7: rejects moving to a lost stage without a reason code`,
+  `CRM-9: reopening a closed deal appends history, never clears timestamps`,
+  `CRM-13: a completed activity cannot be edited except to append notes`.
+  Scaffold `crm.item.ts` + `crm.spec.ts` deleted.
+- **Review-driven fixes (4):** (1) `reorderStages` now rejects **duplicate stage
+  ids** (`new Set(...).size !== length`) — previously `['s1','s1','s2']` passed
+  the length guard and silently dropped a stage; (2) `addStage` now validates
+  the per-stage **probability 0..100** (was only caught at the DB layer); (3)
+  `Activity.assignTo` is now also blocked on **completed** activities
+  (reassignment is an edit — CRM-13); (4) `Deal.create` now validates
+  **status/closedAt/lostReason coherence** mirroring the DB CHECKs
+  (`DEAL_CLOSED_AT_REQUIRED`, `LOST_REASON_REQUIRED`).
+- **Validation:** full unit suite **1308/1308** (1253 + 55 new), arch **8/8**,
+  `pnpm typecheck` 6/6, `pnpm lint` 6/6 (0 errors), format gate clean,
+  `pnpm install --frozen-lockfile` green. No framework imports in `domain/`
+  (hard rule #7); no cross-module imports (only `@modubiz/money` + core error
+  model).
+
+### Session 26 — Phase 4 Step 4.3: CRM schema + RLS migrations
+
+- **`apps/api/src/modules/crm/db/migrations/0001_init.sql`** — all **11 CRM
+  tables** per DATA_MODEL §7: `crm_companies`, `crm_contacts`, `crm_pipelines`,
+  `crm_pipeline_stages`, `crm_deals`, `crm_deal_stage_history`,
+  `crm_activities`, `crm_notes`, `crm_tags`, `crm_taggables`, `crm_attachments`.
+  Every table carries the mandatory base columns (id, organization_id,
+  created_at, updated_at, created_by, updated_by, deleted_at) except
+  `crm_deal_stage_history`, which is an **append-only ledger** (no updated_at,
+  no deleted_at). Module tables deliberately do NOT FK into `core_*`
+  (extractability — same as the generator scaffold); in-module FKs are explicit
+  and indexed; `value_currency char(3)` matches
+  `core_organizations.base_currency` (no FK — currency validated via
+  `@modubiz/money`).
+- **DB-enforced business rules:** CHECK `ck_crm_contacts_identity` (**CRM-1**
+  email-or-phone), partial unique `uq_crm_contacts_org_email` (**CRM-2**),
+  `uq_crm_pipelines_org_default` (**CRM-3** exactly one default), `won`/`lost`
+  partial uniques (**CRM-4**), `uq_crm_pipeline_stages_position` (**CRM-5**),
+  `prevent_update_delete` trigger on stage history (**CRM-6** append-only),
+  `ck_crm_deals_lost_reason` (**CRM-7**), `ck_crm_deals_closed_at` (**CRM-9**),
+  `ck_crm_deals_references` (**CRM-10** contact-or-company). Money pairs on
+  `crm_deals` (`value_amount_minor bigint` + `value_currency char(3)` +
+  `exchange_rate numeric(20,10)` + `base_amount_minor bigint`) per DATA_MODEL
+  §5/CRM-8. `set_updated_at` triggers reuse the core 0004 function;
+  `prevent_update_delete` reuses the core 0005 function.
+- **`0002_rls.sql`** — the standard **hardened NULLIF policy** (DATA_MODEL §2,
+  same form as core 0008) applied `FOR ALL TO modubiz_app` to all 11 tables,
+  with ENABLE + FORCE ROW LEVEL SECURITY. Fail-closed: no tenant context ⇒ zero
+  rows.- **Review-driven fixes (4):** (1) `crm_contacts.email` → **citext**
+  (like `core_invitations`) so the CRM-2 partial unique index is
+  case-insensitive — `Ada@x.com` and `ada@x.com` are the same address at the DB
+  layer; (2) `CHECK (value_amount_minor >= 0)` on `crm_deals` (mirrors
+  `ck_pos_sales_total_non_negative`); (3) `crm_taggables` gained `created_by`
+  (matches `core_role_permissions` join-table convention); (4) **composite FK
+  `fk_crm_deals_pipeline_stage (pipeline_id, stage_id) → crm_pipeline_stages (pipeline_id, id)`**
+  with supporting unique index — a deal can never reference a stage from a
+  different pipeline.
+- **Verified against real Postgres** (dev DB, `pnpm db:migrate`): both
+  migrations applied under namespaced keys (`crm/0001_init.sql`,
+  `crm/0002_rls.sql`); all 11 tables have `rowsecurity=t` + FORCE; trigger
+  inventory confirmed; live probes: CRM-10 rejects a deal without
+  contact/company, CRM-6 `UPDATE crm_deal_stage_history` raises "append-only… No
+  UPDATE or DELETE allowed", and a two-`is_won`-stage insert would trip the
+  partial unique. After the 4 review fixes the tables were dropped + tracking
+  rows removed and re-migrated clean; `email` now reports USER-DEFINED (citext),
+  the composite FK and non-negative CHECK are present. Test rows cleaned up
+  afterwards.
+- **Validation:** full unit suite **1253/1253**, integration **65/65** (real
+  Postgres — `applyAllMigrations` now applies the CRM migrations in every
+  suite), arch **8/8**, `pnpm typecheck` 6/6, `pnpm lint` 6/6, format gate
+  clean. The placeholder `db/schema.ts` + `seed-on-enable.ts` remain for Steps
+  4.4/4.5 (seed-on-enable gets DELETED per PLAN 4.5 — CRM-3 is lazy).
+
+### Session 25 — Phase 4 Step 4.2: CRM module scaffolded
+
+- **`pnpm generate:module crm` now works — but only after fixing a real
+  generator bug + a workspace gap.** `@modubiz/generator-module` sits at
+  `tooling/generators/module/` (two levels deep), but `pnpm-workspace.yaml` only
+  globbed `tooling/*` — so the package was never linked and
+  `pnpm generate:module` failed with "No projects matched the filters" before
+  doing anything. Added `'tooling/*/*'` to the workspace packages list (13
+  projects now); lockfile updated, frozen-lockfile install still green.
+- **Generator anchor bug (would break EVERY future module):** `register.mjs`
+  located the contracts import and the app.module imports terminator by **exact
+  string match** on
+  `import { defineModule, type ModuleDescriptor } from '@modubiz/contracts';`
+  and `FxRatesModule,\n ],`. Step 4.1 added `CRM_EVENTS` to the contracts
+  import, so the anchor silently stopped matching — the first run scaffolded all
+  28 files then crashed at registration (and the second run hit a `matchAll`
+  non-global regex crash, then a third found the imports-array replacement
+  inserting the class AFTER the `],`). All three fixed: (1) descriptor anchor
+  now a line regex
+  `/^import \{ [^}]*defineModule[^}]* \} from '@modubiz\/contracts';$/m`; (2)
+  module import anchor matches the LAST platform import line; (3) imports-array
+  terminator matches `(\n    \w+Module,\n)(  \],)` with a capture group so the
+  new class lands before the closing bracket. Registration now completes
+  end-to-end: descriptor import + array entry in `registered-modules.ts`,
+  `CrmModule` in `app.module.ts`, i18n skipped (CRM keys exist), contracts
+  rebuilt.
+- **28 backend files + web page scaffolded** under `apps/api/src/modules/crm/`
+  (descriptor, module, controller, dto, application use case + ports, domain
+  entity + errors, infrastructure, events (published/handlers), jobs, search
+  contributor, db (schema, seed-on-enable), public barrel, and
+  unit/integration/isolation test skeletons) plus
+  `apps/web/src/app/[locale]/(dashboard)/m/crm/page.tsx` (ModuleGate-wrapped)
+  and `apps/web/src/features/crm/index.ts`.
+- **CRM descriptor moved into the module** (per MODULE_GUIDE §2 — the descriptor
+  belongs to the module; the registry is a thin composition root): the Phase 3
+  inline CRM descriptor was removed from `registered-modules.ts` and its full
+  surface (9 permissions, 5 events via `CRM_EVENTS` constants, 3 nav items, 2
+  dashboard widgets, `searchContributor: true`, icon `users`) now lives in
+  `crm.descriptor.ts` — imported back into the registry as `crmDescriptor`. No
+  boot-validation or catalog drift.
+- **Placeholder migrations deleted (collision trap avoided):** the scaffold
+  ships `db/migrations/0001_init.sql` creating a throwaway `crm_items` table.
+  Because `applyAllMigrations` auto-applies every module's migrations, those
+  placeholders would have been tracked as `crm/0001_init.sql` in `_migrations` —
+  then Step 4.3's REAL 0001_init.sql (same filename, same namespace) would be
+  silently skipped on any existing DB. Deleted both placeholder SQL files; the
+  empty dir is skipped by `discoverModuleMigrationDirs` (verified by the 65/65
+  integration suite). Step 4.3 writes the real schema.
+- **Validation:** API typecheck clean, web typecheck clean (via `pnpm typecheck`
+  6/6), unit suite **1253/1253** (75 files; +3 CRM scaffold tests), arch 8/8,
+  integration **65/65** (7 files, real Postgres), `pnpm lint` 6/6 (API src 0
+  errors, 135 pre-existing warnings), format gate clean, frozen-lockfile install
+  green. Lint autofix applied import-group blank lines in the two
+  composition-root files.
+
+### Session 24 — Phase 4 Step 4.1: CRM contracts declared
+
+- **Step 4.1 (Declare contracts first) is now complete.** Audited what Phase 3
+  already declared: `MODULE_KEYS.CRM = 'crm'` and `CRM_PERMISSIONS` (all 9
+  permissions: contact/company/deal/activity read+write + pipeline:manage) were
+  already in `@modubiz/contracts`, and the CRM descriptor already listed the 5
+  event names in `publishes`. **The missing piece was the event payload
+  schemas** — `packages/contracts/src/events/index.ts` was still the empty
+  placeholder, and the registry hardcoded event-name strings (drift risk).
+- **`packages/contracts/src/events/index.ts` now declares the 5 CRM events with
+  Zod payload schemas:** `crm.contact.created.v1`, `crm.contact.updated.v1`,
+  `crm.deal.stage_changed.v1`, `crm.deal.won.v1`, `crm.deal.lost.v1` — each as
+  `<Module><Aggregate><Action>V1` schema + inferred type (per the file's naming
+  convention). `CRM_EVENTS` const holds the stable event names. Shared
+  primitives `minorUnitsString` (non-negative integer decimal string) and
+  `currencyCode` (uppercase ISO 4217) enforce money rules on the wire — amounts
+  travel as decimal strings (same representation `Money` uses when
+  JSON-serialized), never floats (DATA_MODEL §5 M1/M2).
+- **Payload fields follow DATA_MODEL §7 + BUSINESS_RULES §9:** contact events
+  carry contactId/companyId/names/email/phone/ownerUserId; stage_changed carries
+  dealId/fromStageId (nullable — first move)/toStageId/movedBy (CRM-6); won
+  carries valueAmountMinor + valueCurrency + closedAt (CRM-8, CRM-9); lost
+  carries lostReasonCode (CRM-7) + closedAt. Every payload includes
+  `organizationId` + `occurredAt` per MODULE_GUIDE Step 1 (handlers run without
+  the publisher's tenant context).
+- **Exports:** root `packages/contracts/src/index.ts` re-exports `CRM_EVENTS` +
+  all 5 schemas + inferred types + the two primitives.
+  `apps/api/.../registered-modules.ts` CRM descriptor now consumes
+  `CRM_EVENTS.*` constants instead of raw strings — the descriptor can never
+  drift from the contract again.
+- **New tests:** `packages/contracts/__tests__/events.spec.ts` — **24 tests**
+  covering: exactly the five planned names; every name matches the `EventName`
+  format + CRM key prefix; valid payloads parse (incl. CRM-1 either/or
+  email/phone and null `fromStageId` first-move); invalid payloads rejected
+  (non-uuid ids, missing organizationId, malformed email/datetime, float and
+  negative amounts, lowercase/short currency codes, missing lostReasonCode).
+- **Review-driven hardening (2 fixes):** (1) **CRM-1 encoded in the contact
+  schemas** — `refine()` now rejects a payload with both `email` and `phone`
+  null, making the contract self-validating for consumers (tests assert the
+  both-null rejection on created + updated); (2) **FX snapshot on
+  `crm.deal.won.v1`** — optional `exchangeRate` (decimal string,
+  `numeric(20,10)`-safe) + `baseAmountMinor` so base-currency pipeline totals
+  can be computed without a re-query (CRM-8, DATA_MODEL §5). New shared
+  `decimalString` primitive (plain decimals only — no floats, no exponents)
+  added alongside `minorUnitsString`/`currencyCode`. Also renamed a
+  self-contradictory updated-schema test description.- **Validation:**
+  contracts + arch suites **88/88** (24 new), full unit suite **1250/1250** (75
+  files), `pnpm typecheck` 6/6, `pnpm lint` 6/6 (contracts is outside the lint
+  gate — no lint script/config, matching module.spec.ts), API typecheck +
+  registry lint clean, Prettier clean, format gate clean. Contracts `dist`
+  rebuilt so the API resolves the new exports.
 
 ### Session 23 — Phase 4 Step 4.0.2: OpenAPI + api-client pipeline
 

@@ -1,0 +1,10 @@
+export { CloseDealUseCase } from './close-deal.use-case.js';
+export { CompleteActivityUseCase } from './complete-activity.use-case.js';
+export { CreateActivityUseCase } from './create-activity.use-case.js';
+export { CreateContactUseCase } from './create-contact.use-case.js';
+export { CreateDealUseCase } from './create-deal.use-case.js';
+export { EnsureDefaultPipelineUseCase } from './ensure-default-pipeline.use-case.js';
+export { MergeContactsUseCase } from './merge-contacts.use-case.js';
+export { MoveDealStageUseCase } from './move-deal-stage.use-case.js';
+export { ReopenDealUseCase } from './reopen-deal.use-case.js';
+export { UpdateContactUseCase } from './update-contact.use-case.js';

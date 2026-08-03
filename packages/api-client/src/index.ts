@@ -708,6 +708,150 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/crm/contacts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['ContactsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/contacts/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['ContactsController_update'];
+    trace?: never;
+  };
+  '/v1/crm/contacts/merge': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['ContactsController_merge'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/deals': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['DealsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/deals/{id}/move-stage': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['DealsController_moveStage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/deals/{id}/close': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['DealsController_close'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/deals/{id}/reopen': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['DealsController_reopen'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/activities': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['ActivitiesController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/activities/{id}/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['ActivitiesController_complete'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1218,6 +1362,140 @@ export interface components {
       data: {
         pairsStored: number;
         source: string;
+      };
+    };
+    CreateContactDto: {
+      firstName: string;
+      lastName: string;
+      /** Format: email */
+      email?: string | null;
+      phone?: string | null;
+      /** Format: uuid */
+      companyId?: string | null;
+      /** Format: uuid */
+      ownerUserId?: string | null;
+      preferredLocale?: string | null;
+      preferredCurrency?: string | null;
+    };
+    ContactEnvelopeResponse: {
+      data: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string | null;
+        phone: string | null;
+        companyId: string | null;
+        ownerUserId: string | null;
+        preferredLocale: string | null;
+        preferredCurrency: string | null;
+      };
+    };
+    UpdateContactDto: {
+      firstName?: string;
+      lastName?: string;
+      /** Format: email */
+      email?: string | null;
+      phone?: string | null;
+      /** Format: uuid */
+      companyId?: string | null;
+      /** Format: uuid */
+      ownerUserId?: string | null;
+      preferredLocale?: string | null;
+      preferredCurrency?: string | null;
+    };
+    MergeContactsDto: {
+      /** Format: uuid */
+      sourceContactId: string;
+      /** Format: uuid */
+      targetContactId: string;
+    };
+    MergeEnvelopeResponse: {
+      data: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string | null;
+        phone: string | null;
+        companyId: string | null;
+        ownerUserId: string | null;
+        preferredLocale: string | null;
+        preferredCurrency: string | null;
+      };
+    };
+    CreateDealDto: {
+      title: string;
+      /** Format: uuid */
+      contactId?: string | null;
+      /** Format: uuid */
+      companyId?: string | null;
+      /** Format: uuid */
+      pipelineId?: string | null;
+      /** Format: uuid */
+      stageId?: string | null;
+      value: {
+        amountMinor: string;
+        currency: string;
+      };
+      /** Format: date-time */
+      expectedCloseDate?: string | null;
+      /** Format: uuid */
+      ownerUserId?: string | null;
+    };
+    DealEnvelopeResponse: {
+      data: {
+        id: string;
+        title: string;
+        pipelineId: string;
+        stageId: string;
+        contactId: string | null;
+        companyId: string | null;
+        value: {
+          amountMinor: string;
+          currency: string;
+        };
+        exchangeRate: number | null;
+        baseAmountMinor: string | null;
+        /** @enum {string} */
+        status: 'open' | 'won' | 'lost';
+        closedAt: string | null;
+        expectedCloseDate: string | null;
+        ownerUserId: string | null;
+      };
+    };
+    MoveDealStageDto: {
+      /** Format: uuid */
+      toStageId: string;
+      lostReasonCode?: string | null;
+    };
+    CloseDealDto: {
+      /** @enum {string} */
+      outcome: 'won' | 'lost';
+      lostReasonCode?: string | null;
+    };
+    CreateActivityDto: {
+      /** @enum {string} */
+      type: 'call' | 'meeting' | 'task' | 'email';
+      subject: string;
+      /** Format: date-time */
+      dueAt?: string | null;
+      /** @enum {string|null} */
+      relatedType?: 'contact' | 'company' | 'deal' | null;
+      /** Format: uuid */
+      relatedId?: string | null;
+      /** Format: uuid */
+      assignedToUserId?: string | null;
+    };
+    ActivityEnvelopeResponse: {
+      data: {
+        id: string;
+        /** @enum {string} */
+        type: 'call' | 'meeting' | 'task' | 'email';
+        subject: string;
+        dueAt: string | null;
+        completedAt: string | null;
+        relatedType: string | null;
+        relatedId: string | null;
+        assignedToUserId: string | null;
       };
     };
   };
@@ -2363,6 +2641,215 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['FxSnapshotEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ContactsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateContactDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContactEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ContactsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateContactDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContactEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ContactsController_merge: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MergeContactsDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MergeEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  DealsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateDealDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DealEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  DealsController_moveStage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MoveDealStageDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DealEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  DealsController_close: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CloseDealDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DealEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  DealsController_reopen: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DealEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ActivitiesController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateActivityDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ActivityEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ActivitiesController_complete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ActivityEnvelopeResponse'];
         };
       };
     };

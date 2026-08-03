@@ -12,10 +12,11 @@ import { EventsModule } from './core/events/events.module.js';
 import { I18nModule } from './core/i18n/i18n.module.js';
 import { JobsModule } from './core/jobs/jobs.module.js';
 import { NotificationsModule } from './core/notifications/notifications.module.js';
-import { PortsModule } from './core/ports/ports.module.js';
 import { ObservabilityModule } from './core/observability/observability.module.js';
+import { PortsModule } from './core/ports/ports.module.js';
 import { StorageModule } from './core/storage/storage.module.js';
 import { TenancyModule } from './core/tenancy/tenancy.module.js';
+import { CrmModule } from './modules/crm/public/index.js';
 import { AuditLogModule } from './platform/audit-log/audit-log.module.js';
 import { BillingModule } from './platform/billing/billing.module.js';
 import { FxRatesModule } from './platform/fx-rates/fx-rates.module.js';
@@ -65,6 +66,7 @@ import { UsersModule } from './platform/users/users.module.js';
     AuditLogModule,
     SearchModule,
     FxRatesModule,
+    CrmModule,
   ],
   controllers: [],
   providers: [],

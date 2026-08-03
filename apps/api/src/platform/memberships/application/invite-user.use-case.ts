@@ -1,10 +1,11 @@
 import * as crypto from 'node:crypto';
+
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
-import { MEMBERSHIP_ALREADY_EXISTS } from '../domain/index.js';
 import { USER_REPOSITORY, type UserRepository } from '../../users/ports/index.js';
+import { MEMBERSHIP_ALREADY_EXISTS } from '../domain/index.js';
 import {
   MEMBERSHIP_REPOSITORY,
   INVITATION_REPOSITORY,

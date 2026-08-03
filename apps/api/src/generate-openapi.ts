@@ -1,3 +1,5 @@
+import { writeSync } from 'node:fs';
+
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 
@@ -38,6 +40,9 @@ async function generateOpenApi(): Promise<void> {
 }
 
 generateOpenApi().catch((err: unknown) => {
-  console.error('[generate-openapi] failed:', err);
+  // Synchronous write (fd 2): `process.exit()` below truncates async
+  // console writes, which would silently swallow the failure reason.
+  const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  writeSync(2, `[generate-openapi] failed: ${detail}\n`);
   process.exit(1);
 });
