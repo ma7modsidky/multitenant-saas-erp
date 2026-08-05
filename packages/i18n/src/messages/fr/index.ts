@@ -105,6 +105,14 @@ const fr = {
     pendingDeletion: 'Suppression en attente',
   },
 
+  // ─── Search ─────────────────────────────────────────────────────────────
+  search: {
+    typeMore: 'Saisissez au moins 2 caractères pour rechercher.',
+    loading: 'Recherche…',
+    noResults: 'Aucun résultat trouvé.',
+    error: 'La recherche est indisponible pour le moment. Réessayez plus tard.',
+  },
+
   // ─── Navigation ──────────────────────────────────────────────────────────
   nav: {
     dashboard: 'Tableau de bord',
@@ -136,6 +144,9 @@ const fr = {
     noModulesHint: 'Activez des modules pour commencer à travailler.',
     widgetsTitle: 'Widgets des modules',
     widgetPlaceholder: 'Le contenu apparaîtra ici lorsque le module sera utilisé.',
+    recentDealsEmpty: 'Aucune affaire pour le moment. Créez votre première affaire dans le CRM.',
+    upcomingActivitiesEmpty: 'Rien à venir. Ajoutez des activités dans le CRM pour rester à jour.',
+    viewAll: 'Tout voir',
     stats: {
       activeModules: 'Modules actifs',
       modulesHint: 'Lancez un essai pour activer',

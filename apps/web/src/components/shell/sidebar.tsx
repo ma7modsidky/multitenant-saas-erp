@@ -1,25 +1,19 @@
 'use client';
 
 import {
-  Activity,
-  BarChart3,
   Building2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock,
   CreditCard,
   DollarSign,
-  Handshake,
   LayoutDashboard,
   Package,
   Puzzle,
   ScrollText,
-  Search,
   Settings,
   Shield,
   Users,
-  Warehouse,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -33,7 +27,9 @@ import { hasPermission } from '@/lib/permissions';
 
 import { cn } from '../cn';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+
+import { NAV_ICONS } from './nav-icons';
+import { SidebarSearch } from './sidebar-search';
 
 interface NavItem {
   icon: LucideIcon;
@@ -65,18 +61,6 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
 };
 
 // Nav item icon names come from the module descriptors (NavigationItem.icon).
-const NAV_ICONS: Record<string, LucideIcon> = {
-  activity: Activity,
-  'bar-chart': BarChart3,
-  building: Building2,
-  clock: Clock,
-  contact: Users,
-  'credit-card': CreditCard,
-  package: Package,
-  target: Handshake,
-  users: Users,
-  warehouse: Warehouse,
-};
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -170,13 +154,10 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         </Link>
       </div>
 
-      {/* Search (expanded only) */}
+      {/* Federated search (expanded only) */}
       {!collapsed && (
         <div className="px-3 py-3">
-          <div className="relative">
-            <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input placeholder={t('shell.search')} className="h-8 ps-8 text-sm" aria-label={t('shell.search')} />
-          </div>
+          <SidebarSearch />
         </div>
       )}
 

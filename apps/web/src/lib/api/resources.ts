@@ -14,6 +14,7 @@ import type {
   OrganizationSettingsResponse,
   RoleMatrix,
   RoleResponse,
+  SearchResponse,
 } from './types';
 
 import { ApiError, apiFetch } from './index';
@@ -227,6 +228,12 @@ export function getNavigation(): Promise<NavigationGroup[]> {
 
 export function getDashboardWidgets(): Promise<DashboardWidgetGroup[]> {
   return apiFetch<DashboardWidgetGroup[]>('/v1/me/dashboard/widgets');
+}
+
+/** Federated search across all entitled modules' search contributors. */
+export function searchFederated(query: string): Promise<SearchResponse> {
+  const qs = new URLSearchParams({ q: query }).toString();
+  return apiFetch<SearchResponse>(`/v1/search?${qs}`);
 }
 
 export function enableModule(orgId: string, moduleKey: string): Promise<{ message: string }> {

@@ -103,6 +103,14 @@ const es = {
     pendingDeletion: 'Eliminación pendiente',
   },
 
+  // ─── Search ─────────────────────────────────────────────────────────────
+  search: {
+    typeMore: 'Escribe al menos 2 caracteres para buscar.',
+    loading: 'Buscando…',
+    noResults: 'No se encontraron resultados.',
+    error: 'La búsqueda no está disponible ahora mismo. Inténtalo más tarde.',
+  },
+
   // ─── Navigation ──────────────────────────────────────────────────────────
   nav: {
     dashboard: 'Panel de control',
@@ -134,6 +142,9 @@ const es = {
     noModulesHint: 'Activa módulos para empezar a trabajar.',
     widgetsTitle: 'Widgets de módulos',
     widgetPlaceholder: 'El contenido aparecerá aquí cuando el módulo esté en uso.',
+    recentDealsEmpty: 'Aún no hay negocios. Crea tu primer negocio en el CRM.',
+    upcomingActivitiesEmpty: 'Nada pendiente. Añade actividades en el CRM para no perder seguimientos.',
+    viewAll: 'Ver todo',
     stats: {
       activeModules: 'Módulos activos',
       modulesHint: 'Inicia una prueba para activar',

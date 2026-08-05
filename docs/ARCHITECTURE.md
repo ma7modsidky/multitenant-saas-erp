@@ -292,7 +292,9 @@ single allowlist file, and adding one requires a security review note in the PR.
 
 ## 6. Cross-module communication
 
-Three mechanisms, in strict order of preference.
+Three mechanisms, in strict order of preference — plus the federated-search
+contribution pattern at the end of the section, where modules contribute results
+to a platform aggregator rather than communicating with each other.
 
 ```mermaid
 graph LR
@@ -359,6 +361,100 @@ export interface InventoryStockPort {
   releaseReservation(reservationId: string, tx: TransactionRef): Promise<void>;
 }
 ```
+
+### Federated search — the `register()` pattern
+
+Search is a platform capability that business modules **contribute to**: each
+module implements a `SearchContributor`, and `SearchModule` aggregates every
+registered contributor's results under `GET /v1/search`. This is not
+module-to-module communication (Levels 1–3 above); it is a module-to-platform
+contribution, wired exclusively through the composition root.
+
+```mermaid
+graph LR
+    CRM["crm/search/crm-search.contributor.ts"] -->|"implements SearchContributor"| C[(contracts<br/>interface + token)]
+    INV["inventory/search/..."] --> C
+    C --> R["SearchModule.register([...])<br/>called from app.module.ts"]
+    R --> UC["FederatedSearchUseCase<br/>(injects SEARCH_CONTRIBUTORS)"]
+    UC --> E["core_module_entitlements<br/>(gate)"]
+    UC --> DB[("Postgres + RLS<br/>runWithOrg")]
+```
+
+#### The contract
+
+- `SearchContributor`, `SearchResult`, and the `SEARCH_CONTRIBUTORS` token live
+  in `@modubiz/contracts/ports`, so a module implements the interface by
+  importing `@modubiz/contracts` alone — never `platform/`.
+- A contributor exposes `moduleKey` and `labelKey` (an i18n key, never a display
+  string) and implements
+  `search(query, organizationId, limit): Promise<SearchResult[]>`. Each result
+  carries `title`, an optional `description`, an `href` into the module's own
+  frontend routes, and an optional `icon` name.
+
+#### Adding a module's contributor
+
+1. Implement the interface in
+   `modules/<key>/search/<key>-search.contributor.ts`. Run queries inside
+   `TransactionManager.runWithOrg(organizationId, ...)` so RLS scopes every
+   query to the requesting organization — the contributor never filters by
+   `organization_id` itself (AGENTS.md hard rule 2).
+2. Export the class from the module's `public/index.ts`.
+3. Pass it to `SearchModule.register([...])` in `app.module.ts` — the only
+   composition-root edit, consistent with §3.
+
+#### Why a dynamic `register()`?
+
+Nest resolves a provider's dependencies only from its own module and the modules
+it imports. `FederatedSearchUseCase` lives inside `SearchModule`, so
+`SEARCH_CONTRIBUTORS` must also be provided there. Registering the token at
+`AppModule` level would make it invisible to the use case and fail at boot with
+`UnknownDependenciesException`. `SearchModule.register(...)` is a dynamic module
+that places the collection in the right context:
+
+```typescript
+static register(contributors: Array<Type<SearchContributor>>): DynamicModule {
+  // One named provider per contributor CLASS, so Nest instantiates it with
+  // its own DI deps (TransactionManager / DRIZZLE_DB come from the @Global
+  // DatabaseModule).
+  const contributorProviders = contributors.map((contributor, index) => ({
+    provide: `SEARCH_CONTRIBUTOR_${index}`,
+    useClass: contributor,
+  }));
+
+  return {
+    module: SearchModule,
+    imports: [ModuleRegistryModule], // entitlement data for the gate below
+    controllers: [SearchController],
+    providers: [
+      FederatedSearchUseCase,
+      ...contributorProviders,
+      {
+        provide: SEARCH_CONTRIBUTORS,
+        useFactory: (...instances: SearchContributor[]) => instances,
+        inject: contributorProviders.map((provider) => provider.provide),
+      },
+    ],
+  };
+}
+```
+
+#### Why not `multi: true`?
+
+The repository's Nest build (`@nestjs/core@11.0.3`) **ignores the `multi` flag**
+— multi-providers resolve as last-wins bare values. The collection is therefore
+assembled explicitly: one named provider per contributor class, aggregated into
+`SEARCH_CONTRIBUTORS` by a `useFactory`. Do not "simplify" this back to
+`multi: true`; it would silently degrade to a single contributor.
+
+#### Runtime behaviour
+
+- The use case reads `core_module_entitlements` inside a tenant-bound
+  transaction and queries only contributors whose module is in an active
+  entitlement state (`active`, `trialing`, `past_due`) — search never surfaces
+  rows from a disabled module, matching navigation and dashboard widgets.
+- Contributors are queried in parallel with `Promise.allSettled`; a failing
+  contributor is logged and skipped rather than crashing the request.
+- Results are grouped by module and capped per contributor (`limit`, max 20).
 
 ### Forbidden
 

@@ -16,7 +16,7 @@ import { ObservabilityModule } from './core/observability/observability.module.j
 import { PortsModule } from './core/ports/ports.module.js';
 import { StorageModule } from './core/storage/storage.module.js';
 import { TenancyModule } from './core/tenancy/tenancy.module.js';
-import { CrmModule } from './modules/crm/public/index.js';
+import { CrmModule, CrmSearchContributor } from './modules/crm/public/index.js';
 import { AuditLogModule } from './platform/audit-log/audit-log.module.js';
 import { BillingModule } from './platform/billing/billing.module.js';
 import { FxRatesModule } from './platform/fx-rates/fx-rates.module.js';
@@ -64,7 +64,10 @@ import { UsersModule } from './platform/users/users.module.js';
     BillingModule,
     ModuleRegistryModule,
     AuditLogModule,
-    SearchModule,
+    // Federated search contributors: the class of every module that declares
+    // `searchContributor: true`. register() places the collection in the
+    // SearchModule context so FederatedSearchUseCase can resolve it.
+    SearchModule.register([CrmSearchContributor]),
     FxRatesModule,
     CrmModule,
   ],

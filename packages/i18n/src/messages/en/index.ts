@@ -104,6 +104,14 @@ const en = {
     pendingDeletion: 'Pending deletion',
   },
 
+  // ─── Search ─────────────────────────────────────────────────────────────
+  search: {
+    typeMore: 'Type at least 2 characters to search.',
+    loading: 'Searching…',
+    noResults: 'No results found.',
+    error: 'Search is unavailable right now. Try again later.',
+  },
+
   // ─── Navigation ──────────────────────────────────────────────────────────
   nav: {
     dashboard: 'Dashboard',
@@ -135,6 +143,9 @@ const en = {
     noModulesHint: 'Enable modules to start working.',
     widgetsTitle: 'Module widgets',
     widgetPlaceholder: 'Content will appear here when the module is in use.',
+    recentDealsEmpty: 'No deals yet. Create your first deal in CRM.',
+    upcomingActivitiesEmpty: 'Nothing due. Add activities in CRM to stay on top of follow-ups.',
+    viewAll: 'View all',
     stats: {
       activeModules: 'Active Modules',
       modulesHint: 'Start a trial to activate',

@@ -128,6 +128,25 @@ export interface DashboardWidgetGroup {
   widgets: DashboardWidget[];
 }
 
+export interface SearchResultItem {
+  id: string;
+  title: string;
+  description?: string;
+  href: string;
+  icon?: string;
+}
+
+export interface SearchResultGroup {
+  moduleKey: string;
+  labelKey: string;
+  results: SearchResultItem[];
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResultGroup[];
+}
+
 export interface OrganizationResponse {
   id: string;
   name: string;

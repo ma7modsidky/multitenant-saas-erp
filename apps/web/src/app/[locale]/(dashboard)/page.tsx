@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CrmRecentDealsWidget, CrmUpcomingActivitiesWidget } from '@/features/crm/dashboard-widgets';
 import { ApiError } from '@/lib/api';
 import { createOrganization, getActiveOrganization } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
@@ -232,9 +233,21 @@ export default function DashboardPage() {
   const registeredWidgets = (dashboardWidgets ?? []).flatMap((group) =>
     group.widgets.map((widget) => ({
       ...widget,
+      moduleKey: group.moduleKey,
       icon: MODULE_ICONS[group.moduleKey] ?? Puzzle,
     })),
   );
+
+  // Widget CONTENT is keyed by module + widget id. Modules that have shipped
+  // a renderer (CRM) get live data; not-yet-implemented widgets keep the
+  // neutral placeholder until their module ships one.
+  const renderWidgetContent = (moduleKey: string, widgetId: string) => {
+    if (moduleKey === 'crm') {
+      if (widgetId === 'recent-deals') return <CrmRecentDealsWidget />;
+      if (widgetId === 'upcoming-activities') return <CrmUpcomingActivitiesWidget />;
+    }
+    return <p className="text-xs text-muted-foreground">{t('dashboard.widgetPlaceholder')}</p>;
+  };
 
   const stats = [
     {
@@ -340,8 +353,14 @@ export default function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {registeredWidgets.map((widget) => {
               const Icon = widget.icon;
+              // Descriptors declare a column width; honor it on the card.
+              const span = widget.width > 1 ? { gridColumn: `span ${widget.width}` } : undefined;
               return (
-                <Card key={widget.id} className="transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                <Card
+                  key={widget.id}
+                  className="transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+                  style={span}
+                >
                   <CardContent className="p-5">
                     <div className="flex items-center gap-3">
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -349,7 +368,7 @@ export default function DashboardPage() {
                       </div>
                       <p className="text-sm font-medium">{t(widget.titleKey)}</p>
                     </div>
-                    <p className="mt-4 text-xs text-muted-foreground">{t('dashboard.widgetPlaceholder')}</p>
+                    <div className="mt-4">{renderWidgetContent(widget.moduleKey, widget.id)}</div>
                   </CardContent>
                 </Card>
               );

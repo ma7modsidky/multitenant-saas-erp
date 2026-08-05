@@ -28,7 +28,9 @@ import { MODULE_REGISTRY_REPOSITORY } from './ports/index.js';
       useClass: DrizzleModuleRegistryRepository,
     },
   ],
-  exports: [BootValidationService],
+  // MODULE_REGISTRY_REPOSITORY is shared with platform consumers that need
+  // the same entitlement authority (federated search gates contributors on it).
+  exports: [BootValidationService, MODULE_REGISTRY_REPOSITORY],
 })
 export class ModuleRegistryModule implements OnModuleInit {
   constructor(private readonly bootValidation: BootValidationService) {}

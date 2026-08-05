@@ -9,6 +9,8 @@ let pathname = '/en/settings';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
+  // The sidebar renders <SidebarSearch>, which uses useRouter to navigate.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }));
 
 const getNavigation = vi.fn<(...args: unknown[]) => unknown>();
