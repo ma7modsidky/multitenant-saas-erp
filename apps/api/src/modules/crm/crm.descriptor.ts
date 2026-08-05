@@ -43,6 +43,11 @@ export const crmDescriptor: ModuleDescriptor = defineModule({
       href: '/m/crm/deals',
       icon: 'target',
     },
+    {
+      labelKey: 'modules.crm.nav.activities',
+      href: '/m/crm/activities',
+      icon: 'activity',
+    },
   ],
   publishes: [
     CRM_EVENTS.CONTACT_CREATED_V1,

@@ -41,7 +41,7 @@ export class ReopenDealUseCase {
     const movedBy = TenantContext.requireUserId();
     const hasDealWritePermission = TenantContext.getPermissions().includes('crm:deal:write');
 
-    const result = await this.txManager.run(async (tx) => {
+    const committed = await this.txManager.run(async (tx) => {
       const existing = await this.dealRepo.findById(input.dealId, tx);
       if (!existing) {
         throw new NotFoundError('DEAL_NOT_FOUND', { dealId: input.dealId });
@@ -82,7 +82,7 @@ export class ReopenDealUseCase {
       await this.dealRepo.appendHistory(entry, tx);
 
       const occurredAt = at.toISOString();
-      this.unitOfWork.addEvent({
+      const event = {
         name: CRM_EVENTS.DEAL_STAGE_CHANGED_V1,
         payload: {
           organizationId: updated.organizationId,
@@ -93,13 +93,13 @@ export class ReopenDealUseCase {
           occurredAt,
         } satisfies CrmDealStageChangedV1,
         aggregateId: updated.id,
-      });
+      } satisfies Parameters<UnitOfWork['addEvent']>[0];
 
-      return { deal: Deal.fromPersistence(updated) };
+      return { result: { deal: Deal.fromPersistence(updated) }, event };
     });
 
-    // Events are published after the transaction commits (never before).
+    this.unitOfWork.addEvent(committed.event);
     await this.unitOfWork.publishEvents();
-    return result;
+    return committed.result;
   }
 }

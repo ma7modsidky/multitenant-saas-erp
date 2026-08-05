@@ -13,6 +13,7 @@ export interface CreateContactInput {
   lastName: string;
   email?: string | null;
   phone?: string | null;
+  secondaryPhone?: string | null;
   companyId?: string | null;
   ownerUserId?: string | null;
   preferredLocale?: string | null;
@@ -52,6 +53,7 @@ export class CreateContactUseCase {
       lastName: input.lastName,
       email: input.email ?? null,
       phone: input.phone ?? null,
+      secondaryPhone: input.secondaryPhone ?? null,
       ownerUserId: input.ownerUserId ?? null,
       preferredLocale: input.preferredLocale ?? null,
       preferredCurrency: input.preferredCurrency ?? null,
@@ -62,7 +64,7 @@ export class CreateContactUseCase {
       deletedAt: null,
     });
 
-    const result = await this.txManager.run(async (tx) => {
+    const committed = await this.txManager.run(async (tx) => {
       // CRM-2: reject a duplicate email within the org (RLS-scoped read).
       const existing = await this.contactRepo.findByEmail(contact.email ?? '', tx);
       if (existing) {
@@ -79,20 +81,21 @@ export class CreateContactUseCase {
         lastName: persisted.lastName,
         email: persisted.email,
         phone: persisted.phone,
-        ownerUserId: persisted.ownerUserId ?? '',
+        secondaryPhone: persisted.secondaryPhone,
+        ownerUserId: persisted.ownerUserId,
         occurredAt: new Date().toISOString(),
       };
-      this.unitOfWork.addEvent({
+      const event = {
         name: CRM_EVENTS.CONTACT_CREATED_V1,
         payload,
         aggregateId: persisted.id,
-      });
+      } satisfies Parameters<UnitOfWork['addEvent']>[0];
 
-      return { contact: Contact.fromPersistence(persisted) };
+      return { result: { contact: Contact.fromPersistence(persisted) }, event };
     });
 
-    // Events are published after the transaction commits (never before).
+    this.unitOfWork.addEvent(committed.event);
     await this.unitOfWork.publishEvents();
-    return result;
+    return committed.result;
   }
 }

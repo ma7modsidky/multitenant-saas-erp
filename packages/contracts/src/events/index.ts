@@ -69,7 +69,10 @@ const contactIdentity = {
   lastName: z.string().min(1),
   email: z.string().email().nullable(),
   phone: z.string().nullable(),
-  ownerUserId: z.string().uuid(),
+  // Optional for backward compatibility with events published before the
+  // field existed — absent in old payloads, null/string in new ones.
+  secondaryPhone: z.string().nullable().optional(),
+  ownerUserId: z.string().uuid().nullable(),
   occurredAt: z.string().datetime(),
 };
 
@@ -87,7 +90,8 @@ export type CrmContactUpdatedV1 = z.infer<typeof crmContactUpdatedV1Schema>;
 
 /**
  * Payload of `crm.deal.stage_changed.v1` — emitted on every deal stage move.
- * `fromStageId` is null only for the first move (deal created directly in a stage).
+ * `fromStageId` is nullable for import/backfill producers; normal CRM moves
+ * carry the persisted current stage.
  *
  * @see BUSINESS_RULES.md CRM-6 — every stage change appends to `crm_deal_stage_history`
  */
@@ -121,7 +125,7 @@ export const crmDealWonV1Schema = z.object({
   exchangeRate: decimalString.optional(),
   baseAmountMinor: minorUnitsString.optional(),
   closedAt: z.string().datetime(),
-  ownerUserId: z.string().uuid(),
+  ownerUserId: z.string().uuid().nullable(),
   occurredAt: z.string().datetime(),
 });
 export type CrmDealWonV1 = z.infer<typeof crmDealWonV1Schema>;
@@ -136,7 +140,7 @@ export const crmDealLostV1Schema = z.object({
   dealId: z.string().uuid(),
   lostReasonCode: z.string().min(1),
   closedAt: z.string().datetime(),
-  ownerUserId: z.string().uuid(),
+  ownerUserId: z.string().uuid().nullable(),
   occurredAt: z.string().datetime(),
 });
 export type CrmDealLostV1 = z.infer<typeof crmDealLostV1Schema>;

@@ -15,6 +15,7 @@ export interface UpdateContactInput {
   lastName?: string;
   email?: string | null;
   phone?: string | null;
+  secondaryPhone?: string | null;
   companyId?: string | null;
   ownerUserId?: string | null;
   preferredLocale?: string | null;
@@ -42,7 +43,7 @@ export class UpdateContactUseCase {
   async execute(input: UpdateContactInput): Promise<{ contact: Contact }> {
     const userId = TenantContext.getUserId() ?? null;
 
-    const result = await this.txManager.run(async (tx) => {
+    const committed = await this.txManager.run(async (tx) => {
       const existing = await this.contactRepo.findById(input.contactId, tx);
       if (!existing) {
         throw new NotFoundError('CONTACT_NOT_FOUND', { contactId: input.contactId });
@@ -56,6 +57,7 @@ export class UpdateContactUseCase {
         lastName?: string;
         email?: string | null;
         phone?: string | null;
+        secondaryPhone?: string | null;
         companyId?: string | null;
         ownerUserId?: string | null;
         preferredLocale?: string | null;
@@ -64,6 +66,7 @@ export class UpdateContactUseCase {
       if (input.firstName !== undefined) updateProps.firstName = input.firstName;
       if (input.lastName !== undefined) updateProps.lastName = input.lastName;
       if (input.email !== undefined) updateProps.email = input.email;
+      if (input.secondaryPhone !== undefined) updateProps.secondaryPhone = input.secondaryPhone;
       if (input.phone !== undefined) updateProps.phone = input.phone;
       if (input.companyId !== undefined) updateProps.companyId = input.companyId;
       if (input.ownerUserId !== undefined) updateProps.ownerUserId = input.ownerUserId;
@@ -93,19 +96,21 @@ export class UpdateContactUseCase {
         lastName: updated.lastName,
         email: updated.email,
         phone: updated.phone,
-        ownerUserId: updated.ownerUserId ?? '',
+        secondaryPhone: updated.secondaryPhone,
+        ownerUserId: updated.ownerUserId,
         occurredAt: new Date().toISOString(),
       };
-      this.unitOfWork.addEvent({
+      const event = {
         name: CRM_EVENTS.CONTACT_UPDATED_V1,
         payload,
         aggregateId: updated.id,
-      });
+      } satisfies Parameters<UnitOfWork['addEvent']>[0];
 
-      return { contact: Contact.fromPersistence(updated) };
+      return { result: { contact: Contact.fromPersistence(updated) }, event };
     });
 
+    this.unitOfWork.addEvent(committed.event);
     await this.unitOfWork.publishEvents();
-    return result;
+    return committed.result;
   }
 }

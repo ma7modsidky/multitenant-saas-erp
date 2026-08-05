@@ -6,7 +6,7 @@ import {
   type OrganizationReadPort,
 } from '@modubiz/contracts';
 import { Money } from '@modubiz/money';
-import { Body, Controller, Param, Post, UseGuards, UsePipes } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
@@ -15,12 +15,21 @@ import { RequiresModule, RequiresPermission } from '../../../core/authorization/
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import { PortRegistry } from '../../../core/ports/port-registry.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
-import { CloseDealUseCase, CreateDealUseCase, MoveDealStageUseCase, ReopenDealUseCase } from '../application/index.js';
+import {
+  CloseDealUseCase,
+  CreateDealUseCase,
+  GetDealUseCase,
+  ListDealsUseCase,
+  MoveDealStageUseCase,
+  ReopenDealUseCase,
+} from '../application/index.js';
+import type { DealListPage } from '../application/ports/index.js';
 
 import {
   CloseDealDto,
   CreateDealDto,
   DealEnvelopeResponse,
+  DealListEnvelopeResponse,
   MoveDealStageDto,
   closeDealSchema,
   createDealSchema,
@@ -49,12 +58,83 @@ import {
 @RequiresModule(MODULE_KEYS.CRM)
 export class DealsController {
   constructor(
+    private readonly listDealsUseCase: ListDealsUseCase,
+    private readonly getDealUseCase: GetDealUseCase,
     private readonly createDealUseCase: CreateDealUseCase,
     private readonly moveDealStageUseCase: MoveDealStageUseCase,
     private readonly closeDealUseCase: CloseDealUseCase,
     private readonly reopenDealUseCase: ReopenDealUseCase,
     private readonly portRegistry: PortRegistry,
   ) {}
+
+  @Get()
+  @ApiOkResponse({ type: DealListEnvelopeResponse })
+  @RequiresPermission('crm:deal:read')
+  async list(
+    @Query('search') search?: string,
+    @Query('stageId') stageId?: string,
+    @Query('status') status?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDir') sortDir?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ): Promise<{ data: DealListPage }> {
+    // Query params are interpolated into SQL below, so every one must be
+    // validated here — a malformed value would otherwise surface as a 500
+    // instead of a 400 (ERR-1/ERR-6).
+    const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (stageId !== undefined && !uuid.test(stageId)) {
+      throw new BadRequestException('stageId must be a valid UUID');
+    }
+    if (status !== undefined && status !== 'open' && status !== 'won' && status !== 'lost') {
+      throw new BadRequestException('status must be one of open, won, lost');
+    }
+    if (fromDate !== undefined && !isoDate.test(fromDate)) {
+      throw new BadRequestException('fromDate must be an ISO date (YYYY-MM-DD)');
+    }
+    if (toDate !== undefined && !isoDate.test(toDate)) {
+      throw new BadRequestException('toDate must be an ISO date (YYYY-MM-DD)');
+    }
+    if (
+      sortBy !== undefined &&
+      sortBy !== 'updatedAt' &&
+      sortBy !== 'createdAt' &&
+      sortBy !== 'title' &&
+      sortBy !== 'value'
+    ) {
+      throw new BadRequestException('sortBy must be one of updatedAt, createdAt, title, value');
+    }
+    if (sortDir !== undefined && sortDir !== 'asc' && sortDir !== 'desc') {
+      throw new BadRequestException('sortDir must be asc or desc');
+    }
+    const result = await this.listDealsUseCase.execute({
+      // The validation throws above have narrowed each value to its safe
+      // shape (literal union), so no casts are needed here.
+      ...(search !== undefined ? { search } : {}),
+      ...(stageId !== undefined ? { stageId } : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(fromDate !== undefined ? { fromDate } : {}),
+      ...(toDate !== undefined ? { toDate } : {}),
+      ...(sortBy !== undefined ? { sortBy } : {}),
+      ...(sortDir !== undefined ? { sortDir } : {}),
+      ...(page !== undefined ? { page: Number(page) } : {}),
+      ...(pageSize !== undefined ? { pageSize: Number(pageSize) } : {}),
+    });
+    return { data: result };
+  }
+
+  /**
+   * GET /v1/crm/deals/:id — deal detail with stage history (CRM-6).
+   */
+  @Get(':id')
+  @ApiOkResponse({ type: DealEnvelopeResponse })
+  @RequiresPermission('crm:deal:read')
+  async getById(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
+    return { data: await this.getDealUseCase.execute(id) };
+  }
 
   /**
    * POST /v1/crm/deals — create a deal (CRM-3/8/10).

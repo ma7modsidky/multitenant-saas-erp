@@ -1,17 +1,36 @@
 import { Module } from '@nestjs/common';
 
-import { ActivitiesController, ContactsController, DealsController } from './api/index.js';
+import {
+  ActivitiesController,
+  CompaniesController,
+  ContactsController,
+  DealsController,
+  NotesController,
+  PipelinesController,
+} from './api/index.js';
 import {
   CloseDealUseCase,
   CompleteActivityUseCase,
   CreateActivityUseCase,
   CreateContactUseCase,
   CreateDealUseCase,
+  CreateCompanyUseCase,
   EnsureDefaultPipelineUseCase,
+  GetActivityUseCase,
+  GetCompanyUseCase,
+  GetContactUseCase,
+  GetDealUseCase,
   MergeContactsUseCase,
   MoveDealStageUseCase,
   ReopenDealUseCase,
+  UpdateActivityUseCase,
   UpdateContactUseCase,
+  UpdateCompanyUseCase,
+  GetPipelineBoardUseCase,
+  ListActivitiesUseCase,
+  ListCompaniesUseCase,
+  ListContactsUseCase,
+  ListDealsUseCase,
 } from './application/index.js';
 import {
   ACTIVITY_REPOSITORY,
@@ -20,6 +39,7 @@ import {
   DEAL_REPOSITORY,
   NOTE_REPOSITORY,
   PIPELINE_REPOSITORY,
+  CRM_READ_REPOSITORY,
 } from './application/ports/index.js';
 import {
   DrizzleActivityRepository,
@@ -28,6 +48,7 @@ import {
   DrizzleDealRepository,
   DrizzleNoteRepository,
   DrizzlePipelineRepository,
+  DrizzleCrmReadRepository,
 } from './infrastructure/index.js';
 
 /**
@@ -39,7 +60,14 @@ import {
  * @see MODULE_GUIDE.md §3 — Canonical folder skeleton
  */
 @Module({
-  controllers: [ContactsController, DealsController, ActivitiesController],
+  controllers: [
+    ContactsController,
+    CompaniesController,
+    DealsController,
+    ActivitiesController,
+    PipelinesController,
+    NotesController,
+  ],
   providers: [
     // Repositories (infrastructure) bound to port tokens.
     { provide: CONTACT_REPOSITORY, useClass: DrizzleContactRepository },
@@ -48,6 +76,7 @@ import {
     { provide: ACTIVITY_REPOSITORY, useClass: DrizzleActivityRepository },
     { provide: NOTE_REPOSITORY, useClass: DrizzleNoteRepository },
     { provide: ATTACHMENT_REPOSITORY, useClass: DrizzleAttachmentRepository },
+    { provide: CRM_READ_REPOSITORY, useClass: DrizzleCrmReadRepository },
     // Use cases (application).
     EnsureDefaultPipelineUseCase,
     CreateContactUseCase,
@@ -58,7 +87,19 @@ import {
     CloseDealUseCase,
     ReopenDealUseCase,
     CreateActivityUseCase,
+    UpdateActivityUseCase,
     CompleteActivityUseCase,
+    ListContactsUseCase,
+    ListCompaniesUseCase,
+    ListDealsUseCase,
+    ListActivitiesUseCase,
+    GetPipelineBoardUseCase,
+    CreateCompanyUseCase,
+    UpdateCompanyUseCase,
+    GetContactUseCase,
+    GetCompanyUseCase,
+    GetDealUseCase,
+    GetActivityUseCase,
   ],
 })
 export class CrmModule {}

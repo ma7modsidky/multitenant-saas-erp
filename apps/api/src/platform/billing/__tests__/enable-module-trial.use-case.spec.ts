@@ -1,23 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConflictError, NotFoundError } from '../../../core/common/errors.js';
-import {
-  MODULE_DEPENDENCY_MISSING,
-  MODULE_NOT_FOUND,
-  SUBSCRIPTION_NOT_FOUND,
-  TRIAL_ALREADY_USED,
-} from '../domain/errors.js';
+import { MODULE_DEPENDENCY_MISSING, MODULE_NOT_FOUND, TRIAL_ALREADY_USED } from '../domain/errors.js';
 import { EnableModuleTrialUseCase } from '../application/enable-module-trial.use-case.js';
 
 describe('EnableModuleTrialUseCase', () => {
   let billingRepo: {
     getModuleFromCatalog: ReturnType<typeof vi.fn>;
     findByOrgId: ReturnType<typeof vi.fn>;
+    getOrganizationBaseCurrency: ReturnType<typeof vi.fn>;
+    insert: ReturnType<typeof vi.fn>;
     findEntitlement: ReturnType<typeof vi.fn>;
     upsertEntitlement: ReturnType<typeof vi.fn>;
   };
   let stripe: {
     addSubscriptionItem: ReturnType<typeof vi.fn>;
+    createCustomer: ReturnType<typeof vi.fn>;
+    createSubscription: ReturnType<typeof vi.fn>;
   };
   let txManager: { run: ReturnType<typeof vi.fn> };
   let useCase: EnableModuleTrialUseCase;
@@ -56,6 +55,13 @@ describe('EnableModuleTrialUseCase', () => {
     billingRepo = {
       getModuleFromCatalog: vi.fn().mockResolvedValue(moduleCatalog),
       findByOrgId: vi.fn().mockResolvedValue(subscription),
+      getOrganizationBaseCurrency: vi.fn().mockResolvedValue('USD'),
+      // The persisted subscription mirrors what the Stripe port returned.
+      insert: vi.fn().mockImplementation((data: { id: string; stripeSubscriptionId: string }) => ({
+        ...subscription,
+        id: data.id,
+        stripeSubscriptionId: data.stripeSubscriptionId,
+      })),
       findEntitlement: vi
         .fn()
         .mockImplementation(async (_orgId: string, moduleKey: string) =>
@@ -65,6 +71,11 @@ describe('EnableModuleTrialUseCase', () => {
     };
     stripe = {
       addSubscriptionItem: vi.fn().mockResolvedValue({ subscriptionItemId: 'si_123' }),
+      createCustomer: vi.fn().mockResolvedValue({ customerId: 'cus_fake_1' }),
+      createSubscription: vi.fn().mockResolvedValue({
+        subscriptionId: 'sub_fake_1',
+        currentPeriodEnd: new Date('2026-10-01T00:00:00Z'),
+      }),
     };
     txManager = {
       run: vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn('tx')),
@@ -115,11 +126,40 @@ describe('EnableModuleTrialUseCase', () => {
     await expect(execute()).rejects.toMatchObject({ message: MODULE_NOT_FOUND });
   });
 
-  it('throws SUBSCRIPTION_NOT_FOUND when the org has no subscription', async () => {
+  it('BILL-1/BILL-2: bootstraps a base subscription when the org has none, then starts the trial', async () => {
+    // Fresh org / dev environment — no subscription row exists yet.
     billingRepo.findByOrgId.mockResolvedValue(undefined);
 
-    await expect(execute()).rejects.toBeInstanceOf(NotFoundError);
-    await expect(execute()).rejects.toMatchObject({ message: SUBSCRIPTION_NOT_FOUND });
+    await execute();
+
+    // The base subscription is created lazily (BILL-1) using the org currency.
+    expect(stripe.createCustomer).toHaveBeenCalledWith('org-1', 'Organization', 'org-1@local.dev');
+    expect(stripe.createSubscription).toHaveBeenCalledWith({
+      customerId: 'cus_fake_1',
+      billingCurrency: 'USD',
+      priceKeys: [],
+    });
+    expect(billingRepo.insert).toHaveBeenCalled();
+
+    // The trial item attaches to the freshly created subscription.
+    expect(stripe.addSubscriptionItem).toHaveBeenCalledWith({
+      subscriptionId: 'sub_fake_1',
+      priceKey: 'price_pos_monthly',
+    });
+    expect(billingRepo.upsertEntitlement).toHaveBeenCalled();
+  });
+
+  it('BILL-2: falls back to USD when the org has no base currency', async () => {
+    billingRepo.findByOrgId.mockResolvedValue(undefined);
+    billingRepo.getOrganizationBaseCurrency.mockResolvedValue(undefined);
+
+    await execute();
+
+    expect(stripe.createSubscription).toHaveBeenCalledWith({
+      customerId: 'cus_fake_1',
+      billingCurrency: 'USD',
+      priceKeys: [],
+    });
   });
 
   it('BILL-2: starts a 14-day trial (state trialing, no card required) when trialDays > 0', async () => {

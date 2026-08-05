@@ -49,6 +49,7 @@ describe('crmContactCreatedV1Schema', () => {
     lastName: 'Lovelace',
     email: 'ada@example.com',
     phone: null,
+    secondaryPhone: null,
     ownerUserId: userId,
     occurredAt: '2026-08-03T10:00:00.000Z',
   };
@@ -60,6 +61,10 @@ describe('crmContactCreatedV1Schema', () => {
   it('accepts a contact with phone and no email (CRM-1 either-or)', () => {
     const payload = { ...valid, email: null, phone: '+44 20 7946 0958' };
     expect(crmContactCreatedV1Schema.parse(payload).phone).toBe('+44 20 7946 0958');
+  });
+
+  it('accepts an unowned contact', () => {
+    expect(crmContactCreatedV1Schema.parse({ ...valid, ownerUserId: null }).ownerUserId).toBeNull();
   });
 
   it('CRM-1: rejects a contact with neither email nor phone', () => {
@@ -95,6 +100,7 @@ describe('crmContactUpdatedV1Schema', () => {
     lastName: 'Lovelace',
     email: 'ada@example.com',
     phone: '+44 20 7946 0958',
+    secondaryPhone: '+1 415 555 0132',
     ownerUserId: userId,
     occurredAt: '2026-08-03T11:00:00.000Z',
   };
@@ -156,6 +162,10 @@ describe('crmDealWonV1Schema', () => {
 
   it('accepts a valid won payload with integer minor units (CRM-8, M1)', () => {
     expect(crmDealWonV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts an unowned won deal', () => {
+    expect(crmDealWonV1Schema.parse({ ...valid, ownerUserId: null }).ownerUserId).toBeNull();
   });
 
   it('accepts the FX snapshot when the deal currency differs from base (CRM-8, CUR-5)', () => {

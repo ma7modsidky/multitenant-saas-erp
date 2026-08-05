@@ -1,14 +1,10 @@
+import * as crypto from 'node:crypto';
+
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError, NotFoundError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
-import {
-  validateStateTransition,
-  TRIAL_ALREADY_USED,
-  MODULE_NOT_FOUND,
-  SUBSCRIPTION_NOT_FOUND,
-  MODULE_DEPENDENCY_MISSING,
-} from '../domain/index.js';
+import { TRIAL_ALREADY_USED, MODULE_NOT_FOUND, MODULE_DEPENDENCY_MISSING } from '../domain/index.js';
 import { BILLING_REPOSITORY, STRIPE_PORT, type BillingRepository, type StripePort } from '../ports/index.js';
 
 /** States that grant any level of access (full or read-only). */
@@ -39,9 +35,6 @@ export class EnableModuleTrialUseCase {
     // Get current subscription — core_subscriptions is RLS-protected, so reads
     // must run inside the tenant-bound transaction or they fail closed.
     const subscription = await this.txManager.run((tx) => this.billingRepo.findByOrgId(input.organizationId, tx));
-    if (!subscription) {
-      throw new NotFoundError(SUBSCRIPTION_NOT_FOUND, { organizationId: input.organizationId });
-    }
 
     // Check current entitlement state
     const entitlement = await this.txManager.run((tx) =>
@@ -75,6 +68,39 @@ export class EnableModuleTrialUseCase {
     const trialDays = moduleCatalog.trialDays;
 
     await this.txManager.run(async (tx) => {
+      // BILL-1: exactly one base subscription per org. BILL-2: a trial requires
+      // no payment method — so when the org has no subscription yet (fresh
+      // signup, or a dev/bootstrap environment), create the base subscription
+      // lazily so the trial module item has a subscription to attach to.
+      let activeSubscription = subscription;
+      if (!activeSubscription) {
+        const billingCurrency = (await this.billingRepo.getOrganizationBaseCurrency(input.organizationId, tx)) ?? 'USD';
+        const { customerId } = await this.stripe.createCustomer(
+          input.organizationId,
+          'Organization',
+          `${input.organizationId}@local.dev`,
+        );
+        const created = await this.stripe.createSubscription({
+          customerId,
+          billingCurrency,
+          priceKeys: [],
+        });
+        activeSubscription = await this.billingRepo.insert(
+          {
+            id: crypto.randomUUID(),
+            organizationId: input.organizationId,
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: created.subscriptionId,
+            status: 'active',
+            billingCurrency,
+            currentPeriodEnd: created.currentPeriodEnd,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          tx,
+        );
+      }
+
       // Update entitlement state
       await this.billingRepo.upsertEntitlement(
         {
@@ -92,7 +118,7 @@ export class EnableModuleTrialUseCase {
       // Add to Stripe subscription if there's a price key
       if (moduleCatalog.stripePriceKey) {
         const { subscriptionItemId } = await this.stripe.addSubscriptionItem({
-          subscriptionId: subscription.stripeSubscriptionId,
+          subscriptionId: activeSubscription.stripeSubscriptionId,
           priceKey: moduleCatalog.stripePriceKey,
         });
 

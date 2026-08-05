@@ -256,7 +256,9 @@ describe('MembersSettingsPage — pagination + filters', () => {
     // Role filter select (the first "All roles" select on the members card).
     const roleFilter = screen.getAllByRole('combobox').find((el) => el.getAttribute('aria-label') === 'All roles');
     expect(roleFilter).toBeDefined();
-    await user.selectOptions(roleFilter!, 'role-admin');
+    // Custom Select: click the trigger, then the option in the popover list.
+    await user.click(roleFilter!);
+    await user.click(await screen.findByRole('option', { name: 'Admin' }));
 
     // Every visible member now has the Admin badge; Jane (Member) is filtered out.
     expect(screen.queryByText(/jane@example\.com/)).not.toBeInTheDocument();
@@ -281,7 +283,8 @@ describe('MembersSettingsPage — pagination + filters', () => {
       .filter((el) => el.getAttribute('aria-label') === 'All statuses');
     expect(statusFilters.length).toBeGreaterThanOrEqual(2);
     const invStatusFilter = statusFilters.at(-1)!;
-    await user.selectOptions(invStatusFilter, 'pending');
+    await user.click(invStatusFilter);
+    await user.click(await screen.findByRole('option', { name: 'Pending' }));
 
     expect(screen.getByText('newbie@example.com')).toBeInTheDocument();
     expect(screen.queryByText('already-in@example.com')).not.toBeInTheDocument();
@@ -300,10 +303,10 @@ describe('MembersSettingsPage — role + status badges', () => {
     await waitFor(() => expect(screen.getByText(/jane@example\.com/)).toBeInTheDocument());
 
     const janeRow = screen.getByText(/jane@example\.com/).closest('li')!;
-    // selector 'span' disambiguates the badge from the role <select>'s own
-    // <option> text (both render 'Member'); the Badge is a <span>.
-    expect(within(janeRow).getByText('Member', { selector: 'span' })).toBeInTheDocument(); // role badge
-    expect(within(janeRow).getByText('Active', { selector: 'span' })).toBeInTheDocument(); // status badge
+    // selector 'span.rounded-md' disambiguates the badge from the role select
+    // trigger's label (both render 'Member'); the Badge is a <span>.
+    expect(within(janeRow).getByText('Member', { selector: 'span.rounded-md' })).toBeInTheDocument(); // role badge
+    expect(within(janeRow).getByText('Active', { selector: 'span.rounded-md' })).toBeInTheDocument(); // status badge
   });
 });
 
@@ -327,7 +330,8 @@ describe('MembersSettingsPage — invitation name (migration 0012)', () => {
     // share the same 'Role' accessible name (aria-label), so an unqualified
     // getByLabelText('Role') would match multiple elements.
     const inviteForm = screen.getByLabelText('Full name').closest('form')!;
-    await user.selectOptions(within(inviteForm).getByLabelText('Role'), 'role-member');
+    await user.click(within(inviteForm).getByLabelText('Role'));
+    await user.click(within(inviteForm).getByRole('option', { name: 'Member' }));
     await user.click(screen.getByRole('button', { name: 'Send invitation' }));
 
     expect(inviteUserMock).toHaveBeenCalledWith('org-1', {
@@ -501,7 +505,8 @@ describe('MembersSettingsPage — remove member + role change confirm dialogs', 
 
     const janeRow = screen.getByText(/jane@example\.com/).closest('li')!;
     const roleSelect = within(janeRow).getAllByRole('combobox').at(-1)!;
-    await user.selectOptions(roleSelect, 'role-admin');
+    await user.click(roleSelect);
+    await user.click(await screen.findByRole('option', { name: 'Admin' }));
 
     // The dialog describes the pending change; the API is not called yet.
     expect(updateMemberRoleMock).not.toHaveBeenCalled();
@@ -523,7 +528,8 @@ describe('MembersSettingsPage — remove member + role change confirm dialogs', 
 
     const janeRow = screen.getByText(/jane@example\.com/).closest('li')!;
     const roleSelect = within(janeRow).getAllByRole('combobox').at(-1)!;
-    await user.selectOptions(roleSelect, 'role-admin');
+    await user.click(roleSelect);
+    await user.click(await screen.findByRole('option', { name: 'Admin' }));
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 

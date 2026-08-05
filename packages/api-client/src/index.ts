@@ -715,7 +715,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    get: operations['ContactsController_list'];
     put?: never;
     post: operations['ContactsController_create'];
     delete?: never;
@@ -731,7 +731,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    get: operations['ContactsController_getById'];
     put?: never;
     post?: never;
     delete?: never;
@@ -756,6 +756,38 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/crm/companies': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['CompaniesController_list'];
+    put?: never;
+    post: operations['CompaniesController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/companies/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['CompaniesController_getById'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['CompaniesController_update'];
+    trace?: never;
+  };
   '/v1/crm/deals': {
     parameters: {
       query?: never;
@@ -763,9 +795,25 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    get: operations['DealsController_list'];
     put?: never;
     post: operations['DealsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/deals/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['DealsController_getById'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -827,13 +875,29 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    get: operations['ActivitiesController_list'];
     put?: never;
     post: operations['ActivitiesController_create'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/activities/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['ActivitiesController_getById'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['ActivitiesController_update'];
     trace?: never;
   };
   '/v1/crm/activities/{id}/complete': {
@@ -846,6 +910,54 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations['ActivitiesController_complete'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/pipelines/default': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PipelinesController_getDefault'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/notes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['NotesController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/notes/{relatedType}/{relatedId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['NotesController_listByRelated'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1364,18 +1476,26 @@ export interface components {
         source: string;
       };
     };
-    CreateContactDto: {
-      firstName: string;
-      lastName: string;
-      /** Format: email */
-      email?: string | null;
-      phone?: string | null;
-      /** Format: uuid */
-      companyId?: string | null;
-      /** Format: uuid */
-      ownerUserId?: string | null;
-      preferredLocale?: string | null;
-      preferredCurrency?: string | null;
+    ContactListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          firstName: string;
+          lastName: string;
+          email: string | null;
+          phone: string | null;
+          secondaryPhone: string | null;
+          companyId: string | null;
+          ownerUserId: string | null;
+          preferredLocale: string | null;
+          preferredCurrency: string | null;
+          createdByUserId?: string | null;
+          updatedByUserId?: string | null;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
     };
     ContactEnvelopeResponse: {
       data: {
@@ -1384,11 +1504,28 @@ export interface components {
         lastName: string;
         email: string | null;
         phone: string | null;
+        secondaryPhone: string | null;
         companyId: string | null;
         ownerUserId: string | null;
         preferredLocale: string | null;
         preferredCurrency: string | null;
+        createdByUserId?: string | null;
+        updatedByUserId?: string | null;
       };
+    };
+    CreateContactDto: {
+      firstName: string;
+      lastName: string;
+      /** Format: email */
+      email?: string | null;
+      phone?: string | null;
+      secondaryPhone?: string | null;
+      /** Format: uuid */
+      companyId?: string | null;
+      /** Format: uuid */
+      ownerUserId?: string | null;
+      preferredLocale?: string | null;
+      preferredCurrency?: string | null;
     };
     UpdateContactDto: {
       firstName?: string;
@@ -1396,6 +1533,7 @@ export interface components {
       /** Format: email */
       email?: string | null;
       phone?: string | null;
+      secondaryPhone?: string | null;
       /** Format: uuid */
       companyId?: string | null;
       /** Format: uuid */
@@ -1416,10 +1554,128 @@ export interface components {
         lastName: string;
         email: string | null;
         phone: string | null;
+        secondaryPhone: string | null;
         companyId: string | null;
         ownerUserId: string | null;
         preferredLocale: string | null;
         preferredCurrency: string | null;
+        createdByUserId?: string | null;
+        updatedByUserId?: string | null;
+      };
+    };
+    CompanyListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          name: string;
+          domain: string | null;
+          industry: string | null;
+          address: {
+            [key: string]: unknown;
+          };
+          ownerUserId: string | null;
+          createdByUserId?: string | null;
+          updatedByUserId?: string | null;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    CompanyEnvelopeResponse: {
+      data: {
+        id: string;
+        name: string;
+        domain: string | null;
+        industry: string | null;
+        address: {
+          [key: string]: unknown;
+        };
+        ownerUserId: string | null;
+        createdByUserId?: string | null;
+        updatedByUserId?: string | null;
+      };
+    };
+    CreateCompanyDto: {
+      name: string;
+      domain?: string | null;
+      industry?: string | null;
+      /** @default {} */
+      address: {
+        [key: string]: unknown;
+      };
+      /** Format: uuid */
+      ownerUserId?: string | null;
+    };
+    UpdateCompanyDto: {
+      name?: string;
+      domain?: string | null;
+      industry?: string | null;
+      /** @default {} */
+      address: {
+        [key: string]: unknown;
+      };
+      /** Format: uuid */
+      ownerUserId?: string | null;
+    };
+    DealListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          title: string;
+          pipelineId: string;
+          stageId: string;
+          contactId: string | null;
+          companyId: string | null;
+          contactName?: string | null;
+          companyName?: string | null;
+          value: {
+            amountMinor: string;
+            currency: string;
+          };
+          exchangeRate: number | null;
+          baseAmountMinor: string | null;
+          /** @enum {string} */
+          status: 'open' | 'won' | 'lost';
+          closedAt: string | null;
+          expectedCloseDate: string | null;
+          ownerUserId: string | null;
+          createdByUserId?: string | null;
+          updatedByUserId?: string | null;
+          createdAt?: string | null;
+          updatedAt?: string | null;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+        totalValueBaseMinor: string;
+      };
+    };
+    DealEnvelopeResponse: {
+      data: {
+        id: string;
+        title: string;
+        pipelineId: string;
+        stageId: string;
+        contactId: string | null;
+        companyId: string | null;
+        contactName?: string | null;
+        companyName?: string | null;
+        value: {
+          amountMinor: string;
+          currency: string;
+        };
+        exchangeRate: number | null;
+        baseAmountMinor: string | null;
+        /** @enum {string} */
+        status: 'open' | 'won' | 'lost';
+        closedAt: string | null;
+        expectedCloseDate: string | null;
+        ownerUserId: string | null;
+        createdByUserId?: string | null;
+        updatedByUserId?: string | null;
+        createdAt?: string | null;
+        updatedAt?: string | null;
       };
     };
     CreateDealDto: {
@@ -1441,27 +1697,6 @@ export interface components {
       /** Format: uuid */
       ownerUserId?: string | null;
     };
-    DealEnvelopeResponse: {
-      data: {
-        id: string;
-        title: string;
-        pipelineId: string;
-        stageId: string;
-        contactId: string | null;
-        companyId: string | null;
-        value: {
-          amountMinor: string;
-          currency: string;
-        };
-        exchangeRate: number | null;
-        baseAmountMinor: string | null;
-        /** @enum {string} */
-        status: 'open' | 'won' | 'lost';
-        closedAt: string | null;
-        expectedCloseDate: string | null;
-        ownerUserId: string | null;
-      };
-    };
     MoveDealStageDto: {
       /** Format: uuid */
       toStageId: string;
@@ -1471,6 +1706,33 @@ export interface components {
       /** @enum {string} */
       outcome: 'won' | 'lost';
       lostReasonCode?: string | null;
+    };
+    ActivityListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          /** @enum {string} */
+          type: 'call' | 'meeting' | 'task' | 'email';
+          subject: string;
+          dueAt: string | null;
+          completedAt: string | null;
+          relatedType: string | null;
+          relatedId: string | null;
+          assignedToUserId: string | null;
+          relatedName?: string | null;
+          dealStageId?: string | null;
+          dealStageNameI18n?: {
+            [key: string]: string;
+          } | null;
+          createdByUserId?: string | null;
+          updatedByUserId?: string | null;
+          createdAt?: string | null;
+          updatedAt?: string | null;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
     };
     CreateActivityDto: {
       /** @enum {string} */
@@ -1496,6 +1758,57 @@ export interface components {
         relatedType: string | null;
         relatedId: string | null;
         assignedToUserId: string | null;
+        relatedName?: string | null;
+        dealStageId?: string | null;
+        dealStageNameI18n?: {
+          [key: string]: string;
+        } | null;
+        createdByUserId?: string | null;
+        updatedByUserId?: string | null;
+        createdAt?: string | null;
+        updatedAt?: string | null;
+      };
+    };
+    UpdateActivityDto: {
+      /** @enum {string} */
+      type?: 'call' | 'meeting' | 'task' | 'email';
+      subject?: string;
+      /** Format: date-time */
+      dueAt?: string | null;
+      /** Format: uuid */
+      assignedToUserId?: string | null;
+    };
+    CreateNoteDto: {
+      body: string;
+      /** @enum {string} */
+      relatedType: 'contact' | 'company' | 'deal' | 'activity';
+      /** Format: uuid */
+      relatedId: string;
+    };
+    NoteEnvelopeResponse: {
+      data: {
+        id: string;
+        body: string;
+        relatedType: string;
+        relatedId: string;
+        createdAt: string;
+        updatedAt: string;
+        createdByUserId: string | null;
+        createdByName: string | null;
+      };
+    };
+    NoteListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          body: string;
+          relatedType: string;
+          relatedId: string;
+          createdAt: string;
+          updatedAt: string;
+          createdByUserId: string | null;
+          createdByName: string | null;
+        }[];
       };
     };
   };
@@ -2645,6 +2958,30 @@ export interface operations {
       };
     };
   };
+  ContactsController_list: {
+    parameters: {
+      query: {
+        search: string;
+        companyId: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContactListEnvelopeResponse'];
+        };
+      };
+    };
+  };
   ContactsController_create: {
     parameters: {
       query?: never;
@@ -2659,6 +2996,27 @@ export interface operations {
     };
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContactEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ContactsController_getById: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -2716,6 +3074,127 @@ export interface operations {
       };
     };
   };
+  CompaniesController_list: {
+    parameters: {
+      query: {
+        search: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CompanyListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  CompaniesController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateCompanyDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CompanyEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  CompaniesController_getById: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CompanyEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  CompaniesController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateCompanyDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CompanyEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  DealsController_list: {
+    parameters: {
+      query: {
+        search: string;
+        stageId: string;
+        status: string;
+        fromDate: string;
+        toDate: string;
+        sortBy: string;
+        sortDir: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DealListEnvelopeResponse'];
+        };
+      };
+    };
+  };
   DealsController_create: {
     parameters: {
       query?: never;
@@ -2730,6 +3209,27 @@ export interface operations {
     };
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DealEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  DealsController_getById: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -2810,6 +3310,34 @@ export interface operations {
       };
     };
   };
+  ActivitiesController_list: {
+    parameters: {
+      query: {
+        search: string;
+        fromDate: string;
+        toDate: string;
+        assigneeUserId: string;
+        unassigned: string;
+        completed: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ActivityListEnvelopeResponse'];
+        };
+      };
+    };
+  };
   ActivitiesController_create: {
     parameters: {
       query?: never;
@@ -2824,6 +3352,52 @@ export interface operations {
     };
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ActivityEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ActivitiesController_getById: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ActivityEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  ActivitiesController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateActivityDto'];
+      };
+    };
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -2850,6 +3424,68 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ActivityEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PipelinesController_getDefault: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  NotesController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateNoteDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NoteEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  NotesController_listByRelated: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        relatedType: string;
+        relatedId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NoteListEnvelopeResponse'];
         };
       };
     };

@@ -85,6 +85,15 @@ export class DrizzleBillingRepository implements BillingRepository {
     return this.rowToSubscription(row);
   }
 
+  async getOrganizationBaseCurrency(organizationId: string, _tx?: TxOrDb): Promise<string | undefined> {
+    // core_organizations is a global (non-RLS) table — a plain read is safe.
+    const rows = await this.db.execute<{ base_currency: string | null }>(
+      sql`SELECT base_currency FROM core_organizations WHERE id = ${organizationId} LIMIT 1`,
+    );
+    const row = rows[0];
+    return row?.base_currency ?? undefined;
+  }
+
   async findModuleByStripePriceKey(priceKey: string, tx?: TxOrDb): Promise<{ key: string } | undefined> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(

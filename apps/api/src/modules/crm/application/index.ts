@@ -7,4 +7,18 @@ export { EnsureDefaultPipelineUseCase } from './ensure-default-pipeline.use-case
 export { MergeContactsUseCase } from './merge-contacts.use-case.js';
 export { MoveDealStageUseCase } from './move-deal-stage.use-case.js';
 export { ReopenDealUseCase } from './reopen-deal.use-case.js';
+export { UpdateActivityUseCase } from './update-activity.use-case.js';
 export { UpdateContactUseCase } from './update-contact.use-case.js';
+export {
+  CreateCompanyUseCase,
+  GetActivityUseCase,
+  GetCompanyUseCase,
+  GetContactUseCase,
+  GetDealUseCase,
+  GetPipelineBoardUseCase,
+  ListActivitiesUseCase,
+  ListCompaniesUseCase,
+  ListContactsUseCase,
+  ListDealsUseCase,
+  UpdateCompanyUseCase,
+} from './crm-queries.use-cases.js';

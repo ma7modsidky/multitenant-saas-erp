@@ -53,12 +53,12 @@ export class DrizzleContactRepository implements ContactRepository {
     const rows = await db.execute<Record<string, unknown>>(
       sql`
         INSERT INTO ${this.table}
-          (id, organization_id, first_name, last_name, email, phone, company_id,
+          (id, organization_id, first_name, last_name, email, phone, secondary_phone, company_id,
            owner_user_id, preferred_locale, preferred_currency,
            created_at, updated_at, created_by, updated_by)
         VALUES
           (${data.id}, ${data.organizationId}, ${data.firstName}, ${data.lastName},
-           ${data.email}, ${data.phone}, ${data.companyId},
+           ${data.email}, ${data.phone}, ${data.secondaryPhone}, ${data.companyId},
            ${data.ownerUserId}, ${data.preferredLocale}, ${data.preferredCurrency},
            ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)}, ${data.createdBy}, ${data.updatedBy})
         RETURNING *
@@ -77,6 +77,7 @@ export class DrizzleContactRepository implements ContactRepository {
     if (data.lastName !== undefined) setFragments.push(sql`last_name = ${data.lastName}`);
     if (data.email !== undefined) setFragments.push(sql`email = ${data.email}`);
     if (data.phone !== undefined) setFragments.push(sql`phone = ${data.phone}`);
+    if (data.secondaryPhone !== undefined) setFragments.push(sql`secondary_phone = ${data.secondaryPhone}`);
     if (data.companyId !== undefined) setFragments.push(sql`company_id = ${data.companyId}`);
     if (data.ownerUserId !== undefined) setFragments.push(sql`owner_user_id = ${data.ownerUserId}`);
     if (data.preferredLocale !== undefined) setFragments.push(sql`preferred_locale = ${data.preferredLocale}`);
@@ -108,6 +109,7 @@ export class DrizzleContactRepository implements ContactRepository {
       lastName: row.last_name as string,
       email: (row.email as string | null) ?? null,
       phone: (row.phone as string | null) ?? null,
+      secondaryPhone: (row.secondary_phone as string | null) ?? null,
       ownerUserId: (row.owner_user_id as string | null) ?? null,
       preferredLocale: (row.preferred_locale as string | null) ?? null,
       preferredCurrency: (row.preferred_currency as string | null) ?? null,

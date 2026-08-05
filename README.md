@@ -8,10 +8,12 @@ Think of it as a modern, opinionated alternative to Odoo: far simpler, genuinely
 multi-language (including RTL) and multi-currency from day one, and architected
 so that adding the tenth module is as cheap as adding the third.
 
-> **Status: Phases 0–3 complete.** Stack and architecture locked; core kernel,
-> platform capabilities, frontend shell, and the module framework + generator
-> are built and tested. **AI agents and new contributors: read
-> [AGENTS.md](./AGENTS.md) first.**
+> **Status: Phases 0–3 complete; Phase 4 CRM implementation complete through
+> registration and documentation, with final DoD verification in progress.**
+> Stack and architecture are locked; the core kernel, platform capabilities,
+> frontend shell, module framework, generator, and full-stack CRM module are
+> built. **AI agents and new contributors: read [AGENTS.md](./AGENTS.md)
+> first.**
 
 ---
 
@@ -39,7 +41,7 @@ Full detail, including rejected alternatives:
 | Module                                                  | Key         | Status  | Depends on         |
 | ------------------------------------------------------- | ----------- | ------- | ------------------ |
 | Platform core (orgs, users, RBAC, billing, audit, i18n) | —           | MVP     | —                  |
-| CRM                                                     | `crm`       | Planned | —                  |
+| CRM                                                     | `crm`       | Beta    | —                  |
 | Inventory                                               | `inventory` | Planned | —                  |
 | Point of Sale                                           | `pos`       | Planned | `inventory`        |
 | E-commerce                                              | `ecommerce` | Planned | `inventory`        |

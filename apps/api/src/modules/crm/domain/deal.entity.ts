@@ -199,7 +199,10 @@ export class Deal {
         'A closed deal must be reopened before its stage can change again.',
       );
     }
-    if (opts.toStageIsLost && (opts.lostReasonCode === undefined || opts.lostReasonCode === null)) {
+    if (
+      opts.toStageIsLost &&
+      (opts.lostReasonCode === undefined || opts.lostReasonCode === null || opts.lostReasonCode.trim() === '')
+    ) {
       throw new CrmError(
         CRM_ERROR_CODE.LOST_REASON_REQUIRED,
         'Moving a deal to a lost stage requires a lost_reason_code.',

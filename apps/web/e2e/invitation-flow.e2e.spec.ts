@@ -70,11 +70,12 @@ test('AUTH-3/AUTH-9: invite → signup (locked email) → login → auto-accept'
   await owner.fill('#invite-name', 'Invitee User');
   await owner.fill('#invite-email', memberEmail);
   // The fresh org seeds all five system roles (AUTH-10 + migration 0010):
-  // option index 0 is the disabled placeholder, 1..5 are the roles.
-  await expect(owner.locator('#invite-role option')).toHaveCount(6);
+  // the custom dropdown shows the disabled placeholder + 5 roles.
+  await owner.locator('#invite-role').click();
+  await expect(owner.getByRole('option')).toHaveCount(6);
   // Pick the 'member' role by label (not index) so the invitee lands as a
   // non-owner member — exercising the full role matrix from the dropdown.
-  await owner.selectOption('#invite-role', { label: 'Member' });
+  await owner.getByRole('option', { name: 'Member' }).click();
   await owner.getByRole('button', { name: 'Send invitation' }).click();
   const inviteResp = await inviteResponse;
   // eslint-disable-next-line no-restricted-syntax -- unavoidable JSON boundary cast in the E2E test

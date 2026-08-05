@@ -124,6 +124,22 @@ describe('CRM-7: moving to a lost stage requires a reason code', () => {
     );
   });
 
+  it('rejects moving to a lost stage with a blank reason code', () => {
+    const deal = Deal.create(makeDealData());
+    expectCrmError(
+      () =>
+        deal.moveToStage({
+          toStageId: 'stage-3',
+          toStageIsWon: false,
+          toStageIsLost: true,
+          movedBy: 'user-1',
+          at: new Date('2026-01-05T00:00:00Z'),
+          lostReasonCode: '   ',
+        }),
+      CRM_ERROR_CODE.LOST_REASON_REQUIRED,
+    );
+  });
+
   it('accepts moving to a lost stage with a reason code', () => {
     const deal = Deal.create(makeDealData());
     deal.moveToStage({

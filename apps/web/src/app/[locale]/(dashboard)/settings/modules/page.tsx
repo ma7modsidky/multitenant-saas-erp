@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ export default function ModulesSettingsPage() {
   const t = useTranslations();
   const queryClient = useQueryClient();
   const { organizationId } = useSession();
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   const { data: catalog } = useQuery({ queryKey: ['module-catalog'], queryFn: getModuleCatalog });
   const { data: billing } = useEntitlements();
@@ -29,25 +31,32 @@ export default function ModulesSettingsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['entitlements'] });
 
   const handleStartTrial = async (moduleKey: string) => {
+    setErrorCode(null);
     try {
       await enableModuleTrial(organizationId, moduleKey);
       await invalidate();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'NETWORK_ERROR') {
         window.alert(t('auth.errors.network'));
+        return;
       }
+      // Surface the backend error code so a failed trial is never silent.
+      setErrorCode(err instanceof ApiError ? err.code : 'UNKNOWN');
     }
   };
 
   const handleDisable = async (moduleKey: string) => {
     if (!window.confirm(t('billing.confirmDisable'))) return;
+    setErrorCode(null);
     try {
       await disableBillingModule(organizationId, moduleKey);
       await invalidate();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'NETWORK_ERROR') {
         window.alert(t('auth.errors.network'));
+        return;
       }
+      setErrorCode(err instanceof ApiError ? err.code : 'UNKNOWN');
     }
   };
 
@@ -57,6 +66,15 @@ export default function ModulesSettingsPage() {
         <h1 className="text-2xl font-bold tracking-tight">{t('settings.sections.modules')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('settings.descriptions.modules')}</p>
       </div>
+
+      {errorCode && (
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {t('modules.startTrialError', { code: errorCode })}
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {(catalog ?? []).map((mod) => {

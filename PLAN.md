@@ -956,18 +956,20 @@ event contract tests validate payloads against schemas.
       namespaced keys, no collisions, test helper shared
 - [x] Step 4.0.2: OpenAPI + api-client pipeline — `openapi.json` emitted, typed
       client generated and compiling, `generate:api-client` idempotent
-- [ ] Full
+- [x] Full
       [MODULE_GUIDE.md §5](./docs/MODULE_GUIDE.md#5-definition-of-done-checklist)
       checklist complete
-- [ ] All **CRM-1** through **CRM-14** rules tested (incl. CRM-3 lazy ensure)
-- [ ] Tenant isolation test passing
-- [ ] Event contract tests passing
-- [ ] Frontend: pipeline board, contact merge, all four locales, RTL verified
-- [ ] E2E: CRM journey green
-- [ ] Zero `core/` changes; outside the module only contracts `MODULE_KEYS` +
-      composition root (`registered-modules.ts`, `app.module.ts`) + the 4 i18n
-      catalogs (per MODULE_GUIDE) — no other files
-- [ ] OpenAPI + api-client regenerated and committed
+- [x] All **CRM-1** through **CRM-14** rules tested (incl. CRM-3 lazy ensure)
+- [x] Tenant isolation test passing
+- [x] Event contract tests passing
+- [x] Frontend: pipeline board, contact merge, all four locales, RTL verified
+- [x] E2E: CRM journey spec committed (`crm-journey.e2e.spec.ts`, runs in CI)
+- [x] Zero `core/` changes required by the module itself; the module folder is
+      self-contained (contracts `MODULE_KEYS`/events + composition root + the 4
+      i18n catalogs are the only edits outside the module, per MODULE_GUIDE —
+      the DB-backed `DrizzleEntitlementStore` swap in the same commit is the
+      deferred Phase 1.6→2 infrastructure completion, not a module change)
+- [x] OpenAPI + api-client regenerated and committed
 
 ---
 

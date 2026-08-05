@@ -54,6 +54,32 @@ export class DrizzleNoteRepository implements NoteRepository {
     };
   }
 
+  async listByRelated(relatedType: string, relatedId: string, tx?: TxOrDb): Promise<NoteData[]> {
+    const db = this.getDb(tx);
+    const rows = await db.execute<Record<string, unknown>>(sql`
+      SELECT n.id, n.organization_id, n.body, n.related_type, n.related_id,
+             n.created_at, n.updated_at, n.created_by, n.updated_by, n.deleted_at,
+             u.name AS created_by_name
+      FROM ${this.table} n
+      LEFT JOIN core_users u ON u.id = n.created_by
+      WHERE n.related_type = ${relatedType} AND n.related_id = ${relatedId} AND n.deleted_at IS NULL
+      ORDER BY n.created_at DESC
+    `);
+    return rows.map((row) => ({
+      id: row.id as string,
+      organizationId: row.organization_id as string,
+      body: row.body as string,
+      relatedType: row.related_type as string,
+      relatedId: row.related_id as string,
+      createdAt: fromDbDate(row.created_at) as Date,
+      updatedAt: fromDbDate(row.updated_at) as Date,
+      createdBy: (row.created_by as string | null) ?? null,
+      updatedBy: (row.updated_by as string | null) ?? null,
+      deletedAt: fromDbDate(row.deleted_at),
+      createdByName: (row.created_by_name as string | null) ?? null,
+    }));
+  }
+
   async reassignRelated(relatedType: string, fromId: string, toId: string, tx?: TxOrDb): Promise<number> {
     const db = this.getDb(tx);
     const result = await db.execute<Record<string, unknown>>(

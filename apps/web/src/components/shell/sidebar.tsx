@@ -1,24 +1,31 @@
 'use client';
 
 import {
-  LayoutDashboard,
-  Settings,
+  Activity,
+  BarChart3,
   Building2,
-  Users,
-  Shield,
-  CreditCard,
-  ScrollText,
-  Puzzle,
-  Package,
-  DollarSign,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  CreditCard,
+  DollarSign,
+  Handshake,
+  LayoutDashboard,
+  Package,
+  Puzzle,
+  ScrollText,
   Search,
+  Settings,
+  Shield,
+  Users,
+  Warehouse,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 import { useSession } from '@/lib/auth/session-context';
 import { useNavigation } from '@/lib/entitlements';
@@ -36,15 +43,39 @@ interface NavItem {
   exact?: boolean;
 }
 
+/** One module's links — rendered as a collapsible parent in the Modules section. */
+interface ModuleNavGroup {
+  moduleKey: string;
+  label: string;
+  icon: LucideIcon;
+  items: NavItem[];
+}
+
 interface NavSection {
   label: string;
   items: NavItem[];
+  /** When set, the section renders collapsible module dropdowns instead of a flat list. */
+  groups?: ModuleNavGroup[];
 }
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   crm: Users,
   inventory: Package,
   pos: DollarSign,
+};
+
+// Nav item icon names come from the module descriptors (NavigationItem.icon).
+const NAV_ICONS: Record<string, LucideIcon> = {
+  activity: Activity,
+  'bar-chart': BarChart3,
+  building: Building2,
+  clock: Clock,
+  contact: Users,
+  'credit-card': CreditCard,
+  package: Package,
+  target: Handshake,
+  users: Users,
+  warehouse: Warehouse,
 };
 
 interface SidebarProps {
@@ -60,6 +91,22 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
 
   // Extract locale from pathname
   const locale = pathname.split('/')[1] ?? 'en';
+
+  // Which module dropdowns are open. The module owning the active route is
+  // auto-expanded on navigation; manual collapses elsewhere are preserved.
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!navigation) return;
+    const activeKey = navigation.find((group) =>
+      group.items.some((item) => {
+        const href = `/${locale}${item.href}`;
+        return pathname === href || pathname.startsWith(href + '/');
+      }),
+    )?.moduleKey;
+    if (!activeKey) return;
+    setExpandedModules((prev) => (prev[activeKey] ? prev : { ...prev, [activeKey]: true }));
+  }, [pathname, navigation, locale]);
 
   // AUTHZ-5/BUSINESS_RULES §3: platform-management settings are OWNER/ADMIN
   // only. The backend enforces this via @RequiresPermission; the sidebar hides
@@ -81,20 +128,30 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     { icon: Settings, label: t('nav.settings'), href: `/${locale}/settings`, exact: true },
   ];
 
-  const navSections: NavSection[] = [{ label: t('nav.platform'), items: platformItems }];
-
-  if (organizationId !== null && navigation && navigation.length > 0) {
-    navSections.push({
-      label: t('nav.modulesLabel'),
-      items: navigation.flatMap((group) =>
-        group.items.map((item) => ({
-          icon: MODULE_ICONS[group.moduleKey] ?? Puzzle,
+  // Group each entitled module's links under its own parent instead of one
+  // flat list — e.g. CRM → Contacts / Companies / Deals / Activities.
+  const moduleGroups: ModuleNavGroup[] =
+    navigation
+      ?.filter((group) => group.items.length > 0)
+      .map((group) => ({
+        moduleKey: group.moduleKey,
+        label: t(group.labelKey),
+        icon: MODULE_ICONS[group.moduleKey] ?? Puzzle,
+        items: group.items.map((item) => ({
+          icon: (item.icon && NAV_ICONS[item.icon]) || MODULE_ICONS[group.moduleKey] || Puzzle,
           label: t(item.labelKey),
           href: `/${locale}${item.href}`,
         })),
-      ),
-    });
+      })) ?? [];
+
+  const navSections: NavSection[] = [{ label: t('nav.platform'), items: platformItems }];
+
+  if (moduleGroups.length > 0) {
+    navSections.push({ label: t('nav.modulesLabel'), items: [], groups: moduleGroups });
   }
+
+  const toggleModule = (moduleKey: string) =>
+    setExpandedModules((prev) => ({ ...prev, [moduleKey]: !prev[moduleKey] }));
 
   return (
     <aside
@@ -132,36 +189,114 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                 {section.label}
               </p>
             )}
-            <ul className="space-y-0.5">
-              {section.items.map((item) => {
-                // Hub items (dashboard root, settings) only highlight on the
-                // exact path — a prefix match on `/${locale}/` would light the
-                // dashboard up on every page, and the settings hub would
-                // double-highlight alongside its sub-items. Other items
-                // highlight on exact or child routes.
-                const isActive = item.exact
-                  ? pathname === item.href
-                  : pathname === item.href || pathname.startsWith(item.href + '/');
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-accent text-accent-foreground'
-                          : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
-                        collapsed && 'justify-center px-2',
+            {section.groups && section.groups.length > 0 ? (
+              <ul className="space-y-0.5">
+                {section.groups.map((group) => {
+                  const isOpen = expandedModules[group.moduleKey] ?? false;
+                  const groupActive = group.items.some(
+                    (item) => pathname === item.href || pathname.startsWith(item.href + '/'),
+                  );
+                  if (collapsed) {
+                    // Collapsed rail has no room for dropdowns — flatten each
+                    // module's links into icon-only shortcuts (tooltip = label).
+                    return group.items.map((item) => (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          className="flex items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-accent-foreground"
+                          title={item.label}
+                        >
+                          <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                        </Link>
+                      </li>
+                    ));
+                  }
+                  return (
+                    <li key={group.moduleKey}>
+                      <button
+                        type="button"
+                        onClick={() => toggleModule(group.moduleKey)}
+                        aria-expanded={isOpen}
+                        aria-controls={`sidebar-module-${group.moduleKey}`}
+                        className={cn(
+                          'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                          groupActive
+                            ? 'text-accent-foreground'
+                            : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+                        )}
+                      >
+                        <group.icon className="size-4 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{group.label}</span>
+                        <ChevronDown
+                          className={cn(
+                            'ms-auto size-4 shrink-0 text-muted-foreground transition-transform',
+                            isOpen && 'rotate-180',
+                          )}
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {isOpen && (
+                        <ul id={`sidebar-module-${group.moduleKey}`} className="mt-0.5 space-y-0.5">
+                          {group.items.map((item) => {
+                            // Child routes (e.g. /m/crm/deals/table) highlight
+                            // their parent page link via the prefix match.
+                            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                            return (
+                              <li key={item.href}>
+                                <Link
+                                  href={item.href}
+                                  className={cn(
+                                    'ms-6 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                                    isActive
+                                      ? 'bg-accent text-accent-foreground'
+                                      : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+                                  )}
+                                  title={collapsed ? item.label : undefined}
+                                >
+                                  <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                                  <span className="truncate">{item.label}</span>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
-                      title={collapsed ? item.label : undefined}
-                    >
-                      <item.icon className="size-4 shrink-0" aria-hidden="true" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <ul className="space-y-0.5">
+                {section.items.map((item) => {
+                  // Hub items (dashboard root, settings) only highlight on the
+                  // exact path — a prefix match on `/${locale}/` would light the
+                  // dashboard up on every page, and the settings hub would
+                  // double-highlight alongside its sub-items. Other items
+                  // highlight on exact or child routes.
+                  const isActive = item.exact
+                    ? pathname === item.href
+                    : pathname === item.href || pathname.startsWith(item.href + '/');
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-accent text-accent-foreground'
+                            : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+                          collapsed && 'justify-center px-2',
+                        )}
+                        title={collapsed ? item.label : undefined}
+                      >
+                        <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         ))}
 

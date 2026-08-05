@@ -151,11 +151,12 @@ describe('AuditLogSettingsPage — rendering + filters', () => {
     await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument());
 
     const entityFilter = screen.getByRole('combobox', { name: 'All entity types' });
-    await user.selectOptions(entityFilter, 'invitation');
+    await user.click(entityFilter);
+    await user.click(await screen.findByRole('option', { name: 'invitation' }));
 
     // The filter control reflects the change (the query is server-driven via
     // the query key; the mocked query returns all entries regardless).
-    expect(entityFilter).toHaveValue('invitation');
+    expect(entityFilter).toHaveTextContent('invitation');
   });
 
   it('shows the empty state when there are no entries', async () => {

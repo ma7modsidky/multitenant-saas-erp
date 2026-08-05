@@ -57,8 +57,22 @@ export class FakeStripeAdapter implements StripePort {
     subscriptionId: string;
     priceKey: string;
   }): Promise<{ subscriptionItemId: string }> {
-    const sub = this.subscriptions.get(params.subscriptionId);
-    if (!sub) throw new Error(`FakeStripe: Subscription ${params.subscriptionId} not found`);
+    let sub = this.subscriptions.get(params.subscriptionId);
+    if (!sub) {
+      // Dev resilience: the subscription row may have been created by a
+      // previous process (this in-memory store resets on restart). Synthesize
+      // a matching entry so trial flows keep working against an existing
+      // locally-created subscription instead of failing with a 500.
+      sub = {
+        id: params.subscriptionId,
+        customerId: 'cus_fake_unknown',
+        billingCurrency: 'USD',
+        items: [],
+        status: 'active',
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      };
+      this.subscriptions.set(params.subscriptionId, sub);
+    }
 
     const itemId = `si_fake_${crypto.randomUUID().slice(0, 8)}`;
     sub.items.push({ id: itemId, priceKey: params.priceKey });

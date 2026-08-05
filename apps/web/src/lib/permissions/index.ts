@@ -4,6 +4,10 @@
 // action on any level implies all actions below it, and the literal key
 // `manage` grants everything within its scope.
 
+import type { ReactNode } from 'react';
+
+import { useSession } from '../auth/session-context';
+
 export type PermissionKey = string;
 
 /**
@@ -25,4 +29,17 @@ export function hasPermission(granted: readonly string[], required: PermissionKe
     if (action === '*' || action === 'manage') return true;
     return action === reqAction;
   });
+}
+
+export function Can({
+  permission,
+  children,
+  fallback = null,
+}: {
+  permission: PermissionKey;
+  children: ReactNode;
+  fallback?: ReactNode;
+}): ReactNode {
+  const { permissions } = useSession();
+  return hasPermission(permissions, permission) ? children : fallback;
 }

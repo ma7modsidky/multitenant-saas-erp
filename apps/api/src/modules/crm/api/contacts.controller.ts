@@ -1,15 +1,22 @@
 import { MODULE_KEYS } from '@modubiz/contracts';
-import { Body, Controller, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { Audit } from '../../../core/audit/__init__.js';
 import { RequiresModule, RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
-import { CreateContactUseCase, MergeContactsUseCase, UpdateContactUseCase } from '../application/index.js';
+import {
+  CreateContactUseCase,
+  GetContactUseCase,
+  ListContactsUseCase,
+  MergeContactsUseCase,
+  UpdateContactUseCase,
+} from '../application/index.js';
 
 import {
   ContactEnvelopeResponse,
+  ContactListEnvelopeResponse,
   CreateContactDto,
   MergeContactsDto,
   MergeEnvelopeResponse,
@@ -34,10 +41,40 @@ import {
 @RequiresModule(MODULE_KEYS.CRM)
 export class ContactsController {
   constructor(
+    private readonly listContactsUseCase: ListContactsUseCase,
+    private readonly getContactUseCase: GetContactUseCase,
     private readonly createContactUseCase: CreateContactUseCase,
     private readonly updateContactUseCase: UpdateContactUseCase,
     private readonly mergeContactsUseCase: MergeContactsUseCase,
   ) {}
+
+  @Get()
+  @ApiOkResponse({ type: ContactListEnvelopeResponse })
+  @RequiresPermission('crm:contact:read')
+  async list(
+    @Query('search') search?: string,
+    @Query('companyId') companyId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ): Promise<{ data: { items: Record<string, unknown>[]; total: number; page: number; pageSize: number } }> {
+    const result = await this.listContactsUseCase.execute({
+      ...(search !== undefined ? { search } : {}),
+      ...(companyId !== undefined ? { companyId } : {}),
+      ...(page !== undefined ? { page: Number(page) } : {}),
+      ...(pageSize !== undefined ? { pageSize: Number(pageSize) } : {}),
+    });
+    return { data: result };
+  }
+
+  /**
+   * GET /v1/crm/contacts/:id — contact detail.
+   */
+  @Get(':id')
+  @ApiOkResponse({ type: ContactEnvelopeResponse })
+  @RequiresPermission('crm:contact:read')
+  async getById(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
+    return { data: await this.getContactUseCase.execute(id) };
+  }
 
   /**
    * POST /v1/crm/contacts — create a contact (CRM-1/CRM-2).
@@ -53,6 +90,7 @@ export class ContactsController {
       lastName: dto.lastName,
       email: dto.email ?? null,
       phone: dto.phone ?? null,
+      secondaryPhone: dto.secondaryPhone ?? null,
       companyId: dto.companyId ?? null,
       ownerUserId: dto.ownerUserId ?? null,
       preferredLocale: dto.preferredLocale ?? null,
@@ -78,6 +116,7 @@ export class ContactsController {
       lastName?: string;
       email?: string | null;
       phone?: string | null;
+      secondaryPhone?: string | null;
       companyId?: string | null;
       ownerUserId?: string | null;
       preferredLocale?: string | null;
@@ -87,6 +126,7 @@ export class ContactsController {
     if (dto.lastName !== undefined) input.lastName = dto.lastName;
     if (dto.email !== undefined) input.email = dto.email;
     if (dto.phone !== undefined) input.phone = dto.phone;
+    if (dto.secondaryPhone !== undefined) input.secondaryPhone = dto.secondaryPhone;
     if (dto.companyId !== undefined) input.companyId = dto.companyId;
     if (dto.ownerUserId !== undefined) input.ownerUserId = dto.ownerUserId;
     if (dto.preferredLocale !== undefined) input.preferredLocale = dto.preferredLocale;
@@ -124,6 +164,7 @@ function toContactResponse(data: {
   lastName: string;
   email: string | null;
   phone: string | null;
+  secondaryPhone: string | null;
   companyId: string | null;
   ownerUserId: string | null;
   preferredLocale: string | null;
@@ -135,6 +176,7 @@ function toContactResponse(data: {
     lastName: data.lastName,
     email: data.email,
     phone: data.phone,
+    secondaryPhone: data.secondaryPhone,
     companyId: data.companyId,
     ownerUserId: data.ownerUserId,
     preferredLocale: data.preferredLocale,

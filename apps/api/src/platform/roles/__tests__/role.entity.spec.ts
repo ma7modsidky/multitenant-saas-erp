@@ -1,3 +1,4 @@
+import { ALL_PERMISSIONS } from '@modubiz/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -223,6 +224,44 @@ describe('SYSTEM_ROLE_PERMISSIONS role matrix', () => {
       const extra = higher.filter((p) => !lower.includes(p));
       expect(extra.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('SYSTEM_ROLE_PERMISSIONS — module permission grants (BUSINESS_RULES §3)', () => {
+  const modulePermissions = Object.values(ALL_PERMISSIONS);
+
+  it('every registered module permission is granted to OWNER and ADMIN', () => {
+    for (const roleKey of [SYSTEM_ROLES.OWNER, SYSTEM_ROLES.ADMIN]) {
+      const perms = SYSTEM_ROLE_PERMISSIONS[roleKey]!;
+      for (const perm of modulePermissions) {
+        expect(perms).toContain(perm);
+      }
+    }
+  });
+
+  it('MANAGER receives module configuration (pipelines) and data permissions', () => {
+    const managerPerms = SYSTEM_ROLE_PERMISSIONS[SYSTEM_ROLES.MANAGER]!;
+    expect(managerPerms).toContain('crm:contact:read');
+    expect(managerPerms).toContain('crm:deal:write');
+    // Module configuration (pipelines) is granted to MANAGER per the matrix.
+    expect(managerPerms).toContain('crm:pipeline:manage');
+  });
+
+  it('MEMBER has module data read/write but no module configuration', () => {
+    const memberPerms = SYSTEM_ROLE_PERMISSIONS[SYSTEM_ROLES.MEMBER]!;
+    expect(memberPerms).toContain('crm:contact:read');
+    expect(memberPerms).toContain('crm:contact:write');
+    expect(memberPerms).toContain('crm:deal:write');
+    expect(memberPerms).not.toContain('crm:pipeline:manage');
+    expect(memberPerms).not.toContain('inventory:warehouse:write');
+  });
+
+  it('VIEWER has module data read only', () => {
+    const viewerPerms = SYSTEM_ROLE_PERMISSIONS[SYSTEM_ROLES.VIEWER]!;
+    expect(viewerPerms).toContain('crm:contact:read');
+    expect(viewerPerms).toContain('crm:deal:read');
+    expect(viewerPerms).not.toContain('crm:contact:write');
+    expect(viewerPerms).not.toContain('crm:pipeline:manage');
   });
 });
 

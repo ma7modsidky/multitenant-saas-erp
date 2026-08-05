@@ -14,6 +14,8 @@ export interface NoteData {
   createdBy: string | null;
   updatedBy: string | null;
   deletedAt: Date | null;
+  /** Resolved from core_users by the read method. */
+  createdByName?: string | null;
 }
 
 /**
@@ -24,6 +26,11 @@ export interface NoteData {
 export interface NoteRepository {
   /** Insert a note. */
   insert(data: NoteData, tx?: TxOrDb): Promise<NoteData>;
+
+  /**
+   * List notes attached to a related entity, newest first.
+   */
+  listByRelated(relatedType: string, relatedId: string, tx?: TxOrDb): Promise<NoteData[]>;
 
   /**
    * CRM-12: move all notes attached to `fromId` (as related_id) to `toId`.

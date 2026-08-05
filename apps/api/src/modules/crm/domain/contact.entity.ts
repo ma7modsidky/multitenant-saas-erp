@@ -14,6 +14,7 @@ export interface ContactData {
   lastName: string;
   email: string | null;
   phone: string | null;
+  secondaryPhone: string | null;
   ownerUserId: string | null;
   preferredLocale: string | null;
   preferredCurrency: string | null;
@@ -73,6 +74,9 @@ export class Contact {
   get phone(): string | null {
     return this.data.phone;
   }
+  get secondaryPhone(): string | null {
+    return this.data.secondaryPhone;
+  }
   get ownerUserId(): string | null {
     return this.data.ownerUserId;
   }
@@ -102,6 +106,7 @@ export class Contact {
     lastName?: string;
     email?: string | null;
     phone?: string | null;
+    secondaryPhone?: string | null;
     companyId?: string | null;
     ownerUserId?: string | null;
     preferredLocale?: string | null;
@@ -114,6 +119,7 @@ export class Contact {
       lastName: props.lastName ?? this.data.lastName,
       email: props.email === undefined ? this.data.email : props.email,
       phone: props.phone === undefined ? this.data.phone : props.phone,
+      secondaryPhone: props.secondaryPhone === undefined ? this.data.secondaryPhone : props.secondaryPhone,
       companyId: props.companyId === undefined ? this.data.companyId : props.companyId,
       ownerUserId: props.ownerUserId === undefined ? this.data.ownerUserId : props.ownerUserId,
       preferredLocale: props.preferredLocale === undefined ? this.data.preferredLocale : props.preferredLocale,

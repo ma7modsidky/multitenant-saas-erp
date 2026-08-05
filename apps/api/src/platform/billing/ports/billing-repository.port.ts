@@ -16,6 +16,13 @@ export interface BillingRepository {
   /** Update an existing subscription. */
   update(id: string, data: Partial<SubscriptionData>, tx?: TxOrDb): Promise<SubscriptionData | undefined>;
 
+  /**
+   * Read the organization's operational base currency (BILL-11: the billing
+   * currency is independent of it, but the subscription bootstrap uses it).
+   * `core_organizations` is a global table — no RLS context is required.
+   */
+  getOrganizationBaseCurrency(organizationId: string, tx?: TxOrDb): Promise<string | undefined>;
+
   // ─── Module Catalog ─────────────────────────────────────────────────────
 
   /** Get module catalog entry by key (stripe_price_key, depends_on, trial_days). */

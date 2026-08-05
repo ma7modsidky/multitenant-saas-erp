@@ -44,7 +44,7 @@ export class MoveDealStageUseCase {
   async execute(input: MoveDealStageInput): Promise<{ deal: Deal }> {
     const movedBy = TenantContext.requireUserId();
 
-    const result = await this.txManager.run(async (tx) => {
+    const committed = await this.txManager.run(async (tx) => {
       const existing = await this.dealRepo.findById(input.dealId, tx);
       if (!existing) {
         throw new NotFoundError('DEAL_NOT_FOUND', { dealId: input.dealId });
@@ -79,7 +79,8 @@ export class MoveDealStageUseCase {
       await this.dealRepo.appendHistory(entry, tx);
 
       const occurredAt = at.toISOString();
-      this.unitOfWork.addEvent({
+      const events: Array<Parameters<UnitOfWork['addEvent']>[0]> = [];
+      events.push({
         name: CRM_EVENTS.DEAL_STAGE_CHANGED_V1,
         payload: {
           organizationId: updated.organizationId,
@@ -93,23 +94,23 @@ export class MoveDealStageUseCase {
       });
 
       if (toStage.isWon) {
-        this.unitOfWork.addEvent({
+        events.push({
           name: CRM_EVENTS.DEAL_WON_V1,
           payload: {
             organizationId: updated.organizationId,
             dealId: updated.id,
             valueAmountMinor: updated.valueAmountMinor.toString(),
             valueCurrency: updated.valueCurrency,
-            ...(updated.exchangeRate !== null ? { exchangeRate: updated.exchangeRate.toString() } : {}),
+            ...(updated.exchangeRate !== null ? { exchangeRate: toPlainDecimal(updated.exchangeRate) } : {}),
             ...(updated.baseAmountMinor !== null ? { baseAmountMinor: updated.baseAmountMinor.toString() } : {}),
             closedAt: at.toISOString(),
-            ownerUserId: updated.ownerUserId ?? movedBy,
+            ownerUserId: updated.ownerUserId,
             occurredAt,
           } satisfies CrmDealWonV1,
           aggregateId: updated.id,
         });
       } else if (toStage.isLost) {
-        this.unitOfWork.addEvent({
+        events.push({
           name: CRM_EVENTS.DEAL_LOST_V1,
           payload: {
             organizationId: updated.organizationId,
@@ -118,18 +119,31 @@ export class MoveDealStageUseCase {
             // has no reason, so lostReasonCode is guaranteed set here.
             lostReasonCode: updated.lostReasonCode ?? '',
             closedAt: at.toISOString(),
-            ownerUserId: updated.ownerUserId ?? movedBy,
+            ownerUserId: updated.ownerUserId,
             occurredAt,
           } satisfies CrmDealLostV1,
           aggregateId: updated.id,
         });
       }
 
-      return { deal: Deal.fromPersistence(updated) };
+      return { result: { deal: Deal.fromPersistence(updated) }, events };
     });
 
-    // Events are published after the transaction commits (never before).
+    for (const event of committed.events) this.unitOfWork.addEvent(event);
     await this.unitOfWork.publishEvents();
-    return result;
+    return committed.result;
   }
+}
+
+function toPlainDecimal(value: number): string {
+  const text = value.toString();
+  if (!text.includes('e')) return text;
+  const [coefficient = '', exponentText = '0'] = text.split('e');
+  const exponent = Number(exponentText);
+  const [whole = '', fraction = ''] = coefficient.split('.');
+  const digits = whole + fraction;
+  const decimalIndex = whole.length + exponent;
+  if (decimalIndex <= 0) return `0.${'0'.repeat(-decimalIndex)}${digits}`;
+  if (decimalIndex >= digits.length) return `${digits}${'0'.repeat(decimalIndex - digits.length)}`;
+  return `${digits.slice(0, decimalIndex)}.${digits.slice(decimalIndex)}`;
 }

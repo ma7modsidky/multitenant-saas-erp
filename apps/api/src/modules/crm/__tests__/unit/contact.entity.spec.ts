@@ -11,6 +11,7 @@ function makeContactData(overrides: Partial<ContactData> = {}): ContactData {
     lastName: 'Lovelace',
     email: 'ada@example.com',
     phone: null,
+    secondaryPhone: null,
     ownerUserId: null,
     preferredLocale: null,
     preferredCurrency: null,

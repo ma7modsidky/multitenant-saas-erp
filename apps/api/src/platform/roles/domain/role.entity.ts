@@ -1,4 +1,7 @@
+import { ALL_PERMISSIONS } from '@modubiz/contracts';
+
 import { DomainError } from '../../../core/common/errors.js';
+
 import { SYSTEM_ROLE_IMMUTABLE, LAST_OWNER_ROLE, CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED } from './errors.js';
 
 /**
@@ -33,8 +36,55 @@ export const PLATFORM_PERMISSIONS = [
 ] as const;
 
 /**
+ * Module permission actions treated as "module configuration" per
+ * BUSINESS_RULES.md §3 (warehouses, registers, pipelines) — granted to
+ * OWNER/ADMIN/MANAGER only, never to MEMBER/VIEWER.
+ *
+ * Permissions whose action segment is `manage` are classified as config
+ * automatically; this set covers the write-style keys that still configure
+ * a module resource.
+ */
+const MODULE_CONFIG_EXTRA = new Set(['inventory:warehouse:write']);
+
+type ModulePermissionClass = 'read' | 'write' | 'config';
+
+/** Classify a module permission key (`<module>:<resource>:<action>`) by action. */
+function classifyModulePermission(permission: string): ModulePermissionClass {
+  const action = permission.split(':')[2];
+  if (action === 'read' || action === 'view') return 'read';
+  if (action === 'manage') return 'config';
+  return 'write';
+}
+
+const ALL_MODULE_PERMISSIONS = Object.values(ALL_PERMISSIONS);
+
+const MODULE_READ_PERMISSIONS = ALL_MODULE_PERMISSIONS.filter((p) => classifyModulePermission(p) === 'read');
+const MODULE_WRITE_PERMISSIONS = ALL_MODULE_PERMISSIONS.filter(
+  (p) => classifyModulePermission(p) === 'write' && !MODULE_CONFIG_EXTRA.has(p),
+);
+const MODULE_CONFIG_PERMISSIONS = ALL_MODULE_PERMISSIONS.filter(
+  (p) => classifyModulePermission(p) === 'config' || MODULE_CONFIG_EXTRA.has(p),
+);
+
+/** Module data read — every role including VIEWER. */
+const MODULE_DATA_READ = [...MODULE_READ_PERMISSIONS];
+/** Module data write — every role except VIEWER. */
+const MODULE_DATA_WRITE = [...MODULE_WRITE_PERMISSIONS];
+/** Module configuration — OWNER/ADMIN/MANAGER only. */
+const MODULE_CONFIG = [...MODULE_CONFIG_PERMISSIONS];
+/** Every registered module permission — full-access roles. */
+const ALL_MODULES = [...MODULE_DATA_READ, ...MODULE_DATA_WRITE, ...MODULE_CONFIG];
+
+/**
  * The built-in role-to-permission matrix for system roles.
  * Maps each system role key to its granted permissions.
+ *
+ * Module permissions are derived from the registered module descriptors
+ * (`@modubiz/contracts` ALL_PERMISSIONS) so adding a module does not require
+ * editing the matrix by hand — the classification follows BUSINESS_RULES.md §3:
+ *   - Module data read: all roles
+ *   - Module data write: all roles except VIEWER
+ *   - Module configuration (warehouses, registers, pipelines): OWNER/ADMIN/MANAGER
  *
  * @see BUSINESS_RULES.md §3 — Role matrix
  */
@@ -55,6 +105,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'platform:data:write',
     'platform:data:read',
     'platform:data:export',
+    ...ALL_MODULES,
   ],
   [SYSTEM_ROLES.ADMIN]: [
     'platform:billing:manage',
@@ -70,15 +121,17 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'platform:data:write',
     'platform:data:read',
     'platform:data:export',
+    ...ALL_MODULES,
   ],
   [SYSTEM_ROLES.MANAGER]: [
     'platform:module:configure',
     'platform:data:write',
     'platform:data:read',
     'platform:data:export',
+    ...ALL_MODULES,
   ],
-  [SYSTEM_ROLES.MEMBER]: ['platform:data:write', 'platform:data:read'],
-  [SYSTEM_ROLES.VIEWER]: ['platform:data:read'],
+  [SYSTEM_ROLES.MEMBER]: ['platform:data:write', 'platform:data:read', ...MODULE_DATA_READ, ...MODULE_DATA_WRITE],
+  [SYSTEM_ROLES.VIEWER]: ['platform:data:read', ...MODULE_DATA_READ],
 };
 
 /**

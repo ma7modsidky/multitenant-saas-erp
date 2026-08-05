@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { InMemoryEntitlementStore } from './entitlement-store.js';
+import { DrizzleEntitlementStore } from './drizzle-entitlement.store.js';
 import { EntitlementService } from './entitlement.service.js';
 
 /**
@@ -8,11 +8,12 @@ import { EntitlementService } from './entitlement.service.js';
  *
  * Provides:
  *   - EntitlementService  (injectable via class)
- *   - 'ENTITLEMENT_STORE' (injectable via token, default: InMemoryEntitlementStore)
+ *   - 'ENTITLEMENT_STORE' (injectable via token: DrizzleEntitlementStore)
  *
- * The entitlement store is abstracted behind IEntitlementStore so that
- * Phase 2+ can swap InMemoryEntitlementStore for DrizzleEntitlementStore
- * without changing any consuming code.
+ * The store is backed by core_module_entitlements (BILL-4: the runtime
+ * authority) so the EntitlementGuard sees trial/enable/disable writes made
+ * through the billing platform immediately. The InMemoryEntitlementStore
+ * (Phase 1.6 stub) remains available for unit tests.
  *
  * @see BILL-4 — core_module_entitlements is the runtime authority
  * @see ARCHITECTURE.md §3 — core/entitlements
@@ -22,7 +23,7 @@ import { EntitlementService } from './entitlement.service.js';
     EntitlementService,
     {
       provide: 'ENTITLEMENT_STORE',
-      useClass: InMemoryEntitlementStore,
+      useClass: DrizzleEntitlementStore,
     },
   ],
   exports: [EntitlementService, 'ENTITLEMENT_STORE'],

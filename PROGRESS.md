@@ -1,7 +1,8 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 29 — Phase 4 Step 4.6 complete (CRM API layer)
-**Current phase:** Phase 4 — CRM Module (Step 4.7 web UI pending)
+**Last updated:** Session 55 — Phase 4 CRM complete: grouped sidebar navigation,
+Arabic module name, phase marked done and committed. **Current phase:** Phase 5
+— Inventory Module (not started)
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -15,7 +16,7 @@
 | 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                |
 | 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                               |
 | 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19) |
-| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |     | 4 — CRM Module | 🔄 In progress | Steps 4.1–4.6: contracts, scaffold, schema, domain, application, API (Sessions 24–29) |
+| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |     | 4 — CRM Module | ✅ Complete | Full stack, contracts → UI (Sessions 24–55); DoD verified; committed |
 | 5 — Inventory Module                  | ⬜ Not started |                                                               |
 | 6 — POS Module                        | ⬜ Not started |                                                               |
 | 7 — Production Hardening & Deployment | ⬜ Not started |                                                               |
@@ -512,6 +513,806 @@
 ---
 
 ## Session log
+
+### Session 55 — Phase 4 CRM complete: grouped sidebar navigation, Arabic module name, commit + push
+
+- **Sidebar module dropdowns.** The Modules section of the sidebar now groups
+  each module's links under a collapsible parent instead of one flat list — CRM
+  → Contacts / Companies / Deals / Activities, Inventory → Products / Warehouses
+  / Stock. The parent row carries the module icon, name, and a rotating chevron
+  (`aria-expanded`); the module owning the active route auto-expands on
+  navigation while manual collapses elsewhere are preserved. Child links indent
+  with `ms-6` (RTL-safe) and keep per-page icons from a `NAV_ICONS` map
+  (descriptor icon strings → Lucide, module icon fallback); the collapsed rail
+  still flattens every page to an icon-only shortcut with a tooltip. New
+  `sidebar.test.tsx` covers nesting/toggle, auto-expand on a child route
+  (`/m/crm/deals/table`), and the collapsed rail (3 cases).
+- **Activities added to the CRM descriptor navigation.** The sidebar never
+  showed an Activities link (the descriptor only declared contacts/companies/
+  deals while the CRM page tabs include activities). Added
+  `{ labelKey: 'modules.crm.nav.activities', href: '/m/crm/activities', icon: 'activity' }`
+  to `crm.descriptor.ts` — `GetNavigationUseCase` reads descriptors directly, so
+  the sidebar (and any navigation consumer) picks it up with no migration.
+- **Arabic module name translated.** `modules.crm.name` was the raw acronym
+  `'CRM'` in Arabic; translated to `إدارة علاقات العملاء` so the sidebar
+  dropdown parent, marketplace, and dashboard cards localize.
+- **Pre-commit lint baselines cleared.** `git commit` runs lint-staged over
+  staged files; the commit was blocked by 7 errors in two tracked-to-be files:
+  the five `CompanyDetailView` address `as`-casts in details.tsx (replaced with
+  a typed `addressField` string-guard helper) and the two hooks.ts baselines
+  (`relatedId!` → `relatedId ?? ''` since `enabled` gates the query; the
+  notes-list `invalidateQueries` → `void …`). The staged-file lint dry-run is
+  now 0 errors.
+- **Phase 4 marked done.** PLAN.md Phase 4 DoD checklist fully checked; the
+  phase table and header moved to Phase 5. The commit also includes the
+  accumulated uncommitted platform work from earlier sessions (most notably the
+  DB-backed `DrizzleEntitlementStore` swap — the deferred Phase 1.6→2
+  infrastructure completion, not a module change). `repro-company-insert.mjs` (a
+  leftover local debug script) was left untracked.
+- **Validation.** API **1360/1360** · web **168/168** (incl. 3 new sidebar
+  cases + i18n parity) · i18n completeness 1/1 · typechecks clean · staged- file
+  lint 0 errors · Prettier clean · arch 0 errors. Code-reviewed.
+
+### Session 54 — Phase 4 CRM UX: translated close label, stage-history movers, activity card layout
+
+- **`modules.crm.common.close` translated.** The nested `modules.crm.common`
+  block only carried `loading`/`empty`/`none`/`cancel`, yet `MoveDealDialog`
+  reads `common.close` for its dismiss-button aria-label — next-intl fell back
+  to the raw key path. Added `close` to all four locales (en/ar/fr/es); also
+  added the sibling `system` key that `NotesSection` already referenced for its
+  author fallback, so neither key can surface raw anymore.
+- **Stage history shows the mover.** Each entry in the deal detail stage history
+  now appends the user who made the move: the API already returned `movedBy` per
+  `crm_deal_stage_history` row (and the web `CrmStageHistoryEntry` type already
+  carried it) — the view just never rendered it. The date/duration line now
+  reads `… · by {name}` via the new `detail.movedBy` key (en/ar/fr/es),
+  resolving names through the shared `useMemberName` hook so removed members
+  still show, with `common.system` as the fallback.
+- **Activity cards reorganized.** In the activities list, the related-entity
+  chip (contact / company / deal name, with the deal-stage badge) moved from the
+  lower row up to sit between the type badge and the subject, so every card
+  reads Type → Related → Subject. The lower row now always shows an ownership
+  chip: `User` + member name when assigned, and a matching `UserX` +
+  "Unassigned" chip (`activities.unassigned`) when not — consistent row rhythm
+  instead of the chip silently disappearing.
+- **Validation.** web **165/165** (i18n parity) · i18n completeness spec 1/1 ·
+  web typecheck clean · Prettier clean · lint clean on changed lines (only the
+  pre-existing details.tsx company-address `as` casts remain). Code-reviewed;
+  PROGRESS.md updated.
+
+### Session 53 — Phase 4 CRM UX: per-column pipeline date filters, column value totals, and a deals table view
+
+- **Board per-column date filters.** The global From/To date range on the Deals
+  page is gone. Each pipeline column now has its own Range dropdown — **Today**
+  (default) / **This week** (rolling 7 days) / **This month** / **All time** —
+  filtering on `updated_at` (deals touched in the period, per the user's pick).
+  Each column queries the API separately
+  (`GET /v1/crm/deals?stageId=…&fromDate=…&toDate=…`) via a new `useDealsBoard`
+  hook (`useQueries`, one query per stage), so counts and totals are exact per
+  column; the result array aligns with the pipeline stages and the board merges
+  the cards for drag-and-drop + the ⋮ stage menu.
+- **"All time" opens the table view.** Picking All time in a column navigates to
+  the new table page pre-filtered to that stage (`/m/crm/deals/table?stage=…`)
+  instead of loading every deal onto the board. A "Showing X of Y deals" note
+  still appears under a column when the 100-row clamp hides rows
+  (`deals.shownCount`).
+- **Column total value.** Each column header shows the exact value of its deals
+  summed in the **org base currency** — computed server-side
+  (`SUM(CASE WHEN base_amount_minor IS NULL THEN value_amount_minor ELSE base_amount_minor END)`,
+  since a base-currency deal stores `base_amount_minor = NULL`) and independent
+  of the page-size clamp. `listDeals` returns `totalValueBaseMinor` on the page
+  envelope; the board formats it with the org base currency + exponent.
+- **New deals table view (`/m/crm/deals/table`).** A Board/Table toggle (present
+  on both views) leads to a sortable, filterable list: search (title), Stage,
+  Status (open/won/lost), and From/To updated-date inputs; sorting by Title /
+  Value (org-base) / Updated via sortable headers (`sortBy`/`sortDir`,
+  server-side); pagination; and a footer with the filtered count + total value
+  (`deals.tableSummary`). Every filter lives in the URL (`q`, `stage`, `status`,
+  `from`, `to`, `sortBy`, `sortDir`, `page`) so views are shareable; the search
+  input is debounced 300ms.
+- **API.** `DealListFilter` gained `stageId`, `status`, `sortBy`
+  (`updatedAt|createdAt|title|value`), `sortDir`; `listDeals` sorts via an
+  allow-listed ORDER BY (never client SQL), returns `createdAt`/
+  `updatedAt`/`baseAmountMinor` per row (new typed `DealListRow`), and the
+  controller validates every new query param (400 before the use case).
+  `DealListEnvelopeResponse` gained `totalValueBaseMinor`; `dealResponseSchema`
+  gained the optional timestamps.
+- **i18n.** `deals.viewBoard`, `viewTable`, `dateFilter`, `filterToday`,
+  `filterThisWeek`, `filterThisMonth`, `filterAllTime`, `columnTotal`,
+  `statusFilter`, `allStatuses`, `allStages`, `open`, `won`, `lost`,
+  `tableTitle`, `tableStage`, `tableContact`, `tableValue`, `tableStatus`,
+  `tableUpdated`, `tableSummary`, `resetFilters` added to en/ar/fr/es.
+- **Tests.** Controller spec: malformed `stageId`, unknown `status`, unknown
+  `sortBy`, malformed `sortDir` → 400 before the use case. CRM integration:
+  per-stage filter with exact `totalValueBaseMinor` across base-currency and
+  FX-converted deals, and `sortBy: title` / `sortBy: value` orderings.
+- **Validation.** API **1360/1360** · web **165/165** (i18n parity) · CRM
+  integration **24/24** · arch 0 errors · API + web typecheck clean · Prettier
+  clean · lint clean on changed lines (pre-existing baselines only: hooks.ts
+  non-null assertion + floating promise) · OpenAPI + api-client regenerated
+  (`stageId`/`status`/`sortBy`/`sortDir`, `totalValueBaseMinor`, row
+  timestamps). Code-reviewed; PROGRESS.md updated.
+
+### Session 52 — Phase 4 CRM UX: audit stamps on contact/company/activity details
+
+- **Companies now stamp `created_by`/`updated_by`.** Previously only
+  contacts/deals/activities recorded these (via their domain entities) — company
+  rows never stamped them at all. `CreateCompanyUseCase` /
+  `UpdateCompanyUseCase` now read `TenantContext.getUserId()` and pass
+  `createdByUserId`/`updatedByUserId` through `insertCompany`/`updateCompany`
+  (both RETURNING the columns; `updated_by` uses a `CASE WHEN` guard so a
+  partial update only overwrites when supplied). `CrmCompanyRecord` port +
+  `toCompany` map the stamps — only when the query selected the columns, so list
+  rows omit them rather than claim null (code review).
+- **Detail reads surface the stamps.** `findContactById` / `findCompanyById` /
+  `findActivityById` now SELECT `created_by, updated_by` and return
+  `createdByUserId`/`updatedByUserId`; the contact/activity/company response
+  schemas gained the optional fields (OpenAPI + api-client regenerated).
+- **Frontend.** `CrmContactDetail` / `CrmCompanyDetail` / `CrmActivityDetail`
+  gained the stamp fields; a new shared `useMemberName` hook (wraps the members
+  cache) resolves display names from ALL members — removed members still show on
+  records they created/edited. Created by / Last edited by fields added to the
+  contact, company, and activity detail cards, and the deal view refactored onto
+  the shared hook (removing its inline resolver).
+- **Tests.** Integration case covers audit-stamp round trips for all three
+  entities: contact (domain-stamped), company (use-case-stamped, detail returns
+  both), and activity (domain-stamped).
+- **Validation.** API **1356/1356** · web **156/156** · CRM integration
+  **22/22** · arch **8/8** · root typecheck 7/7 · Prettier clean · lint clean on
+  changed lines (pre-existing baselines only) · OpenAPI + api-client
+  regenerated. Code-reviewed (conditional stamp mapping + `CASE WHEN` guard
+  applied); PROGRESS.md updated.
+
+### Session 51 — Phase 4 CRM UX: deal activities, related chips, edit-form assignee, deal audit stamps
+
+- **Create activity from the deal detail page.** `DealDetailView` gained a
+  related-activities card with a "New activity" toggle — `ActivityForm`
+  pre-links the activity to the deal (`relatedType: 'deal'`, `relatedId`), and
+  the card lists existing deal-related activities with due badges.
+- **Activities list shows the related entity + deal stage.** `listActivities`
+  now LEFT JOINs `crm_contacts` / `crm_companies` / `crm_deals` /
+  `crm_pipeline_stages` (each guarded by `related_type` AND
+  `deleted_at IS NULL`) to resolve `relatedName` (contact full name / company
+  name / deal title) plus `dealStageId` + `dealStageNameI18n` for deal-linked
+  rows; all conditions were qualified with the `a.` alias. Each activity row
+  renders a related-entity chip deep-linking to its detail page, with a stage
+  badge for deals. `activityResponseSchema` gained the three optional fields
+  (OpenAPI + api-client regenerated).
+- **Assignee moved into the activity edit form.** The inline assignee Select on
+  the activity detail row is gone — the edit form (type/subject/assignee) now
+  owns reassignment: `startEdit` seeds the current assignee, `submitEdit` sends
+  `assignedToUserId` only on a real change (`''` unassigns, CRM-14 enforced),
+  and the Save button stays disabled until something changed. The row now shows
+  the assignee name plainly (removed members still resolve).
+- **Deal created-by / edited-by.** `findDealById` now returns `createdByUserId`
+  / `updatedByUserId` from the existing `created_by` / `updated_by` columns;
+  `DealDetailView` shows "Created by" and "Last edited by" fields with member
+  names resolved from all members.
+- **i18n.** `detail.createdBy`, `detail.updatedBy` added to en/ar/fr/es.
+- **Tests.** Two new integration cases: related-name/stage resolution across
+  contact/company/deal/unlinked activities (deal rows carry a localized stage
+  map, solo rows null), and deal audit stamps — created/updated both the
+  creating user, a stage move by a different user flips `updatedBy` while
+  `createdBy` stays.
+- **Validation.** API **1356/1356** · web **156/156** (i18n parity) · CRM
+  integration **21/21** · arch **8/8** · root typecheck 7/7 · Prettier clean ·
+  lint clean on changed lines (pre-existing baselines only: `listDeals`
+  no-base-to-string, details.tsx address casts + complexity, hooks.ts) ·
+  OpenAPI + api-client regenerated. Code-reviewed (soft-delete guards on the
+  JOINs + safe related-href lookup applied); PROGRESS.md updated.
+
+### Session 50 — Phase 4 CRM UX: company detail deals show stage + value
+
+- **Company detail deal rows now match the contact detail.** Each related deal
+  on the company page renders a pipeline-stage `Badge` (resolved from the cached
+  default pipeline, localized, missing stage degrades to a dash) next to the
+  value formatted via `formatMinorAmount` — replacing the raw
+  `amountMinor currency` text that was previously shown.
+- **DRY: shared `stageName` helper.** The change made the stage-name lookup
+  threefold duplicated (contact, company, deal detail). Hoisted a module-level
+  `stageName(pipeline, stageId, locale)` helper in `details.tsx` and updated all
+  six call sites in the three views (per code review).
+- **Validation.** web typecheck clean · web **156/156** · Prettier clean · lint
+  clean on changed lines (only the pre-existing company-address `as` casts +
+  max-lines/complexity baselines remain). Code-reviewed (DRY helper applied);
+  PROGRESS.md updated.
+
+### Session 49 — Phase 4 CRM UX: "Unassigned" quick-filter chip
+
+- **Header chip.** The CRM workspace header now shows an "Unassigned" toggle
+  button (UserX icon) next to "Assigned to me" on the activities view. It
+  toggles the same `activityAssignee` state the dropdown uses — click once to
+  filter to unassigned activities, click again to clear to "All assignees" — and
+  resets to page 1. `aria-pressed` + `secondary` variant show the active state;
+  the two chips share a small `toggleActivityAssignee` helper (code review DRY
+  suggestion). No new i18n — reuses `activities.unassigned`.
+- **Validation.** web typecheck clean · web **156/156** · Prettier clean · lint
+  0 errors (pre-existing warnings only). Code-reviewed (helper applied);
+  PROGRESS.md updated.
+
+### Session 48 — Phase 4 CRM UX: activities unassigned + status filters
+
+- **"Unassigned" assignee filter.** The activities Assignee dropdown gained an
+  "Unassigned" option (web sentinel `ACTIVITY_ASSIGNEE_UNASSIGNED` mapping to
+  `GET /v1/crm/activities?unassigned=true`). `ActivityListFilter` gained
+  `unassigned?: boolean`; the repository narrows with `assigned_to IS NULL` (RLS
+  keeps it tenant-local); the controller validates the `true`/`false` shape and
+  returns 400 on anything else, mirroring the date/UUID params.
+- **Completion status filter.** A new Status dropdown (All / Open / Completed)
+  drives `?completed=true|false`: `completed=true` → `completed_at IS NOT NULL`,
+  `false` → `IS NULL`, absent → both. The filter combines freely with the
+  assignee/date filters (e.g. Unassigned + Open shows only the still-open
+  unassigned tasks).
+- **Frontend plumbing.** `CrmListParams`/`toQueryString` and the `activitiesKey`
+  cache key carry `unassigned`/`completed` so each filter state keeps its own
+  cache. Both dropdowns reset to page 1 on change. The "Assigned to me" header
+  toggle still overrides the sentinel cleanly.
+- **i18n.** `activities.unassigned`, `statusFilter`, `allStatuses`, `open` added
+  to en/ar/fr/es (reusing the existing `activities.completed` key).
+- **Tests.** Controller spec covers malformed `unassigned`/`completed` → 400
+  before the use case runs; integration test covers unassigned-only, open-only,
+  completed-only, Unassigned+Open combined, and unfiltered.
+- **Validation.** API **1356/1356** (2 new controller cases) · web **156/156**
+  (i18n parity) · CRM integration **19/19** · arch **8/8** · root typecheck 7/7
+  · Prettier clean · lint clean on changed lines (pre-existing baselines only) ·
+  OpenAPI + api-client regenerated (`unassigned`/`completed` on the activities
+  endpoint). Code-reviewed (no blockers).
+
+### Session 42 — Phase 4 CRM UX: activity detail page, extend due date, activity notes, unfiltered activities list
+
+- **Activity detail page.** Added `GET /v1/crm/activities/:id`
+  (`findActivityById` on the read repository + fail-closed `GetActivityUseCase`
+  `ACTIVITY_NOT_FOUND`), a web `ActivityDetailView` at `m/crm/activities/[id]`,
+  and the `useCrmActivityDetail` hook. The page shows type, status (`DueBadge`),
+  due/completed/created/updated, a deep link to the related
+  contact/company/deal, a Complete button, and the shared notes section.
+  Activity rows in the list and on the contact detail now link to it.
+- **Extend due date.** New `PATCH /v1/crm/activities/:id`
+  (`updateActivitySchema` with ISO `dueAt`), `UpdateActivityUseCase` (CRM-13: a
+  completed activity rejects the update with
+  `CRM_ACTIVITY_COMPLETED_IMMUTABLE`), and an inline `datetime-local` + Save
+  control on the detail page gated by `crm:activity:write`; the error maps to a
+  localized message.
+- **Notes on activities.** The shared `NotesSection` accepts
+  `relatedType="activity"` and renders on the activity detail page (notes are
+  already supported end-to-end by `crm_notes` + the notes API).
+- **Activities list default now unfiltered.**
+  `activityFromDate`/`activityToDate` start empty (was today); the reset button
+  clears the range (new `activities.clearDates` key) instead of restoring today.
+  Undated activities were already always visible.
+- **Tests.** API controller metadata covers GET `:id` (read) and PATCH `:id`
+  (write + audit); CRM integration 17/17 (new getById round-trip, NOT_FOUND
+  fail-closed, due-date extension, completed-activity rejection).
+- **Validation.** API unit **1352/1352** · web **156/156** (i18n parity) · CRM
+  integration **17/17** · root typecheck 7/7 · Prettier clean · lint clean on
+  changed files (pre-existing full-project baseline unchanged) · OpenAPI +
+  api-client regenerated (`/v1/crm/activities/{id}` GET+PATCH).
+
+### Session 47 — Phase 4 CRM UX: "Assigned to me" quick-filter badge
+
+- **One-click shortcut in the workspace header.** The CRM workspace header now
+  shows an "Assigned to me" toggle button (with the `User` icon) on the
+  activities view. Clicking it flips the same `activityAssignee` state the
+  section dropdown controls: `''` (all assignees) → current user id, and back.
+  It resets pagination to page 1 and carries `aria-pressed`; the active state
+  uses the `secondary` variant so it reads as a pressed filter chip rather than
+  the adjacent primary "Add activity" button (code-review tweak). The button and
+  the dropdown stay in sync since they share one state, and the existing
+  `activities.assignedToMe` key is reused (no new i18n).
+- **Validation.** Web typecheck clean · web **156/156** · Prettier clean · lint
+  0 errors (pre-existing warning baseline only).
+
+### Session 46 — Phase 4 CRM UX: assignee filter on the activities list
+
+- **Backend — `assigneeUserId` filter on `GET /v1/crm/activities`.**
+  `ActivityListFilter` gained `assigneeUserId`; `listActivities` narrows with
+  `assigned_to = ?` (RLS keeps the query tenant-local — this is a client-visible
+  narrowing, never a tenant bypass). The controller validates the UUID shape
+  (400 on malformed, mirroring the date params) and passes it through. The use
+  case needed no change (filter object passes through).
+- **Frontend — assignee dropdown in the activities workspace.**
+  `CrmListParams`/`toQueryString` and `activitiesKey` carry `assigneeUserId`
+  (caches stay separate per filter). `ActivitiesSection` gained an Assignee
+  `Select`: **All assignees** (default), **Assigned to me** (current user id
+  from the session), then each active member (minus self, so no duplicate).
+  Changing it resets to page 1. Active members come from the shared
+  `useOrgMembers` cache.
+- **i18n.** `activities.assigneeFilter`, `activities.allAssignees`,
+  `activities.assignedToMe` added to en/ar/fr/es.
+- **Tests.** Controller spec: malformed `assigneeUserId` returns 400 before the
+  use case is reached. Integration: filtering narrows to the assignee's
+  activities, the unfiltered list shows both, and an assignee with no activities
+  returns an empty page (not an error).
+- **Validation.** API unit **1354/1354** · web **156/156** · CRM integration
+  **18/18** · arch **8/8** · root typecheck 7/7 · Prettier clean · lint clean on
+  changed lines (pre-existing hooks.ts baseline unchanged) · OpenAPI +
+  api-client regenerated (`assigneeUserId` on the activities endpoint).
+
+### Session 45 — Phase 4 CRM UX: assignee chip on activities list rows
+
+- **Assignee chip in the activities workspace.** Each `ActivityList` row now
+  renders a small `Badge` chip (`User` icon + member name) next to the due badge
+  when the activity is assigned, resolving the name via the existing
+  `useOrgMembers` hook (shares the `['members', organizationId]` cache — no
+  duplicate fetch). The chip is omitted when the assignee can't be resolved
+  (e.g. they've since left the org), consistent with the detail page's `—`
+  fallback — no raw UUIDs in the UI (code-review fix).
+- **Validation.** Web typecheck clean · web **156/156** · Prettier clean · lint
+  clean on changed lines (pre-existing hooks.ts baseline unchanged).
+
+### Session 44 — Phase 4 CRM UX: reassign activities from the detail page
+
+- **PATCH /v1/crm/activities/:id now reassigns too.** `updateActivitySchema`
+  gained `assignedToUserId` (uuid, nullable — null unassigns);
+  `UpdateActivityUseCase` forwards it and calls the domain `Activity.assignTo()`
+  with the org's active-member set, so CRM-14 (assignee must be an active
+  member) and CRM-13 (completed activities immutable, reassignment included) are
+  enforced in the domain exactly as on create. The controller resolves
+  `activeMemberIds` via the membership read port when a non-null assignee is
+  provided (mirrors create; unassigning needs no set).
+- **Inline reassign control on the detail row.** The activity details card's
+  Assignee field is now a `Select` (gated by `crm:activity:write`, hidden when
+  the activity is completed) that fires the PATCH directly on change — active
+  members only, plus the current assignee if they've since left the org so the
+  select always shows the real value. Names resolve from the FULL members list
+  (a removed member still shows on activities they were assigned to). New
+  `useOrgMembers` hook shares the `['members', organizationId]` cache key with
+  the members settings page (no duplicate fetch).
+- **i18n.** `fields.assignee` added to en/ar/fr/es. The existing
+  `errors.activityAssigneeInvalid` key already mapped
+  `CRM_ACTIVITY_ASSIGNEE_NOT_ACTIVE_MEMBER` to a localized message.
+- **Tests.** Controller spec DTO validation covers valid uuid / null assignee
+  and rejects a malformed one; the CRM integration suite's CRM-13 case now also
+  assigns to an active member (seeded membership), rejects a non-member
+  (`CRM_ACTIVITY_ASSIGNEE_NOT_ACTIVE_MEMBER`), unassigns via null, and asserts
+  reassignment of a completed activity is rejected alongside the other edits.
+- **Validation.** API unit **1353/1353** · web **156/156** · CRM integration
+  **17/17** · arch **8/8** · root typecheck 7/7 · Prettier clean · lint clean on
+  changed lines (pre-existing baseline unchanged) · OpenAPI + api-client
+  regenerated (`UpdateActivityDto` now carries `assignedToUserId`).
+
+### Session 43 — Phase 4 CRM UX: edit activity subject/type on the detail page
+
+- **PATCH /v1/crm/activities/:id now edits more than the due date.**
+  `updateActivitySchema` accepts optional `type` (enum) and `subject` (trimmed,
+  1–200) alongside `dueAt` — a strict partial update. `UpdateActivityDto` and
+  `UpdateActivityUseCase` forward them; the domain `Activity.update()` already
+  supported type/subject, so no entity change was needed. The controller passes
+  through only the fields the client provided.
+- **Detail-page edit form.** `ActivityDetailView` gained an Edit button (gated
+  by `Can permission="crm:activity:write"`, hidden once completed) that swaps
+  the details card into an inline form with a type `Select` and a subject
+  `Input`. Save is disabled when the subject is blank or nothing changed; Cancel
+  exits. Uses a `const ACTIVITY_TYPES` tuple with a `.find()` guard instead of
+  an `as` cast (lint).
+- **Frontend typing.** `CrmActivityUpdate` (`type?/subject?/dueAt?`) replaces
+  the inline `{ dueAt? }` on `updateCrmActivity` and the `useCrmMutations`
+  `updateActivity` mutation.
+- **Tests.** Controller spec gained an `updateActivitySchema` validation case
+  (subject/type/dueAt partials valid, blank subject/unknown type/unknown keys
+  rejected); the CRM integration suite's CRM-13 case now also changes
+  subject+type (untouched due date preserved) and asserts that _every_ edit —
+  due date, subject, or type — is rejected once the activity is completed.
+- **Validation.** API unit **1353/1353** (new DTO test) · web **156/156** · CRM
+  integration **17/17** · arch **8/8** · root typecheck 7/7 · Prettier clean ·
+  lint clean on changed lines (pre-existing baseline unchanged) · OpenAPI +
+  api-client regenerated (`UpdateActivityDto` carries type/subject/dueAt).
+
+### Session 41 — Phase 4 CRM UX: company/contact address, notes, deals date filter cleared
+
+- **Backend — Notes API**: added `listByRelated` to `NoteRepository` (LEFT JOINs
+  `core_users` for author name), a `NotesController` with `POST /v1/crm/notes`
+  (create) and `GET /v1/crm/notes/:relatedType/:relatedId` (list), Zod DTOs, and
+  wired into `CrmModule`.
+- **Contact form**: added `companyId` select field (resolves company names from
+  the cached companies list).
+- **Contact card**: shows a `Badge variant="outline"` with the company name when
+  `companyId` is set.
+- **Company form**: added structured address fields (street, city, state,
+  postalCode, country) inside a `<fieldset>` on the add form.
+- **Notes section**: shared `NotesSection` component on contact/company/deal
+  detail pages — add note via inline input + Send button, list with author name
+  (resolved from `core_users`) and timestamp.
+- **Deals page**: removed the default today date-range filter
+  (`fromDate`/`toDate` now start empty; reset button clears to empty, not
+  today). Activity date filter still defaults to today.
+- **Company detail**: added `NotesSection` and kept address display clean
+  (filters out null/empty entries).
+- **i18n**: added `clearDates`, `notes.*`, `address*` field keys to en/ar/fr/es.
+- **Validation**: web 156/156 · API 1351/1351 · typechecks clean · OpenAPI +
+  api-client regenerated.
+
+### Session 40 — Phase 4 CRM UX: deal stage on contact detail, activity due
+
+badges, activities due-date filter
+
+- **Contact detail deals show their stage.** Related deals on the contact page
+  now render a stage `Badge` resolved from the fetched pipeline (`stages`
+  lookup, missing stage gracefully shows a dash) alongside the formatted value —
+  no extra API surface needed.
+- **Activity due-state badges (`DueBadge`).** New `features/crm/due-badge.tsx`
+  computes a calendar-day diff from the due date and renders a localized badge:
+  completed (secondary) → due today → upcoming "N days left" (outline) → overdue
+  "N days ago" (destructive). It is rendered in the activities list, the contact
+  detail related-activities rows, and the activity detail date line.
+  Calendar-day math via `startOfDay` diff with `Math.round` (DST-safe);
+  unit-tested (6 cases).
+- **Activities page date-range filter on `due_at`, defaulting to today.**
+  `ActivityListFilter` gained `fromDate`/`toDate` (inclusive day range via
+  `::date` bounds); the activities view has From/To inputs + "Reset to today",
+  mirroring the deals page. `activitiesKey` includes the range so caches stay
+  separate.
+- **Undated activities stay visible (from review).** `due_at` is nullable, so a
+  silent date-filtered drop would hide undated tasks from the default "today"
+  view. The `due_at` range conditions are wrapped in `OR due_at IS NULL`, and
+  the integration test asserts an undated activity still appears under a past
+  range.
+- **Input hardening (mirrors deals).** The activities controller validates the
+  `YYYY-MM-DD` shape of both params and returns 400 BAD_REQUEST instead of a
+  500; new controller tests cover both.
+- **i18n.** `dueToday`, `overdue`, `overdueDays`, `daysLeft`, `completed`,
+  `fromDate`, `toDate`, `resetDates` added to en/ar/fr/es (ICU plurals for day
+  counts).
+- **Validation.** API tests **1351/1351** (2 new controller cases) · CRM
+  integration **16/16** (new due-date filter test incl. undated visibility) ·
+  web **156/156** (6 new DueBadge cases + i18n parity) · root typecheck 7/7 ·
+  lint 0 errors · Prettier clean · OpenAPI + api-client regenerated
+  (`fromDate`/`toDate` on the activities endpoint).
+
+### Session 39 — Phase 4 CRM UX: board card names, updated-day filter, RTL
+
+pagination arrows
+
+- **Board cards now show contact + company names.** `listDeals` LEFT JOINs
+  `crm_contacts` and `crm_companies` to resolve `contactName` ("First Last") and
+  `companyName`, rendered as a muted "Ada Lovelace · Acme Co" line on each card.
+  Names are also optional-nullable fields on `dealResponseSchema`, so
+  detail/create/move responses stay backward-compatible.
+- **Date-range filter on `updated_at`, defaulting to today.** `DealListFilter`
+  gained `fromDate`/`toDate` (inclusive day range via `::date` bounds); the
+  Deals page has From/To date inputs that start at today (local timezone) with a
+  "Reset to today" button. `dealsKey` includes the range so caches stay
+  separate; `useCrmData` still fetches the broad 100-row page for detail views.
+- **RTL pagination arrows fixed.** The shared `Pagination` component's chevrons
+  now carry `rtl:rotate-180`, so Previous/Next point correctly in Arabic
+  (inline-start/end) — this fixes Contacts, Companies, and Activities lists.
+- **Malformed-date hardening (from review).** `fromDate`/`toDate` are
+  interpolated into `::date` casts, so the controller now validates the
+  `YYYY-MM-DD` shape and returns 400 BAD_REQUEST instead of a 500. New
+  controller tests cover both params; the stale cache-sharing comment in
+  hooks.ts was corrected.
+- **Validation.** API tests **1349/1349** (2 new controller cases) · CRM
+  integration **15/15** (new names + date-range test: joined contact/company
+  names, today's deals matched, past range empty) · web **150/150** · root
+  typecheck 7/7 · lint 0 errors · Prettier clean · OpenAPI + api-client
+  regenerated (`fromDate`/`contactName` present in spec and client).
+
+### Session 38 — Phase 4 CRM UX: compact ⋮ stage menu on board cards
+
+- **Full-width stage select replaced on board cards.** Each deal card now has a
+  compact ⋮ ghost button in its header row (next to the status badge) that opens
+  a stage-list menu. The drag-and-drop flow, the MoveDealDialog for lost stages,
+  and the detail-page stage changer are unchanged.
+- **New `StageMenu` component (`features/crm/stage-menu.tsx`).** The board
+  columns scroll internally (`overflow-y-auto`), which would clip an in-card
+  absolute dropdown, so the menu portals to `document.body` with fixed
+  positioning anchored to the trigger. It flips above the trigger when there is
+  no room below, clamps to the viewport, and mirrors to the right edge in RTL
+  (`dir=rtl`).
+- **Menu behaviour.** Current stage is check-marked and carries `aria-current`;
+  lost stages are styled destructive with a localized "Lost" hint. Click or
+  Enter/Space selects, ArrowUp/Down + Home/End navigate, Escape or an outside
+  pointerdown closes, and the menu also closes on column scroll/resize so it
+  never floats detached from its card. Focus moves into the menu on open and
+  returns to the ⋮ trigger on select/Escape. If `disabled` flips true while open
+  (permission lost, move in flight), the menu closes.
+- **Permission gating preserved.** The ⋮ button is wrapped in
+  `Can permission="crm:deal:write"` and is `disabled` while a move is pending;
+  selecting a lost stage still routes through `requestMove` → MoveDealDialog, so
+  CRM-7 (lost reason required) is unchanged.
+- **Tests.** New `stage-menu.test.tsx` (8 cases): trigger semantics, open +
+  current-stage check, lost hint, select + close, keyboard select (ArrowDown +
+  Enter), Escape close, outside-pointerdown close, and disabled no-open. Full
+  web suite **150/150**, web typecheck clean, lint 0 errors (existing warning
+  baseline only), Prettier clean, code-reviewed (aria-current +
+  disabled-while-open hardening applied).
+
+### Session 37 — Phase 4 CRM UX: deals board + detail page rework
+
+- **Board pagination removed, columns scroll internally.** The pipeline board
+  now fetches all deals up to the API's 100-row clamp (`pageSize: 100`, which
+  now shares the `useCrmData` query key/cache when no search is active) and each
+  stage column scrolls within `max-h-[calc(100vh-260px)]` — long columns never
+  stretch the page. A `deals.shownCount` note appears when the clamp actually
+  hides rows.
+- **Stage changer everywhere.** Board cards and the deal detail page both have a
+  stage `Select` bound to the deal's current stage (fires only on a real change,
+  permission-gated). Drag-and-drop still works and routes through the same move
+  flow.
+- **Lost-stage moves collect the mandatory reason in a proper dialog.** New
+  `MoveDealDialog` (accessible modal: panel focus, Escape, hidden backdrop) asks
+  for the lost-reason code when the target stage is lost (CRM-7) and disables
+  confirm until a non-blank reason is typed — replacing the old `window.prompt`
+  on drop and fixing the broken select-to-lost path that previously sent no
+  reason at all. The board dialog stays open (showing a spinner) until the move
+  mutation settles.
+- **Deal detail page polish:** stage changer + MoveDealDialog wired to the move
+  mutation, exponent-aware money via `formatMinorAmount`, contact and company
+  render as links to their detail pages, an error banner, and a won/lost badge
+  on board cards (dead `formatMoney` helper removed).
+- **i18n:** `deals.moveToStage`, `deals.lostReasonPlaceholder`,
+  `deals.lostReasonHint`, `deals.shownCount` added to en/ar/fr/es.
+- **Validation:** web 142/142 (i18n parity), root typecheck 7/7, lint 0 errors,
+  Prettier clean.
+
+### Session 36 — Phase 4 CRM UX: deals + activities pagination
+
+- **Deals and activities lists are now paginated and searchable**, mirroring the
+  contacts/companies pattern: `listDeals`/`listActivities` return
+  `{ items, total, page, pageSize }` with a title/subject ILIKE search, clamped
+  page bounds, and stable ordering with an `id` tiebreaker (deals:
+  `updated_at DESC`; activities: incomplete first, soonest due first).
+- **Deals view** gained a search box and pagination controls around the pipeline
+  board; **activities view** gained the same around its list.
+  `PipelineBoard`/`ActivityList` render an empty state when a page is empty and
+  the board keeps drag/drop + stage-select movement unchanged.
+- **Detail views stay complete:** `useCrmData` fetches deals/activities at the
+  API's 100-row clamp for related lists and form dropdowns, so the
+  contact/company detail pages still see all related deals and activities while
+  the workspace lists page at 12.
+- **Tests:** API 1347/1347, CRM integration 14/14 (new deal and activity
+  pagination + search cases), web 142/142 (i18n parity), root typecheck 7/7.
+  OpenAPI + api-client regenerated.
+
+### Session 35 — Phase 4 CRM UX: pagination, filtering, extended fields
+
+- **Pagination + strong filtering on contacts/companies lists:** the CRM read
+  port now returns `{ items, total, page, pageSize }` for contacts and companies
+  with `search` (name/email/phone/domain ILIKE), `companyId` narrowing for
+  contacts, and `updated_at DESC` ordering (most recently added/edited first,
+  exactly as requested). Page bounds are clamped server-side (`page >= 1`,
+  `pageSize` 1–100); the web list pages got prev/next controls, a result-count
+  line, and keepPreviousData so filters and page turns stay smooth.
+- **Contact form fields:** added `secondaryPhone` (new forward-only migration
+  `0003_secondary_phone.sql`), `preferredLocale`, and `preferredCurrency` to
+  create/update forms and the detail edit view. Both phone fields validate
+  against the shared `PHONE_PATTERN` (`^\+?[\d\s().-]{5,30}$`) on the API DTOs
+  and the frontend Zod schema — free-text numbers like `call me` are now
+  rejected with a localized `errors.invalidPhone` message.
+- **Contact detail page actions:** “New deal” (pre-linked to the contact,
+  honoring its preferred currency) and “New activity” (pre-linked as
+  `relatedType: contact`) open inline forms, wrapped in `Can` permission gates.
+  Shared `Field`/`FormCard`/`DealForm`/`ActivityForm` were extracted into
+  `features/crm/forms.tsx` for reuse between the workspace and detail views.
+- **Contracts + events:** `secondaryPhone` added to contact identity in the
+  `crm.contact.created/updated.v1` payloads as nullable+optional (backward
+  compatible with previously published events). Fixtures updated.
+- **Tests:** API 1347/1347, CRM integration 12/12 (new pagination, company
+  filter, and secondaryPhone round-trip cases), isolation 8/8, contracts events
+  92/92, web 142/142 (new phone-format and preference-field schema cases), root
+  typecheck 7/7. OpenAPI + api-client regenerated; dev DB migrated with
+  `secondary_phone`.
+
+### Session 34 — Phase 4 runtime fix: seeded FX reference data
+
+- **Root cause of deal-create 422 (`dealFxRateRequired`):** the org base
+  currency is USD but `core_fx_rates` was empty — `core_currencies` (the
+  snapshot job's source of pairs) was never seeded, so cross-currency deal
+  creation (CRM-8/CUR-6) had no rate to snapshot and correctly failed.
+- **`packages/db/src/seed.ts` implemented (was a stub):** seeds 11 ISO 4217
+  reference currencies (idempotent, `ON CONFLICT DO NOTHING`) and all ordered
+  mock FX pairs for today (110 rows) using the same deterministic formula as
+  `SnapshotFxRatesUseCase`; skips pairs that already exist for the day.
+- **CLI teardown fixed:** the seed now owns its postgres client and calls
+  `client.end()` in `finally`, so `pnpm db:seed` exits cleanly instead of
+  hanging on the open pool.
+- **Workaround note:** drizzle `sql.join` multi-row VALUES produced a Postgres
+  `syntax error at or near "$5"` with the postgres-js driver (`prepare: false`);
+  per-row parameterized statements are used instead.
+- **Regression test added:** `tests/integration/seed.integration.test.ts`
+  (Testcontainers) asserts currencies seeded, pair count derived from the
+  currency count (all ordered pairs minus self), EUR→USD present for today, and
+  idempotency on re-run. Run against the real dev DB too (11 currencies, 110
+  pairs, re-run skips).
+- **Deal-form currency UX:** the free-text currency input (root of the earlier
+  422 — users could type any code) is now a dropdown fed by the seeded
+  `/v1/currencies` reference endpoint, defaulting to the org base currency
+  (reuses the dashboard's cached org query) with a localized hint explaining
+  cross-currency conversion. `deals.currencyHint` added to en/ar/fr/es.
+- **Live base-currency preview in the deal form:** as the user types, the form
+  fetches the pair rate via `GET /v1/fx-rates/:base/:quote` (404 → null) and
+  shows the converted `base_amount_minor` in the org base currency, mirroring
+  the backend `Money.convertTo` math exactly (bigint, 6-decimal scaled rate,
+  truncating) via new pure helpers in `features/crm/money.ts` (unit-tested).
+  Missing rates surface a localized unavailable message instead of a 422 after
+  submit. `deals.previewAmount` and `deals.rateUnavailable` added to
+  en/ar/fr/es.
+- **Validation:** db `tsc -b` clean, root typecheck 7/7, Prettier clean,
+  integration seed test 1/1, web tests 132/132 (i18n parity). `packages/db`
+  remains outside the lint gate (no `eslint.config.js`/`lint` script; baseline
+  matches `migrate.ts`).
+
+### Session 33 — Phase 4 runtime fixes: CRM accessible from the frontend
+
+- **Two independent blockers fixed so the CRM module actually works when reached
+  from the web UI (reported 403s / silent trial failures).**
+  1. **Role matrix granted no module permissions:** `SYSTEM_ROLE_PERMISSIONS`
+     only carried `platform:*` permissions, so every `@RequiresPermission`
+     (`crm:contact:read`, …) returned 403 even with entitlement — the
+     PermissionGuard has no OWNER bypass. The matrix is now **derived from the
+     registered descriptors** (`@modubiz/contracts` `ALL_PERMISSIONS`),
+     classified read/write/config per BUSINESS_RULES §3 (VIEWER = read, MEMBER =
+     read+write, MANAGER/ADMIN/OWNER = all). Adding a module no longer requires
+     hand-editing the matrix.
+  2. **Trial bootstrap:** orgs with no subscription got `SUBSCRIPTION_NOT_FOUND`
+     on “Start free trial” (silently swallowed by the marketplace page).
+     `EnableModuleTrialUseCase` now **lazily bootstraps the base subscription**
+     inside the transaction (BILL-1 exactly one, BILL-2 trial needs no payment
+     method), reading the org base currency via a new
+     `BillingRepository.getOrganizationBaseCurrency()` (global table, no RLS).
+     `FakeStripeAdapter.addSubscriptionItem` no longer 500s after a server
+     restart.
+  3. **EntitlementGuard read a stale in-memory store (the 403 after trial):**
+     `EntitlementsModule` still provided the Phase 1.6
+     `InMemoryEntitlementStore` stub while trials wrote to
+     `core_module_entitlements` — so every guarded CRM endpoint returned
+     `MODULE_NOT_ENTITLED` after restart. Replaced with a new
+     `DrizzleEntitlementStore` (BILL-4: the DB is the runtime authority). It
+     opens its own transaction per method and binds
+     `app.current_organization_id` from the verified JWT claims, because guards
+     run before the TenantInterceptor (TransactionManager.run is unavailable
+     there); RLS stays the real defence (unknown org ⇒ zero rows, fail closed).
+     Timestamps normalized with the canonical `fromDbDate` (postgres-js returns
+     timestamptz as strings).
+- **Frontend:** `settings/modules/page.tsx` surfaces backend error codes in a
+  dismissible banner instead of swallowing them; new `modules.startTrialError`
+  key in en/ar/fr/es.
+- **Tests:** trial use-case spec (no-subscription bootstrap + USD fallback),
+  role-matrix spec (module grants per role), and a new
+  `tests/integration/entitlements.integration.test.ts` (4 tests) proving
+  RLS-scoped reads, live state reflection through `EntitlementService`, and
+  upsert/updateState transitions.
+- **Validation:** `pnpm typecheck` 7/7, API unit suite **1342/1342**, CRM +
+  entitlements integration **11/11** (real Postgres + RLS), lint clean on
+  changed files (only the pre-existing project-service baseline for
+  `tests/integration/*`), Prettier clean.
+
+#### Follow-up (Session 33 continued) — company create 500 + error UX
+
+- **Company create returned 500 `INTERNAL_ERROR` from the frontend.** Root cause
+  (reproduced through the real stack with a drizzle SQL logger):
+  `crm_companies.address` is `jsonb`, but the raw-SQL repositories bound the
+  DTO's `{}` default as a plain JS object — drizzle's postgres-js driver does
+  **not** JSON-stringify plain objects (same identity override as dates in
+  `db-date.ts`), so postgres-js threw `ERR_INVALID_ARG_TYPE` → unhandled → 500.
+  `insertCompany`/`updateCompany` now serialize explicitly
+  (`JSON.stringify(address ?? {})::jsonb`, mirroring the pipeline repo's
+  `name_i18n` pattern) and default `ownerUserId` to `null` (binding `undefined`
+  through drizzle also produces a Postgres syntax error).
+- **Duplicate-email 422 was correct behaviour with bad UX.** The CRM forms
+  called `mutateAsync(...).then(...)` with no `.catch()`, so the machine-
+  readable `ApiError` surfaced raw. `CrmWorkspace` now catches mutation errors,
+  maps `ApiError.code` → `modules.crm.errors.*` i18n keys
+  (`CRM_CONTACT_DUPLICATE_EMAIL`, `CRM_CONTACT_REQUIRES_IDENTITY`, deal
+  reference/FX, activity assignee, generic fallback) and shows a dismissible
+  localized alert banner; keys added to en/ar/fr/es.
+- **Regression test added:** `tests/integration/crm.integration.test.ts` covers
+  company create → update → list with a non-empty jsonb address round-trip
+  through the real use cases (8/8 suite).
+- **Validation:** `pnpm typecheck` 7/7, API unit **1342/1342**, CRM +
+  entitlements integration **12/12**, web **132/132** (i18n parity), Prettier
+  clean, no new lint errors (pre-existing `as`-cast baseline unchanged).
+
+#### Follow-up (Session 33 continued) — detail pages + deal-form select fix
+
+- **Deal form selects were dead.** The `Select` component’s explicit `onChange`
+  clobbered the react-hook-form `register()` handler spread into `props`, and
+  the select was controlled to `''` (value prop undefined), so RHF never
+  received the contact/company selection. `Select` now forwards both the
+  spread-in `onChange` AND `onValueChange`, and only controls `value` when
+  explicitly provided — fixes the deal/merge forms and the pipeline move select
+  (React 19 passes `ref` through function components, so RHF refs attach).
+- **Detail pages (contacts, companies, deals) added** per user request:
+  - API: `findContactById`/`findCompanyById`/`findDealById` on the read
+    repository (deal detail includes the append-only CRM-6 stage history,
+    newest-first, with bigint/numeric rows typed) + `GetContactUseCase`/
+    `GetCompanyUseCase`/`GetDealUseCase` (fail-closed `NOT_FOUND`) + three
+    `GET /v1/crm/.../:id` routes guarded by `crm:*:read`; OpenAPI + typed
+    api-client regenerated.
+  - Web: `details.tsx` with full record view, inline edit (reuses the PATCH
+    endpoints + existing schemas), and client-side related records (deals/
+    activities on a contact; contacts/deals on a company); deal detail shows
+    value (display-formatted from minor units), stage, status badge, closed
+    info, and a stage-history timeline with durations. Cards are now links to
+    their detail pages. Detail i18n keys added to en/ar/fr/es.
+  - `crmErrorKey` extracted to `features/crm/errors.ts` and reused by the
+    workspace and detail pages.
+- **Latent bug fixed while linting:** `EnsureDefaultPipelineUseCase` had been
+  merged into a comment in `crm.module.ts` providers during an earlier edit
+  (would have broken Nest DI for `CreateDealUseCase` at boot) — restored; the
+  unused import in `crm-queries.use-cases.ts` removed.
+- **Tests:** controller metadata covers the three new GET routes (14 tests);
+  integration suite covers contact/company/deal getById round-trips incl. stage
+  history and `NOT_FOUND` fail-closed (9 tests).
+- **Validation:** `pnpm typecheck` 7/7, API unit **1347/1347**, CRM integration
+  **9/9**, web **132/132**, Prettier clean, web lint 0 errors, API lint only the
+  pre-existing `as`-cast baseline, OpenAPI + api-client regenerated.
+
+### Session 32 — Phase 4 Step 4.9: CRM isolation and architecture
+
+- **Real tenant-isolation suite:** replaced the scaffold assertion with eight
+  Testcontainers/Postgres tests running as the non-owner `modubiz_app` role with
+  all core and CRM migrations applied and FORCE RLS active.
+- **Required TEN coverage:** org A cannot read, update, soft-delete, or list org
+  B contacts; client-injected `organizationId` cannot override the session org;
+  and an app-role query without tenant context returns zero rows.
+- **Authorization denial coverage:** the actual CRM contact-list controller
+  metadata is exercised through the real `EntitlementGuard` and
+  `PermissionGuard`: disabled CRM returns `MODULE_NOT_ENTITLED` even to an
+  OWNER, while an entitled user without `crm:contact:read` receives a forbidden
+  denial.
+- **Isolation runner hardened:** `vitest.isolation.config.ts` now has repository
+  root resolution, 180-second hook/test timeouts, and serial file execution for
+  stable Testcontainers startup.
+- **Validation:** CRM isolation **8/8**, architecture **8/8**, dependency cruise
+  0 errors (existing orphan warnings only), and API typecheck clean. The legacy
+  API `test:arch` script still references a missing `vitest.arch.config.ts`; the
+  canonical root architecture spec was run directly and passed.
+
+### Session 31 — Phase 4 Step 4.8: CRM frontend
+
+- **Missing read surface completed before UI work:** added RLS-scoped contact,
+  company, deal, activity, and default-pipeline reads plus company create/update
+  endpoints. The default pipeline read calls the existing CRM-3 lazy ensure.
+  OpenAPI and `@modubiz/api-client` were regenerated with the new routes.
+- **Four routed CRM workspaces:** contacts, companies, deals, and activities now
+  live under `app/[locale]/(dashboard)/m/crm/`, share a CRM layout/navigation,
+  and are protected by one inherited `<ModuleGate moduleKey="crm">`.
+- **Feature implementation:** `features/crm/` now contains TanStack Query hooks,
+  mutation invalidation, RHF + Zod schemas/forms, responsive contact/company
+  cards, activities, contact merge, and a stage-column pipeline board.
+- **Pipeline interactions:** cards support native HTML drag-and-drop on desktop
+  plus a native stage selector fallback for touch/keyboard users. Both drag and
+  fallback controls require `crm:deal:write`; lost-stage movement asks for the
+  required reason and delegates to the existing move endpoint.
+- **Authorization and RTL:** introduced the reusable `<Can>` permission gate and
+  wrapped every mutating CRM control. New CRM UI uses logical CSS utilities only
+  and `dir="auto"` for user-entered names/titles.
+- **Localization:** full CRM workspace keys were added to English, Arabic,
+  French, and Spanish catalogs; a completeness test checks identical key sets.
+- **Tests:** CRM frontend schemas cover CRM-1, CRM-10, and CRM-12; controller
+  metadata covers new read routes; a Playwright CRM journey scaffold covers
+  contact creation followed by deal creation in a seeded environment.
+- **Validation:** API and web typechecks clean; targeted controller, domain,
+  contract, and i18n tests green; targeted Prettier gate clean. Full E2E remains
+  environment-gated and is exercised in the Phase 4 final verification.
+
+### Session 30 — Phase 4 Step 4.7: CRM events
+
+- **All five declared CRM events verified end-to-end:** contact created/updated,
+  deal stage changed, won, and lost. No handlers were added because CRM is
+  independent at this phase, exactly as PLAN 4.7 specifies.
+- **After-commit collection hardened:** CRM event-producing use cases now return
+  pending events from their transaction and add them to `UnitOfWork` only after
+  `TransactionManager.run()` resolves. A rollback or commit failure therefore
+  cannot leave a stale CRM event in the singleton buffer for a later request to
+  publish.
+- **Contract/model mismatch fixed:** contact and deal ownership is nullable in
+  the CRM schema, domain, and API. The four owner-bearing event payloads now
+  model `ownerUserId` as nullable instead of publishing an invalid empty string
+  or falsely substituting the user who moved a deal.
+- **Payload correctness:** won-event FX rates are serialized as plain decimal
+  strings even when JavaScript would use exponent notation. CRM-7 now rejects a
+  whitespace-only lost reason in the domain, so the emitted lost payload always
+  satisfies its non-empty contract.
+- **Contract and integration coverage:** contract fixtures cover unowned
+  contacts/deals; domain tests cover blank lost reasons; real-Postgres CRM tests
+  parse actual emitted contact-created, contact-updated, stage-changed, won, and
+  lost payloads with the exported Zod schemas and verify event order plus
+  rollback silence.
+- **Validation:** CRM integration **7/7**, targeted contract/domain tests
+  **71/71**, API typecheck clean, targeted format clean, API lint 0 errors
+  (existing warning baseline only).
 
 ### Session 29 — Phase 4 Step 4.6: CRM API layer
 
