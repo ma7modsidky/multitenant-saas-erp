@@ -26,6 +26,7 @@ import { OrganizationsModule } from './platform/organizations/organizations.modu
 import { RolesModule } from './platform/roles/roles.module.js';
 import { SearchModule } from './platform/search/search.module.js';
 import { UsersModule } from './platform/users/users.module.js';
+import { InventoryModule } from './modules/inventory/public/index.js';
 
 /**
  * AppModule — the composition root of the modular monolith.
@@ -70,6 +71,7 @@ import { UsersModule } from './platform/users/users.module.js';
     SearchModule.register([CrmSearchContributor]),
     FxRatesModule,
     CrmModule,
+    InventoryModule,
   ],
   controllers: [],
   providers: [],
