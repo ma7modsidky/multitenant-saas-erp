@@ -239,7 +239,13 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # gitleaks-action scans the pushed commit range (firstCommit^..head) on
+      # push events. A shallow checkout (default fetch-depth: 1) lacks the
+      # parent commit, so git errors out and gitleaks exits 1 — a false
+      # failure, not a real leak. Full history fixes it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
