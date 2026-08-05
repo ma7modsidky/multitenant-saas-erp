@@ -21,6 +21,12 @@ export {
   crmDealStageChangedV1Schema,
   crmDealWonV1Schema,
   crmDealLostV1Schema,
+  INVENTORY_EVENTS,
+  inventoryProductCreatedV1Schema,
+  inventoryProductArchivedV1Schema,
+  inventoryStockLevelChangedV1Schema,
+  inventoryStockDepletedV1Schema,
+  inventoryReorderPointReachedV1Schema,
   minorUnitsString,
   currencyCode,
   decimalString,
@@ -31,8 +37,29 @@ export type {
   CrmDealStageChangedV1,
   CrmDealWonV1,
   CrmDealLostV1,
+  InventoryProductCreatedV1,
+  InventoryProductArchivedV1,
+  InventoryStockLevelChangedV1,
+  InventoryStockDepletedV1,
+  InventoryReorderPointReachedV1,
 } from './events/index.js';
 
-export type { TransactionRef, PortToken, SearchContributor, SearchResult, FxRateRead } from './ports/index.js';
-export { SEARCH_CONTRIBUTORS, MEMBERSHIP_READ_PORT, ORGANIZATION_READ_PORT, FX_RATE_READ_PORT } from './ports/index.js';
+export type {
+  TransactionRef,
+  PortToken,
+  SearchContributor,
+  SearchResult,
+  FxRateRead,
+  AvailabilitySnapshot,
+  ReserveStockInput,
+  ReservationRef,
+  InventoryStockPort,
+} from './ports/index.js';
+export {
+  SEARCH_CONTRIBUTORS,
+  MEMBERSHIP_READ_PORT,
+  ORGANIZATION_READ_PORT,
+  FX_RATE_READ_PORT,
+  INVENTORY_STOCK_PORT,
+} from './ports/index.js';
 export type { MembershipReadPort, OrganizationReadPort, FxRateReadPort } from './ports/index.js';

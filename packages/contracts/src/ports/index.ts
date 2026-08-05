@@ -101,6 +101,83 @@ export interface SearchResult {
  */
 export const SEARCH_CONTRIBUTORS = Symbol('SEARCH_CONTRIBUTORS');
 
+// ─── Inventory stock port (Level 3 — transactional command port) ────────────
+//
+// Provided by the Inventory module (PLAN §5.6), consumed by POS at checkout
+// (POS-15: stock deduction happens inside the sale transaction). Methods
+// accept a `TransactionRef` so the implementation joins the caller's ambient
+// transaction — never opens its own.
+//
+// @see ARCHITECTURE.md §6 — Level 3: transactional command port
+// @see BUSINESS_RULES.md §8 — INV-5 (available = on-hand − reserved), INV-7/INV-8 (reservations)
+
+/** DI token for the inventory stock port. */
+export const INVENTORY_STOCK_PORT = 'INVENTORY_STOCK_PORT' as const;
+
+/** Per-variant availability snapshot for one warehouse. */
+export interface AvailabilitySnapshot {
+  variantId: string;
+  warehouseId: string;
+  /** Decimal string of the `numeric(18,4)` on-hand projection (INV-2). */
+  quantityOnHand: string;
+  /** Decimal string of the reserved quantity (INV-5). */
+  quantityReserved: string;
+  /** Available = on-hand − reserved (INV-5). Never expose on-hand as "available". */
+  quantityAvailable: string;
+}
+
+/** Input for `reserve` — the soft hold request (INV-7). */
+export interface ReserveStockInput {
+  variantId: string;
+  warehouseId: string;
+  /** Quantity to hold (decimal string, UoM units). */
+  quantity: string;
+  /** Bounded hold duration in seconds (default 900 = 15 min per INV-7). */
+  holdForSeconds?: number;
+  /** Who holds it (e.g. a POS draft sale) — `reference_type`/`reference_id` columns. */
+  referenceType: string;
+  referenceId: string;
+  /** Client-generated key so retried reserve calls do not double-hold (INV-16). */
+  idempotencyKey?: string;
+}
+
+/** Handle to a created reservation. */
+export interface ReservationRef {
+  reservationId: string;
+  /** When the hold auto-expires (ISO 8601). */
+  expiresAt: string;
+}
+
+/**
+ * Stock availability, reservation, and deduction — the Level 3 port POS
+ * consumes inside its checkout transaction (POS-15).
+ */
+export interface InventoryStockPort {
+  /**
+   * Availability for one warehouse (INV-5). Read-only; no transaction needed.
+   * Fails closed for unknown warehouses (WAREHOUSE_NOT_FOUND).
+   */
+  getAvailability(input: { variantIds: string[]; warehouseId: string }): Promise<AvailabilitySnapshot[]>;
+
+  /**
+   * Create a soft hold (INV-7). Rejects with INSUFFICIENT_STOCK when the
+   * requested quantity exceeds available. Accepts `TransactionRef` so the
+   * caller's transaction sees the hold atomically.
+   */
+  reserve(input: ReserveStockInput, tx: TransactionRef): Promise<ReservationRef>;
+
+  /**
+   * `held → committed`: deducts on-hand and clears the hold (INV-8). Only
+   * legal on a reservation in `held` state.
+   */
+  commitReservation(reservationId: string, tx: TransactionRef): Promise<void>;
+
+  /**
+   * `held → released`: returns the quantity to available (INV-8).
+   */
+  releaseReservation(reservationId: string, tx: TransactionRef): Promise<void>;
+}
+
 // ─── Platform read ports (Level 2) ──────────────────────────────────────────
 //
 // Business modules (crm, inventory, pos) must never import `platform/`

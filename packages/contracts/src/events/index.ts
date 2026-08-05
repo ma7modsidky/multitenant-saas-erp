@@ -22,26 +22,10 @@
 // and `occurredAt` (ISO 8601) per MODULE_GUIDE.md Step 1.
 import { z } from 'zod';
 
-// ─── Shared primitives ──────────────────────────────────────────────────────
-//
-// Money is always integer minor units (DATA_MODEL §5 M1). In a JSON event
-// payload a bigint would lose precision, so amounts travel as decimal strings —
-// the same representation `Money` uses when JSON-serialized
-// (packages/money/src/money.ts).
+import { minorUnitsString, currencyCode, decimalString } from './primitives.js';
 
-/** Integer minor units as a decimal string (e.g. "250000" = 2500.00). */
-export const minorUnitsString = z.string().regex(/^\d+$/, 'minor units must be a non-negative integer string');
-
-/** ISO 4217 currency code, uppercase 3 letters. */
-export const currencyCode = z.string().regex(/^[A-Z]{3}$/, 'currency must be an uppercase ISO 4217 code');
-
-/**
- * Fixed-point decimal as a string (e.g. "3.6725") — the JSON-safe form of a
- * `numeric(20,10)` column. Never a JS float, never scientific notation.
- */
-export const decimalString = z
-  .string()
-  .regex(/^\d+(\.\d+)?$/, 'decimal must be a plain decimal string (no floats, no exponents)');
+// ─── Shared primitives (re-exported for back-compat; defined in primitives.ts) ─
+export { minorUnitsString, currencyCode, decimalString } from './primitives.js';
 
 // ─── CRM events ─────────────────────────────────────────────────────────────
 //
@@ -144,3 +128,25 @@ export const crmDealLostV1Schema = z.object({
   occurredAt: z.string().datetime(),
 });
 export type CrmDealLostV1 = z.infer<typeof crmDealLostV1Schema>;
+
+// ─── Inventory events ───────────────────────────────────────────────────────
+//
+// @see PLAN.md §5.1 — Declare contracts first
+// @see DATA_MODEL.md §8 — Inventory schema (`inv_`)
+// @see BUSINESS_RULES.md §8 — Inventory rules
+
+export {
+  INVENTORY_EVENTS,
+  inventoryProductCreatedV1Schema,
+  inventoryProductArchivedV1Schema,
+  inventoryStockLevelChangedV1Schema,
+  inventoryStockDepletedV1Schema,
+  inventoryReorderPointReachedV1Schema,
+} from './inventory.js';
+export type {
+  InventoryProductCreatedV1,
+  InventoryProductArchivedV1,
+  InventoryStockLevelChangedV1,
+  InventoryStockDepletedV1,
+  InventoryReorderPointReachedV1,
+} from './inventory.js';

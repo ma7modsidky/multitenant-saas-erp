@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CRM_EVENTS,
+  INVENTORY_EVENTS,
   crmContactCreatedV1Schema,
   crmContactUpdatedV1Schema,
   crmDealLostV1Schema,
   crmDealStageChangedV1Schema,
   crmDealWonV1Schema,
+  inventoryProductArchivedV1Schema,
+  inventoryProductCreatedV1Schema,
+  inventoryReorderPointReachedV1Schema,
+  inventoryStockDepletedV1Schema,
+  inventoryStockLevelChangedV1Schema,
 } from '../src/events/index.js';
 import { MODULE_KEYS, type EventName } from '../src/module/index.js';
 
@@ -217,5 +223,150 @@ describe('crmDealLostV1Schema', () => {
   it('rejects a missing lostReasonCode (CRM-7)', () => {
     const { lostReasonCode: _omit, ...rest } = valid;
     expect(() => crmDealLostV1Schema.parse(rest)).toThrow();
+  });
+});
+
+// ─── Inventory events (PLAN.md §5.1) ────────────────────────────────────────
+
+describe('Inventory event names (PLAN.md §5.1)', () => {
+  it('declares exactly the five planned events', () => {
+    expect(Object.values(INVENTORY_EVENTS).sort()).toEqual([
+      'inventory.product.archived.v1',
+      'inventory.product.created.v1',
+      'inventory.reorder_point.reached.v1',
+      'inventory.stock.depleted.v1',
+      'inventory.stock.level_changed.v1',
+    ]);
+  });
+
+  it('every event name matches the EventName format and the INVENTORY module key', () => {
+    const names: EventName[] = Object.values(INVENTORY_EVENTS);
+    for (const name of names) {
+      expect(name.startsWith(`${MODULE_KEYS.INVENTORY}.`)).toBe(true);
+      expect(name).toMatch(/^inventory\.[a-z_]+\.(created|archived|level_changed|depleted|reached)\.v1$/);
+    }
+  });
+});
+
+// ─── inventory.product.created.v1 ───────────────────────────────────────────
+
+describe('inventoryProductCreatedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    productId: id,
+    nameI18n: { en: 'Espresso' },
+    variantId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    sku: 'ESP-001',
+    isActive: true,
+    occurredAt: '2026-08-04T09:00:00.000Z',
+  };
+
+  it('accepts a valid product-created payload (INV-10: sku present)', () => {
+    expect(inventoryProductCreatedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects an empty sku', () => {
+    expect(() => inventoryProductCreatedV1Schema.parse({ ...valid, sku: '' })).toThrow();
+  });
+
+  it('rejects a non-uuid variantId', () => {
+    expect(() => inventoryProductCreatedV1Schema.parse({ ...valid, variantId: 'nope' })).toThrow();
+  });
+});
+
+// ─── inventory.product.archived.v1 ──────────────────────────────────────────
+
+describe('inventoryProductArchivedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    productId: id,
+    variantIds: ['dddddddd-dddd-dddd-dddd-dddddddddddd'],
+    archivedAt: '2026-08-04T10:00:00.000Z',
+    occurredAt: '2026-08-04T10:00:00.000Z',
+  };
+
+  it('accepts a valid archive payload (INV-11: archive, never hard-delete)', () => {
+    expect(inventoryProductArchivedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects an empty variantIds array (archive is a soft-delete of sellable units)', () => {
+    expect(() => inventoryProductArchivedV1Schema.parse({ ...valid, variantIds: [] })).toThrow();
+  });
+});
+
+// ─── inventory.stock.level_changed.v1 ───────────────────────────────────────
+
+describe('inventoryStockLevelChangedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    variantId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    warehouseId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    movementId: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+    movementType: 'receipt' as const,
+    quantity: '10',
+    quantityOnHand: '10',
+    quantityReserved: '0',
+    occurredAt: '2026-08-04T11:00:00.000Z',
+  };
+
+  it('accepts a valid level-changed payload (INV-2: projection follows the ledger)', () => {
+    expect(inventoryStockLevelChangedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts a fractional quantity (INV-15: numeric(18,4) UoM units)', () => {
+    const payload = { ...valid, quantity: '0.5000' };
+    expect(inventoryStockLevelChangedV1Schema.parse(payload).quantity).toBe('0.5000');
+  });
+
+  it('rejects an unknown movement type', () => {
+    expect(() => inventoryStockLevelChangedV1Schema.parse({ ...valid, movementType: 'magic' })).toThrow();
+  });
+
+  it('rejects a scientific-notation quantity (no floats in the payload)', () => {
+    expect(() => inventoryStockLevelChangedV1Schema.parse({ ...valid, quantity: '1e2' })).toThrow();
+  });
+});
+
+// ─── inventory.stock.depleted.v1 ────────────────────────────────────────────
+
+describe('inventoryStockDepletedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    variantId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    warehouseId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    quantityOnHand: '0',
+    quantityReserved: '0',
+    quantityAvailable: '0',
+    occurredAt: '2026-08-04T12:00:00.000Z',
+  };
+
+  it('accepts a valid depletion payload (INV-6: available crosses zero)', () => {
+    expect(inventoryStockDepletedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a missing quantityAvailable (INV-5: available is the sales gate)', () => {
+    const { quantityAvailable: _omit, ...rest } = valid;
+    expect(() => inventoryStockDepletedV1Schema.parse(rest)).toThrow();
+  });
+});
+
+// ─── inventory.reorder_point.reached.v1 ─────────────────────────────────────
+
+describe('inventoryReorderPointReachedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    variantId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    warehouseId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    quantityAvailable: '4.5',
+    reorderPoint: '5',
+    occurredAt: '2026-08-04T13:00:00.000Z',
+  };
+
+  it('accepts a valid reorder-point payload (INV-13: available crosses below reorder point)', () => {
+    expect(inventoryReorderPointReachedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a non-decimal reorderPoint', () => {
+    expect(() => inventoryReorderPointReachedV1Schema.parse({ ...valid, reorderPoint: 'five' })).toThrow();
   });
 });
