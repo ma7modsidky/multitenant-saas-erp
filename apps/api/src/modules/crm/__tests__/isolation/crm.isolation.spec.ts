@@ -6,7 +6,8 @@ import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
+import type { StartedTestContainer } from 'testcontainers';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { runAllMigrations } from '@modubiz/db/migrate';
 
@@ -58,13 +59,10 @@ function context(organizationId: string, userId: string): TenantContextData {
 }
 
 beforeAll(async () => {
-  container = await new GenericContainer('postgres:16')
-    .withEnvironment({
-      POSTGRES_USER: 'modubiz_owner',
-      POSTGRES_PASSWORD: 'modubiz_owner_password',
-      POSTGRES_DB: 'modubiz_test',
-    })
-    .withExposedPorts(5432)
+  container = await new PostgreSqlContainer('postgres:16')
+    .withUsername('modubiz_owner')
+    .withPassword('modubiz_owner_password')
+    .withDatabase('modubiz_test')
     .withStartupTimeout(180_000)
     .start();
   const host = container.getHost();

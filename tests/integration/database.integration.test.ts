@@ -8,7 +8,8 @@
  * @see TEN-3 — No tenant context ⇒ zero rows, never all rows
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
+import type { StartedTestContainer } from 'testcontainers';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
@@ -29,13 +30,10 @@ const APP_ROLE = 'modubiz_app';
 const APP_PASSWORD = 'modubiz_app_password';
 
 beforeAll(async () => {
-  container = await new GenericContainer('postgres:16')
-    .withEnvironment({
-      POSTGRES_USER: 'modubiz_owner',
-      POSTGRES_PASSWORD: 'modubiz_owner_password',
-      POSTGRES_DB: 'modubiz_test',
-    })
-    .withExposedPorts(5432)
+  container = await new PostgreSqlContainer('postgres:16')
+    .withUsername('modubiz_owner')
+    .withPassword('modubiz_owner_password')
+    .withDatabase('modubiz_test')
     .withStartupTimeout(180_000)
     .start();
 
