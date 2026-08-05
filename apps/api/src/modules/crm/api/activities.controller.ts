@@ -76,6 +76,8 @@ export class ActivitiesController {
     @Query('assigneeUserId') assigneeUserId?: string,
     @Query('unassigned') unassigned?: string,
     @Query('completed') completed?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDir') sortDir?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ): Promise<{ data: { items: Record<string, unknown>[]; total: number; page: number; pageSize: number } }> {
@@ -106,6 +108,21 @@ export class ActivitiesController {
     };
     const unassignedFlag = boolFlag(unassigned, 'unassigned');
     const completedFlag = boolFlag(completed, 'completed');
+    // sortBy is interpolated into SQL below, so it must be validated here —
+    // a malformed value would otherwise surface as a 500 instead of a 400.
+    if (
+      sortBy !== undefined &&
+      sortBy !== 'updatedAt' &&
+      sortBy !== 'createdAt' &&
+      sortBy !== 'subject' &&
+      sortBy !== 'type' &&
+      sortBy !== 'dueAt'
+    ) {
+      throw new BadRequestException('sortBy must be one of updatedAt, createdAt, subject, type, dueAt');
+    }
+    if (sortDir !== undefined && sortDir !== 'asc' && sortDir !== 'desc') {
+      throw new BadRequestException('sortDir must be asc or desc');
+    }
     const result = await this.listActivitiesUseCase.execute({
       ...(search !== undefined ? { search } : {}),
       ...(fromDate !== undefined ? { fromDate } : {}),
@@ -113,6 +130,8 @@ export class ActivitiesController {
       ...(assigneeUserId !== undefined ? { assigneeUserId } : {}),
       ...(unassignedFlag !== undefined ? { unassigned: unassignedFlag } : {}),
       ...(completedFlag !== undefined ? { completed: completedFlag } : {}),
+      ...(sortBy !== undefined ? { sortBy } : {}),
+      ...(sortDir !== undefined ? { sortDir } : {}),
       ...(page !== undefined ? { page: Number(page) } : {}),
       ...(pageSize !== undefined ? { pageSize: Number(pageSize) } : {}),
     });

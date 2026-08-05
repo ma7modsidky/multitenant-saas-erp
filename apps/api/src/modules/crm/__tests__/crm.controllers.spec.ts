@@ -170,6 +170,34 @@ describe('DealsController — permission metadata', () => {
   });
 });
 
+describe('ContactsController — list validation', () => {
+  it('rejects an unknown sortBy with 400 (table-view sorting)', async () => {
+    const c = makeContactsController();
+    await expect(c.list('', undefined, 'amount', undefined, undefined, undefined)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a malformed sortDir with 400 (table-view sorting)', async () => {
+    const c = makeContactsController();
+    await expect(c.list('', undefined, undefined, 'sideways', undefined, undefined)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+});
+
+describe('CompaniesController — list validation', () => {
+  it('rejects an unknown sortBy with 400 (table-view sorting)', async () => {
+    const c = makeCompaniesController();
+    await expect(c.list('', 'amount', undefined, undefined, undefined)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a malformed sortDir with 400 (table-view sorting)', async () => {
+    const c = makeCompaniesController();
+    await expect(c.list('', undefined, 'sideways', undefined, undefined)).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
 describe('CompaniesController — permission metadata', () => {
   it('GET /v1/crm/companies requires crm:company:read', () => {
     expect(permissionsFor(makeCompaniesController().list as (...args: never[]) => unknown)).toEqual([
@@ -221,6 +249,22 @@ describe('ActivitiesController — list validation', () => {
     const a = makeActivitiesController();
     await expect(
       a.list('', undefined, undefined, undefined, undefined, '1', undefined, undefined),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('ActivitiesController — list validation (table-view sorting)', () => {
+  it('rejects an unknown sortBy with 400 before touching the use case', async () => {
+    const a = makeActivitiesController();
+    await expect(
+      a.list('', undefined, undefined, undefined, undefined, undefined, 'amount', undefined, undefined, undefined),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a malformed sortDir with 400 before touching the use case', async () => {
+    const a = makeActivitiesController();
+    await expect(
+      a.list('', undefined, undefined, undefined, undefined, undefined, undefined, 'sideways', undefined, undefined),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

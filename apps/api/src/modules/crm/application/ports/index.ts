@@ -6,8 +6,11 @@ export { type NoteRepository, type NoteData, NOTE_REPOSITORY } from './note-repo
 export { type AttachmentRepository, type AttachmentData, ATTACHMENT_REPOSITORY } from './attachment-repository.port.js';
 export {
   type ActivityListFilter,
+  type ActivitySortBy,
   type ContactListFilter,
+  type ContactSortBy,
   type CompanyListFilter,
+  type CompanySortBy,
   type CrmCompanyRecord,
   type CrmPipelineRecord,
   type CrmReadRepository,

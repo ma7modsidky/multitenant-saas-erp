@@ -296,6 +296,9 @@ export interface CrmContact {
   ownerUserId: string | null;
   preferredLocale: string | null;
   preferredCurrency: string | null;
+  /** ISO timestamps (list rows; detail view always has them). */
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface CrmDeal {
@@ -325,6 +328,9 @@ export interface CrmCompany {
   industry: string | null;
   address: Record<string, unknown>;
   ownerUserId: string | null;
+  /** ISO timestamps (list rows; detail view always has them). */
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface CrmActivity {
@@ -341,6 +347,9 @@ export interface CrmActivity {
   /** Deal-related activities: the deal's current stage (list response). */
   dealStageId?: string | null;
   dealStageNameI18n?: Record<string, string> | null;
+  /** ISO timestamps (list rows; detail view always has them). */
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 /** Activity detail — list fields + timestamps + audit stamps. */
@@ -421,9 +430,13 @@ export interface CrmListParams {
   fromDate?: string;
   /** Inclusive upper bound on updated_at (ISO date YYYY-MM-DD). */
   toDate?: string;
-  /** Deal sort key (table view). Default `updatedAt`. */
-  sortBy?: 'updatedAt' | 'createdAt' | 'title' | 'value';
-  /** Deal sort direction (table view). Default `desc`. */
+  /**
+   * Sort key (table views). Each entity allow-lists its own keys server-side
+   * (deals: updatedAt/createdAt/title/value; contacts: + name/email; etc.),
+   * so this is a plain string that the table components constrain.
+   */
+  sortBy?: string;
+  /** Sort direction (table views). Default `desc`. */
   sortDir?: 'asc' | 'desc';
   /** Restrict activities to those assigned to this user id. */
   assigneeUserId?: string;

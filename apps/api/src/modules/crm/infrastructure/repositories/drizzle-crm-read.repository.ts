@@ -7,8 +7,11 @@ import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.pr
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import type {
   ActivityListFilter,
-  ContactListFilter,
+  ActivitySortBy,
   CompanyListFilter,
+  CompanySortBy,
+  ContactListFilter,
+  ContactSortBy,
   CrmCompanyRecord,
   CrmPipelineRecord,
   CrmReadRepository,
@@ -22,6 +25,46 @@ import type {
 function isoOrNull(value: unknown): string | null {
   const date = fromDbDate(value);
   return date ? date.toISOString() : null;
+}
+
+/**
+ * Allow-listed ORDER BY fragment for the contacts list. Keys are mapped to
+ * fixed column expressions — never interpolated from client input (the
+ * controller rejects unknown values with 400; this is defence in depth).
+ */
+function contactOrderBy(sortBy: ContactSortBy, dir: 'ASC' | 'DESC') {
+  const column: Record<ContactSortBy, string> = {
+    updatedAt: 'updated_at',
+    createdAt: 'created_at',
+    // Name sorts by last name then first name (people index semantics).
+    name: 'last_name, first_name',
+    email: 'email',
+  };
+  return sql.raw(`${column[sortBy]} ${dir}`);
+}
+
+/** Allow-listed ORDER BY fragment for the companies list. */
+function companyOrderBy(sortBy: CompanySortBy, dir: 'ASC' | 'DESC') {
+  const column: Record<CompanySortBy, string> = {
+    updatedAt: 'updated_at',
+    createdAt: 'created_at',
+    name: 'name',
+    domain: 'domain',
+    industry: 'industry',
+  };
+  return sql.raw(`${column[sortBy]} ${dir}`);
+}
+
+/** Allow-listed ORDER BY fragment for the activities list table sort. */
+function activityOrderBy(sortBy: ActivitySortBy, dir: 'ASC' | 'DESC') {
+  const column: Record<ActivitySortBy, string> = {
+    updatedAt: 'a.updated_at',
+    createdAt: 'a.created_at',
+    subject: 'a.subject',
+    type: 'a.type',
+    dueAt: 'a.due_at',
+  };
+  return sql.raw(`${column[sortBy]} ${dir}, a.id DESC`);
 }
 
 /** Row shape for the paginated deals list (bigint/numeric → strings). */
@@ -92,9 +135,10 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 12));
     const offset = (page - 1) * pageSize;
 
-    // Most-recently added/edited first (updated_at DESC). RLS scopes the
-    // whole query to the tenant; the company filter is a client-visible
-    // narrowing, never a tenant bypass.
+    // RLS scopes the whole query to the tenant; the company filter is a
+    // client-visible narrowing, never a tenant bypass. Sort keys are
+    // allow-listed below — never interpolated from client input (the
+    // controller already rejects unknown values with 400; defence in depth).
     const conditions = [
       sql`deleted_at IS NULL`,
       sql`(${search} = '' OR first_name ILIKE ${`%${search}%`} OR last_name ILIKE ${`%${search}%`}
@@ -108,12 +152,17 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const countRows = await db.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM crm_contacts WHERE ${where}`);
     const total = Number(countRows[0]?.n ?? 0);
 
+    // Default: most recently added/edited first (updated_at DESC), matching
+    // the card view. `name` sorts by last name then first name.
+    const sortDir = filter.sortDir === 'asc' ? 'ASC' : 'DESC';
+    const orderBy = contactOrderBy(filter.sortBy ?? 'updatedAt', sortDir);
+
     const rows = await db.execute<Record<string, unknown>>(sql`
       SELECT id, first_name, last_name, email, phone, secondary_phone, company_id, owner_user_id,
-             preferred_locale, preferred_currency
+             preferred_locale, preferred_currency, created_at, updated_at
       FROM crm_contacts
       WHERE ${where}
-      ORDER BY updated_at DESC
+      ORDER BY ${orderBy}
       LIMIT ${pageSize} OFFSET ${offset}
     `);
     return {
@@ -128,6 +177,8 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
         ownerUserId: row.owner_user_id,
         preferredLocale: row.preferred_locale,
         preferredCurrency: row.preferred_currency,
+        createdAt: isoOrNull(row.created_at),
+        updatedAt: isoOrNull(row.updated_at),
       })),
       total,
       page,
@@ -149,10 +200,16 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const countRows = await db.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM crm_companies WHERE ${where}`);
     const total = Number(countRows[0]?.n ?? 0);
 
+    // Default: most recently added/edited first (updated_at DESC), matching
+    // the card view. Sort keys are allow-listed below.
+    const sortDir = filter.sortDir === 'asc' ? 'ASC' : 'DESC';
+    const orderBy = companyOrderBy(filter.sortBy ?? 'updatedAt', sortDir);
+
     const rows = await db.execute<Record<string, unknown>>(sql`
-      SELECT id, name, domain, industry, address, owner_user_id FROM crm_companies
+      SELECT id, name, domain, industry, address, owner_user_id, created_at, updated_at
+      FROM crm_companies
       WHERE ${where}
-      ORDER BY updated_at DESC
+      ORDER BY ${orderBy}
       LIMIT ${pageSize} OFFSET ${offset}
     `);
     return {
@@ -268,7 +325,8 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 12));
     const offset = (page - 1) * pageSize;
 
-    // Incomplete first, then by due date (soonest first), then newest. RLS
+    // Default (card view) order: incomplete first, then by due date (soonest
+    // first), then newest. An explicit table-view sort overrides it. RLS
     // scopes the whole query to the tenant; the LEFT JOINs only resolve
     // display names (related entity + deal stage) and never widen the tenant
     // scope — the `related_type` guard keeps joins null for unrelated rows.
@@ -301,8 +359,16 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     );
     const total = Number(countRows[0]?.n ?? 0);
 
+    // Default ordering unless an explicit table-view sort is requested.
+    const orderBy = filter.sortBy
+      ? activityOrderBy(filter.sortBy, filter.sortDir === 'asc' ? 'ASC' : 'DESC')
+      : sql`
+      a.completed_at NULLS FIRST, a.due_at NULLS LAST, a.created_at DESC, a.id DESC
+    `;
+
     const rows = await db.execute<Record<string, unknown>>(sql`
       SELECT a.id, a.type, a.subject, a.due_at, a.completed_at, a.related_type, a.related_id, a.assigned_to,
+             a.created_at, a.updated_at,
              c.first_name AS contact_first_name, c.last_name AS contact_last_name,
              co.name AS company_name,
              d.title AS deal_title, d.stage_id AS deal_stage_id,
@@ -313,7 +379,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
       LEFT JOIN crm_deals d ON a.related_type = 'deal' AND d.id = a.related_id AND d.deleted_at IS NULL
       LEFT JOIN crm_pipeline_stages s ON s.id = d.stage_id AND s.deleted_at IS NULL
       WHERE ${where}
-      ORDER BY a.completed_at NULLS FIRST, a.due_at NULLS LAST, a.created_at DESC, a.id DESC
+      ORDER BY ${orderBy}
       LIMIT ${pageSize} OFFSET ${offset}
     `);
     return {
@@ -344,6 +410,8 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
           dealStageId: row.related_type === 'deal' ? ((row.deal_stage_id as string | null) ?? null) : null,
           dealStageNameI18n:
             row.related_type === 'deal' ? ((row.deal_stage_name_i18n as Record<string, string> | null) ?? null) : null,
+          createdAt: isoOrNull(row.created_at),
+          updatedAt: isoOrNull(row.updated_at),
         };
       }),
       total,
@@ -529,10 +597,13 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
       industry: (row.industry as string | null) ?? null,
       address: row.address as Record<string, unknown>,
       ownerUserId: (row.owner_user_id as string | null) ?? null,
-      // Audit stamps are only present when the query selected the columns
-      // (detail/insert/update) — list rows omit them rather than claim null.
+      // Audit stamps + timestamps are only present when the query selected
+      // the columns (detail/insert/update/list-with-timestamps) — rows that
+      // omit them stay unset rather than claiming null.
       ...(row.created_by !== undefined ? { createdByUserId: (row.created_by as string | null) ?? null } : {}),
       ...(row.updated_by !== undefined ? { updatedByUserId: (row.updated_by as string | null) ?? null } : {}),
+      ...(row.created_at !== undefined ? { createdAt: isoOrNull(row.created_at) } : {}),
+      ...(row.updated_at !== undefined ? { updatedAt: isoOrNull(row.updated_at) } : {}),
     };
   }
 }

@@ -9,11 +9,10 @@
 // exact org-base value of the whole filtered set (`totalValueBaseMinor`),
 // independent of the current page.
 
-import { ArrowDown, ArrowUp, ArrowUpDown, LayoutGrid, List, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,88 +23,42 @@ import { CRM_PAGE_SIZE } from '@/lib/api/resources';
 
 import { useCurrencies, useCrmData, useDealsList, useOrgBaseCurrency } from './hooks';
 import { formatMinorAmount } from './money';
+import { type SortDir, SortHeader, ViewToggle, useCrmTableUrlState } from './table-shared';
 import { Empty, Pagination } from './workspace';
 
 /** Deal sort keys the API accepts. */
-type SortKey = 'updatedAt' | 'createdAt' | 'title' | 'value';
-
-const isSortKey = (value: string): value is SortKey =>
-  value === 'updatedAt' || value === 'createdAt' || value === 'title' || value === 'value';
-
 const isDealStatus = (value: string): value is 'open' | 'won' | 'lost' =>
   value === 'open' || value === 'won' || value === 'lost';
 
-/** Sortable columns: key + localized header. */
-const SORTABLE: Array<{ key: SortKey; labelKey: string }> = [
-  { key: 'title', labelKey: 'deals.tableTitle' },
-  { key: 'value', labelKey: 'deals.tableValue' },
-  { key: 'updatedAt', labelKey: 'deals.tableUpdated' },
+/** Sortable columns: key + localized header (+ first-click direction). */
+const SORTABLE: Array<{ key: string; labelKey: string; defaultDir: SortDir }> = [
+  { key: 'title', labelKey: 'deals.tableTitle', defaultDir: 'asc' },
+  { key: 'value', labelKey: 'deals.tableValue', defaultDir: 'desc' },
+  { key: 'updatedAt', labelKey: 'deals.tableUpdated', defaultDir: 'desc' },
 ];
 
 export function DealsTableView() {
   const t = useTranslations('modules.crm');
   const locale = useLocale();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const data = useCrmData();
   const baseCurrency = useOrgBaseCurrency();
   const { data: currencies } = useCurrencies();
   const baseExponent = currencies?.find((c) => c.code === baseCurrency)?.exponent ?? 2;
 
+  const basePath = `/${locale}/m/crm/deals/table`;
+  const { q, sortBy, sortDir, page, searchInput, setSearchInput, update, onSort } = useCrmTableUrlState({
+    basePath,
+    defaultSortBy: 'updatedAt',
+    sortKeys: SORTABLE.map((c) => c.key),
+    defaultDir: Object.fromEntries(SORTABLE.map((c) => [c.key, c.defaultDir])),
+  });
+
   // URL is the single source of truth for every filter.
-  const q = searchParams.get('q') ?? '';
   const stage = searchParams.get('stage') ?? '';
   const status = searchParams.get('status') ?? '';
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
-  const rawSortBy = searchParams.get('sortBy') ?? 'updatedAt';
-  const sortBy = isSortKey(rawSortBy) ? rawSortBy : 'updatedAt';
-  const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc';
-  const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
-
-  // Local input debounced into the `q` param — no refetch per keystroke.
-  // The update is inlined here (rather than calling `update`) so the effect
-  // closes over nothing unstable; the `searchInput === q` guard keeps it from
-  // firing when the URL changed for another reason (e.g. a filter click).
-  const [searchInput, setSearchInput] = useState(q);
-  useEffect(() => setSearchInput(q), [q]);
-  useEffect(() => {
-    if (searchInput === q) return;
-    const id = setTimeout(() => {
-      const next = new URLSearchParams(searchParams.toString());
-      if (searchInput) next.set('q', searchInput);
-      else next.delete('q');
-      next.delete('page');
-      const qs = next.toString();
-      router.replace(qs ? `/${locale}/m/crm/deals/table?${qs}` : `/${locale}/m/crm/deals/table`, {
-        scroll: false,
-      });
-    }, 300);
-    return () => clearTimeout(id);
-  }, [searchInput, q, locale, router, searchParams]);
-
-  /** Merge a patch into the URL; any non-`page` change resets to page 1. */
-  const update = useCallback(
-    (patch: Record<string, string | undefined>) => {
-      const next = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === undefined || value === '') next.delete(key);
-        else next.set(key, value);
-      }
-      if (!('page' in patch)) next.delete('page');
-      const qs = next.toString();
-      router.replace(qs ? `/${locale}/m/crm/deals/table?${qs}` : `/${locale}/m/crm/deals/table`, {
-        scroll: false,
-      });
-    },
-    [locale, router, searchParams],
-  );
-
-  const onSort = (key: SortKey) => {
-    if (sortBy === key) update({ sortDir: sortDir === 'asc' ? 'desc' : 'asc' });
-    // Text columns start ascending; numeric/date columns descending.
-    else update({ sortBy: key, sortDir: key === 'title' ? 'asc' : 'desc' });
-  };
 
   const list = useDealsList({
     page,
@@ -139,18 +92,13 @@ export function DealsTableView() {
             className="ps-9"
           />
         </div>
-        <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
-          <Button asChild variant="ghost" size="sm" className="h-8">
-            <Link href={`/${locale}/m/crm/deals`}>
-              <LayoutGrid />
-              {t('deals.viewBoard')}
-            </Link>
-          </Button>
-          <Button variant="secondary" size="sm" className="h-8" aria-pressed>
-            <List />
-            {t('deals.viewTable')}
-          </Button>
-        </div>
+        <ViewToggle
+          cardsHref={`/${locale}/m/crm/deals`}
+          tableHref={basePath}
+          active="table"
+          cardsLabel={t('deals.viewBoard')}
+          tableLabel={t('deals.viewTable')}
+        />
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -290,38 +238,5 @@ export function DealsTableView() {
         />
       </div>
     </div>
-  );
-}
-
-function SortHeader({
-  label,
-  sortKey,
-  sortBy,
-  sortDir,
-  onSort,
-}: {
-  label: string;
-  sortKey: SortKey;
-  sortBy: SortKey;
-  sortDir: 'asc' | 'desc';
-  onSort: (key: SortKey) => void;
-}) {
-  const active = sortBy === sortKey;
-  const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
-  return (
-    <th
-      scope="col"
-      className="px-3 py-2.5 text-start font-medium"
-      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-    >
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-1 rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        {label}
-        <Icon className={active ? 'size-3.5' : 'size-3.5 opacity-50'} />
-      </button>
-    </th>
   );
 }

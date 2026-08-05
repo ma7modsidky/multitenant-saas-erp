@@ -7,8 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Handshake,
-  LayoutGrid,
-  List,
   Merge,
   Plus,
   Search,
@@ -52,6 +50,7 @@ import {
 } from './hooks';
 import { formatMinorAmount } from './money';
 import { MoveDealDialog } from './move-deal-dialog';
+import { ViewToggle } from './table-shared';
 import {
   companyFormSchema,
   contactFormSchema,
@@ -648,6 +647,7 @@ function ContactsSection({
   onPage: (page: number) => void;
 }) {
   const t = useTranslations('modules.crm');
+  const locale = useLocale();
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -673,6 +673,13 @@ function ContactsSection({
             </SelectItem>
           ))}
         </Select>
+        <ViewToggle
+          cardsHref={`/${locale}/m/crm/contacts`}
+          tableHref={`/${locale}/m/crm/contacts/table`}
+          active="cards"
+          cardsLabel={t('contacts.viewCards')}
+          tableLabel={t('contacts.viewTable')}
+        />
       </div>
       <ContactList
         items={list.data?.items ?? []}
@@ -701,15 +708,25 @@ function CompaniesSection({
   onPage: (page: number) => void;
 }) {
   const t = useTranslations('modules.crm');
+  const locale = useLocale();
   return (
     <div className="space-y-4">
-      <div className="relative min-w-48">
-        <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(event) => onSearch(event.target.value)}
-          placeholder={t('companies.searchPlaceholder')}
-          className="ps-9"
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-48 flex-1">
+          <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder={t('companies.searchPlaceholder')}
+            className="ps-9"
+          />
+        </div>
+        <ViewToggle
+          cardsHref={`/${locale}/m/crm/companies`}
+          tableHref={`/${locale}/m/crm/companies/table`}
+          active="cards"
+          cardsLabel={t('companies.viewCards')}
+          tableLabel={t('companies.viewTable')}
         />
       </div>
       <CompanyList
@@ -763,18 +780,13 @@ function DealsSection({
         </div>
         {/* Board / Table view switch — both pages carry it so the All-time
             shortcut and the toggle always land on the matching view. */}
-        <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
-          <Button variant="secondary" size="sm" className="h-8" aria-pressed>
-            <LayoutGrid />
-            {t('deals.viewBoard')}
-          </Button>
-          <Button asChild variant="ghost" size="sm" className="h-8">
-            <Link href={`/${locale}/m/crm/deals/table`}>
-              <List />
-              {t('deals.viewTable')}
-            </Link>
-          </Button>
-        </div>
+        <ViewToggle
+          cardsHref={`/${locale}/m/crm/deals`}
+          tableHref={`/${locale}/m/crm/deals/table`}
+          active="cards"
+          cardsLabel={t('deals.viewBoard')}
+          tableLabel={t('deals.viewTable')}
+        />
       </div>
       <PipelineBoard
         pipeline={pipeline}
@@ -828,6 +840,7 @@ function ActivitiesSection({
   onComplete: (id: string) => void;
 }) {
   const t = useTranslations('modules.crm');
+  const locale = useLocale();
   const { data: members } = useOrgMembers();
   // Active members only (CRM-14: only active members can hold assignments).
   const activeMembers = (members ?? []).filter((m) => m.status === 'active');
@@ -843,6 +856,13 @@ function ActivitiesSection({
             className="ps-9"
           />
         </div>
+        <ViewToggle
+          cardsHref={`/${locale}/m/crm/activities`}
+          tableHref={`/${locale}/m/crm/activities/table`}
+          active="cards"
+          cardsLabel={t('activities.viewCards')}
+          tableLabel={t('activities.viewTable')}
+        />
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">{t('activities.assigneeFilter')}</Label>
           <Select

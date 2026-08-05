@@ -951,6 +951,93 @@ describe('CRM application layer (integration)', () => {
     expect(byValue.items.map((item) => item.title)).toEqual(['Beta', 'Gamma', 'Alpha']);
   });
 
+  it('sorts contacts by name and companies by name (table views)', async () => {
+    const { orgId } = await createOrgForOwner();
+    const readRepo = new DrizzleCrmReadRepository(db);
+    const txManager = new TransactionManager(db);
+    const listContacts = new ListContactsUseCase(readRepo, txManager);
+    const listCompanies = new ListCompaniesUseCase(readRepo, txManager);
+    const createCompany = new CreateCompanyUseCase(readRepo, txManager);
+
+    for (const [first, last, email] of [
+      ['Zara', 'Alpha', 'zara@example.com'],
+      ['Ann', 'Beta', 'ann@example.com'],
+      ['Ben', 'Gamma', 'ben@example.com'],
+    ] as const) {
+      const { contactRepo, txManager: tx2, unitOfWork } = buildCrmRepos();
+      const create = new CreateContactUseCase(contactRepo, tx2, unitOfWork);
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        create.execute({ firstName: first, lastName: last, email, phone: null }),
+      );
+    }
+
+    // `name` sorts by last name then first name (people-index semantics).
+    const byName = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      listContacts.execute({ sortBy: 'name', sortDir: 'asc' }),
+    );
+    expect(byName.items.map((c) => `${c.firstName as string} ${c.lastName as string}`)).toEqual([
+      'Zara Alpha',
+      'Ann Beta',
+      'Ben Gamma',
+    ]);
+
+    const byEmail = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      listContacts.execute({ sortBy: 'email', sortDir: 'desc' }),
+    );
+    expect(byEmail.items.map((c) => c.email as string)).toEqual([
+      'zara@example.com',
+      'ben@example.com',
+      'ann@example.com',
+    ]);
+
+    // Companies sort by name too.
+    for (const name of ['Zebra Co', 'Acme Co', 'Mango Co']) {
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        createCompany.execute({ name, domain: null, industry: null, address: {} }),
+      );
+    }
+    const companiesByName = await TenantContext.run(
+      { ...ownerContext, userId: ownerUserId, organizationId: orgId },
+      () => listCompanies.execute({ sortBy: 'name', sortDir: 'asc' }),
+    );
+    expect(companiesByName.items.map((c) => c.name)).toEqual(['Acme Co', 'Mango Co', 'Zebra Co']);
+  });
+
+  it('sorts activities by subject and due date (table views)', async () => {
+    const { orgId } = await createOrgForOwner();
+    const readRepo = new DrizzleCrmReadRepository(db);
+    const txManager = new TransactionManager(db);
+    const listActivities = new ListActivitiesUseCase(readRepo, txManager);
+    const { activityRepo, txManager: tx2, unitOfWork } = buildCrmRepos();
+    const createActivity = new CreateActivityUseCase(activityRepo, tx2, unitOfWork);
+
+    const isoDay = (offset: number) => {
+      const d = new Date();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset, 12).toISOString();
+    };
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      createActivity.execute({ type: 'task', subject: 'Gamma task', dueAt: new Date(isoDay(2)) }),
+    );
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      createActivity.execute({ type: 'call', subject: 'Alpha call', dueAt: new Date(isoDay(0)) }),
+    );
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      createActivity.execute({ type: 'email', subject: 'Beta email', dueAt: new Date(isoDay(1)) }),
+    );
+
+    // Subject sort overrides the default incomplete-first ordering.
+    const bySubject = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      listActivities.execute({ sortBy: 'subject', sortDir: 'asc' }),
+    );
+    expect(bySubject.items.map((a) => a.subject as string)).toEqual(['Alpha call', 'Beta email', 'Gamma task']);
+
+    // Due-date sort: soonest due first.
+    const byDue = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      listActivities.execute({ sortBy: 'dueAt', sortDir: 'asc' }),
+    );
+    expect(byDue.items.map((a) => a.subject as string)).toEqual(['Alpha call', 'Beta email', 'Gamma task']);
+  });
+
   it('filters activities by due-date range', async () => {
     const { orgId } = await createOrgForOwner();
     const { activityRepo, txManager, unitOfWork } = buildCrmRepos();

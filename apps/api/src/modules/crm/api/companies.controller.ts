@@ -1,5 +1,16 @@
 import { MODULE_KEYS } from '@modubiz/contracts';
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  UsePipes,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
@@ -37,11 +48,31 @@ export class CompaniesController {
   @RequiresPermission('crm:company:read')
   async list(
     @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDir') sortDir?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ): Promise<{ data: { items: CrmCompanyRecord[]; total: number; page: number; pageSize: number } }> {
+    // Query params are interpolated into SQL below, so every one must be
+    // validated here — a malformed value would otherwise surface as a 500
+    // instead of a 400 (ERR-1/ERR-6).
+    if (
+      sortBy !== undefined &&
+      sortBy !== 'updatedAt' &&
+      sortBy !== 'createdAt' &&
+      sortBy !== 'name' &&
+      sortBy !== 'domain' &&
+      sortBy !== 'industry'
+    ) {
+      throw new BadRequestException('sortBy must be one of updatedAt, createdAt, name, domain, industry');
+    }
+    if (sortDir !== undefined && sortDir !== 'asc' && sortDir !== 'desc') {
+      throw new BadRequestException('sortDir must be asc or desc');
+    }
     const result = await this.listCompaniesUseCase.execute({
       ...(search !== undefined ? { search } : {}),
+      ...(sortBy !== undefined ? { sortBy } : {}),
+      ...(sortDir !== undefined ? { sortDir } : {}),
       ...(page !== undefined ? { page: Number(page) } : {}),
       ...(pageSize !== undefined ? { pageSize: Number(pageSize) } : {}),
     });

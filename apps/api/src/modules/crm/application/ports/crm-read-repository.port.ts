@@ -28,11 +28,24 @@ export interface CrmPipelineRecord {
   }>;
 }
 
+/** Sort key for the contacts list table. `name` sorts by last name, first name. */
+export type ContactSortBy = 'updatedAt' | 'createdAt' | 'name' | 'email';
+
+/** Sort key for the companies list table. */
+export type CompanySortBy = 'updatedAt' | 'createdAt' | 'name' | 'domain' | 'industry';
+
+/** Sort key for the activities list table. */
+export type ActivitySortBy = 'updatedAt' | 'createdAt' | 'subject' | 'type' | 'dueAt';
+
 /** Filter for the paginated contacts list. */
 export interface ContactListFilter {
   search?: string;
   /** Restrict to contacts of one company. */
   companyId?: string;
+  /** Sort key (table view). Default `updatedAt` (most recently touched first). */
+  sortBy?: ContactSortBy;
+  /** Sort direction (table view). Default `desc`. */
+  sortDir?: SortDirection;
   /** 1-indexed page. Default 1. */
   page?: number;
   /** Rows per page. Default 12, max 100. */
@@ -42,6 +55,10 @@ export interface ContactListFilter {
 /** Filter for the paginated companies list. */
 export interface CompanyListFilter {
   search?: string;
+  /** Sort key (table view). Default `updatedAt` (most recently touched first). */
+  sortBy?: CompanySortBy;
+  /** Sort direction (table view). Default `desc`. */
+  sortDir?: SortDirection;
   /** 1-indexed page. Default 1. */
   page?: number;
   /** Rows per page. Default 12, max 100. */
@@ -121,6 +138,14 @@ export interface ActivityListFilter {
    * Absent = both.
    */
   completed?: boolean;
+  /**
+   * Sort key (table view). When absent, the default ordering applies
+   * (incomplete first, soonest due first, newest last) — the card view's
+   * ordering. An explicit sort overrides it.
+   */
+  sortBy?: ActivitySortBy;
+  /** Sort direction (table view). Only meaningful with `sortBy`. */
+  sortDir?: SortDirection;
   /** 1-indexed page. Default 1. */
   page?: number;
   /** Rows per page. Default 12, max 100. */
