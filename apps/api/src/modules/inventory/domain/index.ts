@@ -1,2 +1,12 @@
-export { InventoryItem } from './inventory.item.js';
-export { InventoryDomainError } from './errors.js';
+export { InventoryError, INVENTORY_ERROR_CODE } from './errors.js';
+export type { InventoryErrorCode } from './errors.js';
+export { ProductVariant } from './product-variant.entity.js';
+export type { ProductVariantData } from './product-variant.entity.js';
+export { StockMovement, MOVEMENT_TYPE } from './stock-movement.entity.js';
+export type { StockMovementData, MovementType } from './stock-movement.entity.js';
+export { StockLevel } from './stock-level.entity.js';
+export { Reservation, RESERVATION_STATE } from './reservation.entity.js';
+export type { ReservationData, ReservationState } from './reservation.entity.js';
+export { StockCount, STOCK_COUNT_STATUS } from './stock-count.entity.js';
+export type { StockCountData, StockCountLineData, StockCountStatus } from './stock-count.entity.js';
+export { compareQuantity, isQuantityShort, addQuantity, subtractQuantity } from './quantity.js';
