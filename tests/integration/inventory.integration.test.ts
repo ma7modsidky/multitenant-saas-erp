@@ -36,6 +36,7 @@ import { DrizzleRoleRepository } from '../../apps/api/src/platform/roles/infrast
 import { DrizzleMembershipRepository } from '../../apps/api/src/platform/memberships/infrastructure/repositories/drizzle-membership.repository.js';
 import { CreateOrganizationUseCase } from '../../apps/api/src/platform/organizations/application/create-organization.use-case.js';
 import { DrizzleInventoryRepository } from '../../apps/api/src/modules/inventory/infrastructure/repositories/drizzle-inventory.repository.js';
+import { InventoryStockPortImpl } from '../../apps/api/src/modules/inventory/infrastructure/ports/inventory-stock.port.impl.js';
 import { CreateProductUseCase } from '../../apps/api/src/modules/inventory/application/create-product.use-case.js';
 import { ArchiveProductUseCase } from '../../apps/api/src/modules/inventory/application/archive-product.use-case.js';
 import { ReceiveStockUseCase } from '../../apps/api/src/modules/inventory/application/receive-stock.use-case.js';
@@ -648,6 +649,181 @@ describe('inventory application layer (integration)', () => {
       variantId,
       sku: 'EVT-1',
       isActive: true,
+    });
+  });
+
+  describe('INVENTORY_STOCK_PORT (Level 3 — PLAN §5.6)', () => {
+    /**
+     * Build the port impl sharing the SAME TransactionManager the test uses
+     * to mint the ref — refs are minted/resolved per-instance (WeakMap), so
+     * the port must hold the identical manager the caller runs inside.
+     */
+    function buildPort(txManager: TransactionManager) {
+      const { repo } = buildInv();
+      const port = new InventoryStockPortImpl(repo, txManager);
+      return { repo, txManager, port };
+    }
+
+    it('reserve → commit deducts stock atomically inside the caller transaction', async () => {
+      const { orgId } = await createOrgForOwner();
+      const { variantId } = await createProduct(orgId, { name: 'Port Cup', sku: 'PORT-1' });
+      const { repo, txManager, unitOfWork } = buildInv();
+      const receive = new ReceiveStockUseCase(repo, txManager, unitOfWork);
+      const { port } = buildPort(txManager);
+
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        receive.execute({
+          variantId,
+          quantity: '10',
+          unitCostAmountMinor: '500',
+          unitCostCurrency: 'USD',
+          referenceType: 'purchase_order',
+          referenceId: randomUUID(),
+        }),
+      );
+      const warehouseId = await defaultWarehouseId(orgId);
+
+      // Simulate POS checkout: mint the ref inside the CALLER's transaction
+      // and pass it to the port — the port joins that same transaction.
+      const { reservationId } = await TenantContext.run(
+        { ...ownerContext, userId: ownerUserId, organizationId: orgId },
+        () =>
+          txManager.run(async (tx) => {
+            const ref = txManager.ref(tx);
+            const result = await port.reserve(
+              { variantId, warehouseId, quantity: '4', referenceType: 'pos_sale', referenceId: randomUUID() },
+              ref,
+            );
+            await port.commitReservation(result.reservationId, ref);
+            return result;
+          }),
+      );
+
+      // On-hand 10 − 4 = 6, reserved back to 0, reservation committed.
+      const [level] = await ownerSql`
+        SELECT quantity_on_hand, quantity_reserved FROM inv_stock_levels WHERE variant_id = ${variantId}
+      `;
+      expect(plain(level?.quantity_on_hand)).toBe('6');
+      expect(plain(level?.quantity_reserved)).toBe('0');
+      const [reservation] = await ownerSql`
+        SELECT state FROM inv_stock_reservations WHERE id = ${reservationId}
+      `;
+      expect(reservation?.state).toBe('committed');
+    });
+
+    it('reserve → release returns the quantity to available (INV-8)', async () => {
+      const { orgId } = await createOrgForOwner();
+      const { variantId } = await createProduct(orgId, { name: 'Port Release', sku: 'PORT-2' });
+      const { repo, txManager, unitOfWork } = buildInv();
+      const receive = new ReceiveStockUseCase(repo, txManager, unitOfWork);
+      const { port } = buildPort(txManager);
+
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        receive.execute({
+          variantId,
+          quantity: '5',
+          unitCostAmountMinor: '500',
+          unitCostCurrency: 'USD',
+          referenceType: 'purchase_order',
+          referenceId: randomUUID(),
+        }),
+      );
+      const warehouseId = await defaultWarehouseId(orgId);
+
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        txManager.run(async (tx) => {
+          const ref = txManager.ref(tx);
+          const { reservationId } = await port.reserve(
+            { variantId, warehouseId, quantity: '2', referenceType: 'pos_sale', referenceId: randomUUID() },
+            ref,
+          );
+          await port.releaseReservation(reservationId, ref);
+        }),
+      );
+
+      const [level] = await ownerSql`
+        SELECT quantity_on_hand, quantity_reserved FROM inv_stock_levels WHERE variant_id = ${variantId}
+      `;
+      expect(plain(level?.quantity_on_hand)).toBe('5');
+      expect(plain(level?.quantity_reserved)).toBe('0');
+    });
+
+    it('INV-7: a reservation with a tiny hold bound is picked up by the expiry scan', async () => {
+      const { orgId } = await createOrgForOwner();
+      const { variantId } = await createProduct(orgId, { name: 'Port Expiry', sku: 'PORT-3' });
+      const { repo, txManager, unitOfWork } = buildInv();
+      const receive = new ReceiveStockUseCase(repo, txManager, unitOfWork);
+      const { port } = buildPort(txManager);
+
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        receive.execute({
+          variantId,
+          quantity: '5',
+          unitCostAmountMinor: '500',
+          unitCostCurrency: 'USD',
+          referenceType: 'purchase_order',
+          referenceId: randomUUID(),
+        }),
+      );
+      const warehouseId = await defaultWarehouseId(orgId);
+
+      let reservationId = '';
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        txManager.run(async (tx) => {
+          const ref = txManager.ref(tx);
+          const result = await port.reserve(
+            {
+              variantId,
+              warehouseId,
+              quantity: '2',
+              holdForSeconds: 1, // 1-second bound (INV-7)
+              referenceType: 'pos_sale',
+              referenceId: randomUUID(),
+            },
+            ref,
+          );
+          reservationId = result.reservationId;
+        }),
+      );
+
+      // Wait for the hold bound to pass, then the expiry job's scan finds it.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const expired = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        txManager.run((tx) => repo.listExpiredHeldReservations(new Date(), tx)),
+      );
+      expect(expired.some((r) => r.id === reservationId)).toBe(true);
+    });
+
+    it('getAvailability reports INV-5 available = on-hand − reserved for the port', async () => {
+      const { orgId } = await createOrgForOwner();
+      const { variantId } = await createProduct(orgId, { name: 'Port Avail', sku: 'PORT-4' });
+      const { repo, txManager, unitOfWork } = buildInv();
+      const receive = new ReceiveStockUseCase(repo, txManager, unitOfWork);
+      const { port } = buildPort(txManager);
+
+      await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        receive.execute({
+          variantId,
+          quantity: '10',
+          unitCostAmountMinor: '500',
+          unitCostCurrency: 'USD',
+          referenceType: 'purchase_order',
+          referenceId: randomUUID(),
+        }),
+      );
+      const warehouseId = await defaultWarehouseId(orgId);
+
+      const snapshots = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        port.getAvailability({ variantIds: [variantId], warehouseId }),
+      );
+      expect(snapshots).toHaveLength(1);
+      expect(snapshots[0]).toMatchObject({
+        variantId,
+        warehouseId,
+        quantityOnHand: '10',
+        quantityReserved: '0',
+        quantityAvailable: '10',
+      });
     });
   });
 });

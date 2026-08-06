@@ -1,9 +1,13 @@
+import { type TransactionRef } from '@modubiz/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 
 import { DRIZZLE_DB, type DrizzleDb } from './drizzle.provider.js';
 import { type TxOrDb } from './repository.base.js';
 import { TenantContext } from './tenant-context.js';
+
+/** The unique symbol carried by every minted TransactionRef. */
+const TRANSACTION_REF: unique symbol = Symbol('TransactionRef');
 
 /**
  * TransactionManager — the ONLY code allowed to set tenant session variables.
@@ -29,6 +33,9 @@ import { TenantContext } from './tenant-context.js';
  */
 @Injectable()
 export class TransactionManager {
+  /** Minted TransactionRef handles → the ambient tx they wrap. */
+  private readonly refs = new WeakMap<object, TxOrDb>();
+
   constructor(
     @Inject(DRIZZLE_DB)
     private readonly db: DrizzleDb,
@@ -82,6 +89,37 @@ export class TransactionManager {
       // Run the callback with the transaction-scoped db
       return fn(tx);
     });
+  }
+
+  /**
+   * Mint an opaque TransactionRef bound to the ambient transaction.
+   *
+   * Level 3 port implementations receive a `TransactionRef` (never a raw tx)
+   * so they can join the CALLER's transaction instead of opening their own
+   * (ARCHITECTURE.md §6). The ref is opaque: consumers and implementations
+   * cannot inspect or construct it — only this manager can resolve it back.
+   *
+   * Must be called inside `run()`/`runWithOrg()` with the callback's `tx`.
+   */
+  ref(tx: TxOrDb): TransactionRef {
+    // The `unique symbol` property is intentionally unconstructable from
+    // outside (that is the opacity) — this minting site is the only place
+    // allowed to forge it.
+    const handle = { __transactionRef: TRANSACTION_REF } as unknown as TransactionRef;
+    this.refs.set(handle, tx);
+    return handle;
+  }
+
+  /**
+   * Resolve a TransactionRef back to the transaction-scoped db client.
+   * @throws {Error} when the ref was not minted by this manager (or already GC'd).
+   */
+  resolveRef(ref: TransactionRef): TxOrDb {
+    const tx = this.refs.get(ref);
+    if (!tx) {
+      throw new Error('TransactionRef is not valid in this context; it was not minted by TransactionManager.');
+    }
+    return tx;
   }
 
   /**

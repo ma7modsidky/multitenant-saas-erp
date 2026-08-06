@@ -127,6 +127,57 @@ describe('TransactionManager', () => {
     });
   });
 
+  describe('PLAN-3.4: TransactionRef minting (Level 3 ports)', () => {
+    it('mints an opaque ref bound to the ambient transaction and resolves it back', async () => {
+      const mockDb = createMockDb();
+      const mockTx = createMockTx();
+      const manager = new TransactionManager(mockDb);
+
+      vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
+
+      // Inside run(), the caller mints a ref and passes it to a port method.
+      const resolved = await TenantContext.run(makeContext(), async () =>
+        manager.run(async (tx) => {
+          const ref = manager.ref(tx);
+          expect(ref.__transactionRef).toBeDefined();
+          // The ref is opaque — resolving returns the SAME ambient tx.
+          return manager.resolveRef(ref);
+        }),
+      );
+
+      expect(resolved).toBe(mockTx);
+    });
+
+    it('resolving a foreign/unknown ref throws', async () => {
+      const mockDb = createMockDb();
+      const mockTx = createMockTx();
+      const manager = new TransactionManager(mockDb);
+
+      vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
+
+      const foreign = { __transactionRef: Symbol('forged') } as never;
+      await expect(TenantContext.run(makeContext(), async () => manager.resolveRef(foreign))).rejects.toThrow(
+        'TransactionRef is not valid in this context',
+      );
+    });
+
+    it('two refs minted for the same tx are distinct handles that both resolve', async () => {
+      const mockDb = createMockDb();
+      const mockTx = createMockTx();
+      const manager = new TransactionManager(mockDb);
+
+      vi.mocked(mockDb.transaction).mockImplementation(async (cb: any) => cb(mockTx));
+
+      const [a, b] = await TenantContext.run(makeContext(), () =>
+        manager.run(async (tx) => [manager.ref(tx), manager.ref(tx)]),
+      );
+
+      expect(a).not.toBe(b);
+      expect(manager.resolveRef(a)).toBe(mockTx);
+      expect(manager.resolveRef(b)).toBe(mockTx);
+    });
+  });
+
   describe('TEN-3: fail-closed without tenant context', () => {
     it('throws an error when run() is called without tenant context', async () => {
       const mockDb = createMockDb();
