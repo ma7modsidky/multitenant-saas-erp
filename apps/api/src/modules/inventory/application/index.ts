@@ -1,1 +1,11 @@
+export { CreateProductUseCase } from './create-product.use-case.js';
+export { ArchiveProductUseCase } from './archive-product.use-case.js';
+export { ReceiveStockUseCase } from './receive-stock.use-case.js';
+export { AdjustStockUseCase } from './adjust-stock.use-case.js';
+export { ReserveStockUseCase } from './reserve-stock.use-case.js';
+export { CommitReservationUseCase } from './commit-reservation.use-case.js';
+export { ReleaseReservationUseCase } from './release-reservation.use-case.js';
+export { ApplyStockCountUseCase } from './apply-stock-count.use-case.js';
+export { GetAvailabilityUseCase } from './get-availability.use-case.js';
+export { TransferStockUseCase } from './transfer-stock.use-case.js';
 export { GetStatusUseCase } from './get-status.use-case.js';

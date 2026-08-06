@@ -9,4 +9,12 @@ export { Reservation, RESERVATION_STATE } from './reservation.entity.js';
 export type { ReservationData, ReservationState } from './reservation.entity.js';
 export { StockCount, STOCK_COUNT_STATUS } from './stock-count.entity.js';
 export type { StockCountData, StockCountLineData, StockCountStatus } from './stock-count.entity.js';
-export { compareQuantity, isQuantityShort, addQuantity, subtractQuantity } from './quantity.js';
+export {
+  compareQuantity,
+  isQuantityShort,
+  addQuantity,
+  subtractQuantity,
+  isNegativeQuantity,
+  isZeroQuantity,
+  movingAverageCost,
+} from './quantity.js';

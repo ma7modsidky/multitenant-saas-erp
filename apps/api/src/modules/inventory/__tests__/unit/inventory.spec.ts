@@ -15,6 +15,7 @@ import {
   addQuantity,
   compareQuantity,
   isQuantityShort,
+  movingAverageCost,
   subtractQuantity,
 } from '../../domain/index.js';
 
@@ -51,6 +52,19 @@ describe('quantity helpers (INV-15: no floating-point comparisons)', () => {
   it('INV-5: available is the gate — 10 on-hand, 3 reserved leaves 7', () => {
     expect(isQuantityShort('7', '7')).toBe(false);
     expect(isQuantityShort('7', '7.0001')).toBe(true);
+  });
+
+  it('INV-12: moving average stays exact — 10@4.00 + 5@5.00 → 4.3333', () => {
+    expect(movingAverageCost('10', '400', '5', '500')).toBe('433');
+  });
+
+  it('INV-12: moving average with a fresh receipt on zero stock is the unit cost', () => {
+    expect(movingAverageCost('0', '0', '3.5', '1200')).toBe('1200');
+  });
+
+  it('INV-12: never rounds through floats — fractional on-hand is exact', () => {
+    // (1.5 × 1000 + 0.5 × 2000) / 2.0 = 1250 — no float drift.
+    expect(movingAverageCost('1.5', '1000', '0.5', '2000')).toBe('1250');
   });
 });
 

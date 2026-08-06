@@ -69,6 +69,12 @@ export class Reservation {
   get expiresAt(): Date {
     return this.data.expiresAt;
   }
+  get referenceType(): string {
+    return this.data.referenceType;
+  }
+  get referenceId(): string {
+    return this.data.referenceId;
+  }
 
   toJSON(): ReservationData {
     return { ...this.data };

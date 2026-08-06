@@ -39,6 +39,30 @@ export function subtractQuantity(a: string, b: string): string {
   return fromBigInt(toBigInt(a) - toBigInt(b));
 }
 
+/**
+ * INV-12: exact moving-average unit cost (minor units), rounded to the
+ * nearest minor unit.
+ *
+ *   newAvg = round((oldOnHand·oldCost + qty·unitCost) / (oldOnHand + qty))
+ *
+ * All arithmetic is integer BigInt on 4-decimal-scaled quantities — costs are
+ * integer minor units and quantities are decimal strings; the ×10⁴ factors
+ * cancel, so the result is directly in minor units. No float is ever involved
+ * (hard rule #3).
+ */
+export function movingAverageCost(oldOnHand: string, oldCostMinor: string, qty: string, unitCostMinor: string): string {
+  const oldHand = toBigInt(oldOnHand); // units × 10⁴
+  const qtyBig = toBigInt(qty); // units × 10⁴
+  const newHand = oldHand + qtyBig;
+  if (newHand <= 0n) {
+    throw new Error('movingAverageCost: on-hand after receipt must be positive');
+  }
+  // (minor/unit)·10⁴ — the ×10⁴ cancels against newHand's ×10⁴ below.
+  const numerator = oldHand * BigInt(oldCostMinor) + qtyBig * BigInt(unitCostMinor);
+  // Round to nearest: floor((2·numerator + newHand) / (2·newHand)).
+  return ((numerator * 2n + newHand) / (newHand * 2n)).toString();
+}
+
 // ─── internals ──────────────────────────────────────────────────────────────
 
 const SCALE = 10_000; // 4 decimal places (numeric(18,4))
