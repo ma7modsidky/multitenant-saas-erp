@@ -10,6 +10,7 @@ import {
   crmDealWonV1Schema,
   inventoryProductArchivedV1Schema,
   inventoryProductCreatedV1Schema,
+  inventoryProductRestoredV1Schema,
   inventoryReorderPointReachedV1Schema,
   inventoryStockDepletedV1Schema,
   inventoryStockLevelChangedV1Schema,
@@ -229,10 +230,11 @@ describe('crmDealLostV1Schema', () => {
 // ─── Inventory events (PLAN.md §5.1) ────────────────────────────────────────
 
 describe('Inventory event names (PLAN.md §5.1)', () => {
-  it('declares exactly the five planned events', () => {
+  it('declares exactly the six planned events', () => {
     expect(Object.values(INVENTORY_EVENTS).sort()).toEqual([
       'inventory.product.archived.v1',
       'inventory.product.created.v1',
+      'inventory.product.restored.v1',
       'inventory.reorder_point.reached.v1',
       'inventory.stock.depleted.v1',
       'inventory.stock.level_changed.v1',
@@ -243,7 +245,7 @@ describe('Inventory event names (PLAN.md §5.1)', () => {
     const names: EventName[] = Object.values(INVENTORY_EVENTS);
     for (const name of names) {
       expect(name.startsWith(`${MODULE_KEYS.INVENTORY}.`)).toBe(true);
-      expect(name).toMatch(/^inventory\.[a-z_]+\.(created|archived|level_changed|depleted|reached)\.v1$/);
+      expect(name).toMatch(/^inventory\.[a-z_]+\.(created|archived|restored|level_changed|depleted|reached)\.v1$/);
     }
   });
 });
@@ -291,6 +293,30 @@ describe('inventoryProductArchivedV1Schema', () => {
 
   it('rejects an empty variantIds array (archive is a soft-delete of sellable units)', () => {
     expect(() => inventoryProductArchivedV1Schema.parse({ ...valid, variantIds: [] })).toThrow();
+  });
+});
+
+// ─── inventory.product.restored.v1 ──────────────────────────────────────────
+
+describe('inventoryProductRestoredV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    productId: id,
+    variantIds: ['dddddddd-dddd-dddd-dddd-dddddddddddd'],
+    restoredAt: '2026-08-04T10:30:00.000Z',
+    occurredAt: '2026-08-04T10:30:00.000Z',
+  };
+
+  it('accepts a valid restore payload (inverse of INV-11 archive)', () => {
+    expect(inventoryProductRestoredV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects an empty variantIds array (a restore always covers sellable units)', () => {
+    expect(() => inventoryProductRestoredV1Schema.parse({ ...valid, variantIds: [] })).toThrow();
+  });
+
+  it('rejects a non-uuid productId', () => {
+    expect(() => inventoryProductRestoredV1Schema.parse({ ...valid, productId: 'nope' })).toThrow();
   });
 });
 

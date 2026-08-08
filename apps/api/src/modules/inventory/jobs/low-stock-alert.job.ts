@@ -56,11 +56,15 @@ export class LowStockAlertJob {
         },
         () =>
           this.txManager.run(async (tx) => {
-            const levels = await this.repo.listStockLevels(tx);
+            // INV-13 must scan EVERY level, not a page — pass `all`.
+            const { items: levels } = await this.repo.listStockLevels({ all: true }, tx);
             const now = new Date();
             let alerts = 0;
 
             for (const level of levels) {
+              // `all` reads are leveled-only (INNER join), so a level row
+              // always has a warehouse — guard keeps the invariant explicit.
+              if (level.warehouseId === null) continue;
               // INV-13: trigger on AVAILABLE (INV-5), never on-hand. Exact
               // decimal-string arithmetic (INV-15) — never floats.
               const available = subtractQuantity(level.quantityOnHand, level.quantityReserved);

@@ -22,7 +22,6 @@ import {
   getCrmDeal,
   getCrmDeals,
   getCrmPipeline,
-  getMembers,
   mergeCrmContacts,
   moveCrmDeal,
   updateCrmActivity,
@@ -34,6 +33,10 @@ import {
   type CrmListParams,
 } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
+
+// Shared member-name resolver — moved to lib/hooks so other modules (e.g.
+// inventory) can render audit stamps without importing CRM feature code.
+export { useMemberName, useOrgMembers } from '@/lib/hooks/use-member-name';
 
 /** Stable query key for a paginated contacts list (cache + invalidation). */
 function contactsKey(params: CrmContactListParams = {}): string[] {
@@ -221,36 +224,6 @@ export function useCrmDealDetail(id: string) {
 
 export function useCrmActivityDetail(id: string) {
   return useQuery({ queryKey: ['crm', 'activities', id], queryFn: () => getCrmActivity(id) });
-}
-
-/**
- * Active members of the current org — feeds the activity assignee select.
- * Shares the `['members', organizationId]` query key with the members
- * settings page, so the result comes from the existing react-query cache.
- */
-export function useOrgMembers() {
-  const { organizationId } = useSession();
-  return useQuery({
-    queryKey: ['members', organizationId],
-    queryFn: () => {
-      if (organizationId === null) throw new Error('No organization selected');
-      return getMembers(organizationId);
-    },
-    enabled: organizationId !== null,
-  });
-}
-
-/**
- * Resolver for a member's display name by user id. Shares the members query
- * cache; returns null for unknown/removed members (callers degrade to '—').
- */
-export function useMemberName() {
-  const { data: members } = useOrgMembers();
-  return (userId: string | null) => {
-    if (!userId) return null;
-    const member = (members ?? []).find((m) => m.userId === userId);
-    return member ? member.name || member.email : null;
-  };
 }
 
 /** ISO currency reference data (`/v1/currencies`), used by the deal form. */

@@ -54,7 +54,8 @@ export class StockReconciliationJob {
         () =>
           this.txManager.run(async (tx) => {
             const sums = await this.repo.sumMovementsByVariantWarehouse(tx);
-            const current = await this.repo.listStockLevels(tx);
+            // INV-2 must reconcile EVERY level, not a page — pass `all`.
+            const { items: current } = await this.repo.listStockLevels({ all: true }, tx);
             const currentByKey = new Map(current.map((l) => [`${l.variantId}:${l.warehouseId}`, l]));
 
             let repaired = 0;

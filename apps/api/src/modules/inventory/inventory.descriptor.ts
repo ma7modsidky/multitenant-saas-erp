@@ -40,10 +40,21 @@ export const inventoryDescriptor: ModuleDescriptor = defineModule({
       href: '/m/inventory/stock',
       icon: 'bar-chart',
     },
+    {
+      labelKey: 'modules.inventory.nav.stockCounts',
+      href: '/m/inventory/stock-counts',
+      icon: 'clipboard-list',
+    },
+    {
+      labelKey: 'modules.inventory.nav.reservations',
+      href: '/m/inventory/stock/reservations',
+      icon: 'lock',
+    },
   ],
   publishes: [
     INVENTORY_EVENTS.PRODUCT_CREATED_V1,
     INVENTORY_EVENTS.PRODUCT_ARCHIVED_V1,
+    INVENTORY_EVENTS.PRODUCT_RESTORED_V1,
     INVENTORY_EVENTS.STOCK_LEVEL_CHANGED_V1,
     INVENTORY_EVENTS.STOCK_DEPLETED_V1,
     INVENTORY_EVENTS.REORDER_POINT_REACHED_V1,

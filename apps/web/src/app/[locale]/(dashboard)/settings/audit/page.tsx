@@ -14,6 +14,7 @@ import { Select, SelectItem } from '@/components/ui/select';
 import { getAuditLog } from '@/lib/api/resources';
 import type { AuditLogEntry } from '@/lib/api/types';
 import { useSession } from '@/lib/auth/session-context';
+import { useMemberName } from '@/lib/hooks/use-member-name';
 import { hasPermission } from '@/lib/permissions';
 
 const PAGE_SIZE = 15;
@@ -88,6 +89,7 @@ function ActionBadge({ action }: { action: string }) {
 export default function AuditLogSettingsPage() {
   const t = useTranslations();
   const { organizationId, permissions } = useSession();
+  const memberName = useMemberName();
 
   const [entityType, setEntityType] = useState('');
   const [action, setAction] = useState('');
@@ -253,7 +255,13 @@ export default function AuditLogSettingsPage() {
                         {formatDate(entry.occurredAt)}
                       </td>
                       <td className="max-w-40 px-3 py-2.5">
-                        <p className="truncate text-xs font-medium">{entry.actorUserId ?? t('audit.system')}</p>
+                        {/* The audit record keeps the actor id (immutable —
+                            names change); the UI resolves it to the member
+                            name when still a member, and falls back to the
+                            id for removed users so the record stays traceable. */}
+                        <p className="truncate text-xs font-medium">
+                          {entry.actorUserId ? (memberName(entry.actorUserId) ?? entry.actorUserId) : t('audit.system')}
+                        </p>
                         <p className="text-xs text-muted-foreground">{entry.actorType}</p>
                       </td>
                       <td className="px-3 py-2.5">

@@ -9,12 +9,15 @@
 // context) and `occurredAt` (ISO 8601) per MODULE_GUIDE.md Step 1.
 import { z } from 'zod';
 
-import { decimalString } from './index.js';
+// Import the primitive directly (not via ./index.js) so the module never
+// participates in an import cycle with its own barrel (depcruise no-circular).
+import { decimalString } from './primitives.js';
 
 /** Stable inventory event names. Consumed by the module descriptor (`publishes`). */
 export const INVENTORY_EVENTS = {
   PRODUCT_CREATED_V1: 'inventory.product.created.v1',
   PRODUCT_ARCHIVED_V1: 'inventory.product.archived.v1',
+  PRODUCT_RESTORED_V1: 'inventory.product.restored.v1',
   STOCK_LEVEL_CHANGED_V1: 'inventory.stock.level_changed.v1',
   STOCK_DEPLETED_V1: 'inventory.stock.depleted.v1',
   REORDER_POINT_REACHED_V1: 'inventory.reorder_point.reached.v1',
@@ -39,12 +42,28 @@ export const inventoryProductArchivedV1Schema = z.object({
   organizationId: z.string().uuid(),
   productId: z.string().uuid(),
   // The product may be archived while variants carry movement history — the
-  // archive never hard-deletes (INV-11).
-  variantIds: z.array(z.string().uuid()),
+  // archive never hard-deletes (INV-11). At least one sellable unit exists.
+  variantIds: z.array(z.string().uuid()).min(1),
   archivedAt: z.string().datetime(),
   occurredAt: z.string().datetime(),
 });
 export type InventoryProductArchivedV1 = z.infer<typeof inventoryProductArchivedV1Schema>;
+
+/**
+ * Payload of `inventory.product.restored.v1` — emitted when an archived
+ * product is unarchived (its variants become sellable again). The archive
+ * never hard-deletes (INV-11), so restore is a pure reversal: `is_active`
+ * flips back to true and the soft-delete is lifted.
+ */
+export const inventoryProductRestoredV1Schema = z.object({
+  organizationId: z.string().uuid(),
+  productId: z.string().uuid(),
+  // Every variant that was restored (a product restore covers all of them).
+  variantIds: z.array(z.string().uuid()).min(1),
+  restoredAt: z.string().datetime(),
+  occurredAt: z.string().datetime(),
+});
+export type InventoryProductRestoredV1 = z.infer<typeof inventoryProductRestoredV1Schema>;
 
 /** Payload of `inventory.stock.level_changed.v1` — emitted after any movement. */
 export const inventoryStockLevelChangedV1Schema = z.object({

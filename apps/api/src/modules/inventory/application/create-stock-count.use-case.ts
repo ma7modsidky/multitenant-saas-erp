@@ -66,7 +66,7 @@ export class CreateStockCountUseCase {
 
       const persisted = await this.repo.insertStockCount(count.toJSON(), tx);
       // The DB computes real variance; re-read so the response is accurate.
-      return (await this.repo.listStockCounts(tx)).find((c) => c.id === persisted.id) ?? persisted;
+      return (await this.repo.findStockCountById(persisted.id, tx)) ?? persisted;
     });
   }
 }

@@ -1,3 +1,12 @@
-// Feature code for the inventory module.
-// Components, hooks, API bindings, and shared schemas live here
-// (MODULE_GUIDE.md §4 Step 10).
+export { InventoryLowStockWidget, InventoryStockValuationWidget } from './dashboard-widgets';
+export { ProductsView } from './products-view';
+export { ProductDetailView } from './product-detail-view';
+export { StockView } from './stock-view';
+export { MovementsView } from './movements-view';
+export { TransfersView } from './transfers-view';
+export { StockCountsView } from './stock-counts-view';
+export { StockCountDetailView } from './stock-count-detail-view';
+export { WarehousesView } from './warehouses-view';
+export { WarehouseDetailView } from './warehouse-detail-view';
+export { ReservationsView } from './reservations-view';
+export * from './schemas';

@@ -70,6 +70,13 @@ vi.mock('@/lib/permissions', () => ({
   hasPermission: (granted: readonly string[], required: string) => granted.includes(required),
 }));
 
+// The audit page resolves actor ids through the shared member-name hook
+// (members cache). Mock it so the page renders with a stable resolver:
+// user-1 is a known member, unknown ids fall back to the raw id.
+vi.mock('@/lib/hooks/use-member-name', () => ({
+  useMemberName: () => (userId: string | null) => (userId === 'user-1' ? 'Owner' : null),
+}));
+
 // The react-query mock must stay hoisted, so the query result rides in a
 // module-level variable (same pattern as `permissions`) — the empty-state
 // test swaps in an empty payload before rendering.
@@ -114,6 +121,8 @@ describe('AuditLogSettingsPage — permission gating (AUTHZ-5)', () => {
     // Action badges rendered for both entries.
     expect(screen.getAllByText('Update').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Create').length).toBeGreaterThan(0);
+    // The actor column resolves the member id to a display name.
+    expect(within(screen.getByRole('table')).getByText('Owner')).toBeInTheDocument();
   });
 
   it('AUTHZ-5: a MEMBER without platform:audit:view sees the AccessDenied gate instead of the table', async () => {

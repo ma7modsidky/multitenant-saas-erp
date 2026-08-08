@@ -21,10 +21,14 @@ export const INVENTORY_ERROR_CODE = {
   RESERVATION_EXPIRED: 'INVENTORY_RESERVATION_EXPIRED',
   /** INV-11 — a variant with movement history cannot be hard-deleted, only archived. */
   VARIANT_HAS_MOVEMENT_HISTORY: 'INVENTORY_VARIANT_HAS_MOVEMENT_HISTORY',
+  /** INV-11 — only an archived variant can be unarchived (restore of the soft delete). */
+  VARIANT_NOT_ARCHIVED: 'INVENTORY_VARIANT_NOT_ARCHIVED',
   /** INV-14 — an applied stock count is immutable. */
   STOCK_COUNT_APPLIED_IMMUTABLE: 'INVENTORY_STOCK_COUNT_APPLIED_IMMUTABLE',
   /** INV-10 — SKU/barcode unique per org among non-deleted variants. */
   VARIANT_DUPLICATE_SKU: 'INVENTORY_VARIANT_DUPLICATE_SKU',
+  /** Warehouse codes are unique per org among non-deleted warehouses. */
+  WAREHOUSE_DUPLICATE_CODE: 'INVENTORY_WAREHOUSE_DUPLICATE_CODE',
   /** INV-6 — only documented oversold paths may drive stock negative. */
   NEGATIVE_STOCK_NOT_ALLOWED: 'INVENTORY_NEGATIVE_STOCK_NOT_ALLOWED',
 } as const;

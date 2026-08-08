@@ -1,8 +1,10 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 55 — Phase 4 CRM complete: grouped sidebar navigation,
-Arabic module name, phase marked done and committed. **Current phase:** Phase 5
-— Inventory Module (not started)
+**Last updated:** Session 63 — Inventory/audit UI fixes: warehouse create form
+no longer mislabels the name field as "Product name", the missing
+`modules.inventory.fields.code` key added in all four locales, and the audit log
+page now resolves actor ids to member names (id fallback for removed users).
+**Current phase:** Phase 6 — POS Module (not started)
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -16,10 +18,76 @@ Arabic module name, phase marked done and committed. **Current phase:** Phase 5
 | 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                |
 | 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                               |
 | 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19) |
-| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |     | 4 — CRM Module | ✅ Complete | Full stack, contracts → UI (Sessions 24–55); DoD verified; committed |
-| 5 — Inventory Module                  | ⬜ Not started |                                                               |
+| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |
+| 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified     |
+| 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                     |
 | 6 — POS Module                        | ⬜ Not started |                                                               |
 | 7 — Production Hardening & Deployment | ⬜ Not started |                                                               |
+
+---
+
+## Phase 5 — Detailed progress
+
+### 5.1–5.7 Backend (contracts → schema → domain → application → port → API/jobs)
+
+- [x] **5.1 Contracts** — `MODULE_KEYS.INVENTORY`, 5 permissions, `inventory.*`
+      events (created/archived/level_changed/depleted/reorder_point),
+      `INVENTORY_STOCK_PORT` (getAvailability/reserve/commit/release, Level 3
+      `TransactionRef`)
+- [x] **5.2 Scaffold** — `pnpm generate:module inventory`
+- [x] **5.3 Schema** — `0001_init.sql` (11 tables), `0002_rls.sql`,
+      `0003_append_only.sql` (INV-1 trigger); unique SKU/barcode (INV-10),
+      idempotency key (INV-16), stock-level key
+- [x] **5.4 Domain** — movement (INV-3/4), stock-level projection (INV-2/5),
+      reservation state machine (INV-7/8), archive-not-delete (INV-11), stock
+      count (INV-14); 27 unit tests
+- [x] **5.5 Application** — create/archive/receive (moving average
+      INV-12)/adjust (INV-4/6)/transfer
+      (INV-9)/reserve/commit/release/apply-count; 14 integration tests incl.
+      INV-16 idempotency
+- [x] **5.6 Port** — `InventoryStockPortImpl` +
+      `TransactionManager.ref()/resolveRef()` (Phase 3.4 `TransactionRef`
+      minting completed); reserve→commit/release atomic in-tx
+- [x] **5.7 API/events/search/jobs** — `v1/inventory/*` controllers with
+      `@RequiresModule`+`@RequiresPermission`, events after commit, product
+      search contributor, reservation-expiry / low-stock-alert /
+      stock-reconciliation jobs; `GET /v1/inventory/stock/movements` + unit-cost
+      fields on stock levels
+
+### 5.8 Frontend
+
+- [x] **Backend support finished** — `listMovements` repo method, movement list
+      route + DTOs, unit-cost on stock levels; circular import in
+      `packages/contracts/events/inventory.ts` fixed
+- [x] **API bindings** — inventory section in `lib/api/resources.ts` (products,
+      stock, movements, warehouses, counts, transfers)
+- [x] **`features/inventory/`** — `money.ts` (BigInt math), `schemas.ts`,
+      `hooks.ts`, `forms.tsx`, `labels.ts`, `errors.ts`, 6 views (products,
+      stock levels, movements ledger, transfers, stock counts, warehouses);
+      error-key namespace bug fixed per review
+- [x] **Dashboard widgets** — low-stock (`available < reorderPoint`, INV-13
+      semantics) + stock valuation (per-currency, exact integer math), wired
+      into the dashboard
+- [x] **Routes** —
+      `m/inventory/{products, warehouses, stock,     stock/movements, stock/transfers, stock-counts}` +
+      landing redirect
+- [x] **i18n** — full `modules.inventory.*` key set in en/ar/fr/es + widget
+      empty states; parity test
+- [x] **Tests** — widget i18n regression, money/quantity/error-mapper units,
+      `inventory-journey.e2e.spec.ts` (mirrors CRM, self-skips without seeded
+      env)
+- [x] **Accessibility** — `htmlFor`/`id` label association on all form fields
+
+### 5.9 Isolation & architecture tests
+
+- [x] `inventory.isolation.spec.ts` — **11/11 passing**: TEN-1 cross-org
+      read/update/archive/product-list/ledger/warehouse/stock-count denial,
+      TEN-2 injected `organizationId` ignored, TEN-3 no-context zero rows,
+      AUTHZ-6 `MODULE_NOT_ENTITLED`, AUTHZ-5 permission denial
+- [x] INV-1 append-only enforcement test added to the integration suite
+      (UPDATE/DELETE on `inv_stock_movements` rejected by trigger)
+- [x] Validation: API unit **1446/1446** · inventory integration **14/14** · web
+      **184/184** · i18n parity · `test:arch` 0 errors · typechecks clean
 
 ---
 
@@ -513,6 +581,266 @@ Arabic module name, phase marked done and committed. **Current phase:** Phase 5
 ---
 
 ## Session log
+
+### Session 63 — Inventory/audit UI fixes: warehouse form labels, missing i18n key, audit actor names
+
+- **Warehouse create form label.** The warehouse name field used
+  `t('fields.name')`, which is the product-scoped key **"Product name"** — so
+  the "Add warehouse" form read as a product form. Switched it to
+  `warehouses.tableName` ("Name"). The submit button/header already used
+  `warehouses.create` ("Add warehouse") — a stale dev build can show older
+  labels until the dev server restarts.
+- **Missing i18n key.** `fields.code` (used by the warehouse form + warehouse
+  detail) was absent from all four catalogs — next-intl rendered the raw key
+  path. Added `code` to the inventory `fields` block in en/ar/fr/es. Ran a
+  code→catalog audit over every `t('…')` in the inventory feature + pages:
+  `fields.code` was the only genuinely missing key (the rest were URL-state
+  `searchParams.get(...)` false positives). Note: the existing
+  `inventory-completeness` spec only checks locale parity, so a key missing from
+  all four locales slips through — flagged as a follow-up.
+- **Audit log actor names.** The settings audit page showed raw actor user ids.
+  It now resolves them through the shared `useMemberName` hook (members cache):
+  current members see their name, removed users fall back to the id (the record
+  keeps the immutable id), and system entries keep "System". Standard practice —
+  audit logs store actor ids for integrity; UIs resolve names at render time.
+- **Tests.** Web **184/184** — the audit-page spec gained a `useMemberName` mock
+  (the shared react-query mock returned a non-array for the members query) and
+  now asserts the name column renders "Owner" for `user-1`. i18n parity **2/2**.
+  Web typecheck + lint clean (0 errors).
+
+### Session 62 — Inventory audit stamps: product/variant "Created by / Last edited by"
+
+- **Backend stamps.** `createdByUserId`/`updatedByUserId` added to
+  `ProductVariantData` (optional, so create/add use cases are untouched),
+  `ProductRow` (required), `findProductById` SELECT, and `rowToVariant` (the
+  columns already existed in `inv_products`/`inv_product_variants` and were
+  already stamped by create/archive/update). `GetProductUseCase` and the
+  `productDetailResponseSchema`/`productVariantResponseSchema` DTOs surface them
+  (nullable — legacy rows may predate stamps).
+- **Audit-accuracy fix (reviewer-caught).** `updateVariantCost` — the INV-12
+  moving-average cost write on receipts — advanced `updated_at` without stamping
+  `updated_by`, which would have made "Last edited by" misleading after the
+  first receipt. It now stamps `updated_by` from the tenant context (the
+  receiving user, matching the movement's `created_by`); the INV-2/INV-12
+  integration test asserts the flip.
+- **Shared `useMemberName` hook.** The CRM-local `useMemberName`/`useOrgMembers`
+  moved to `apps/web/src/lib/hooks/use-member-name.ts` (members query key
+  `['members', organizationId]` unchanged) and CRM's `hooks.ts` now re-exports
+  them — so inventory renders stamps without importing CRM feature code. CRM's
+  `useCurrencies`/`useFxRate`/`useOrgBaseCurrency` untouched.
+- **Frontend.** `InventoryVariant` + product-detail types in `resources.ts`
+  gained the stamp fields; the product detail view shows "Created by / Last
+  edited by" on the product card (via `DetailField`) and a per-variant stamp
+  line (spans + `·` separator, RTL-safe), names resolved from the shared members
+  cache with `—` fallback for removed members.
+- **i18n.** `detail.createdBy`/`detail.updatedBy` added to en/ar/fr/es (CRM
+  translations reused); parity green.
+- **Tests.** Integration **28/28** — get-product asserts create stamps on the
+  product + variant; update-variant asserts a second user's edit flips
+  `updatedByUserId` while `createdByUserId` stays. API unit **1461/1461** ·
+  isolation **13/13** · web **184/184** · arch 0 errors · typechecks + lint
+  clean. Code-reviewed (stamp fix + RTL nit applied).
+
+### Session 61 — Inventory archive-404 fix + product/variant edit functionality
+
+- **Archive bug (the 404).** The products list called
+  `POST /v1/inventory/products/{id}/archive` with a **product** id, but
+  `ArchiveProductUseCase` did `findVariantById(id)` — a variant lookup — so a
+  product id always missed and threw `VARIANT_NOT_FOUND` (404). Rewrote it as a
+  true product-level archive: archives every non-deleted variant of the product
+  in one transaction and emits a single `inventory.product.archived.v1` event
+  carrying all `variantIds` (skips the event when the product has no active
+  variants left). The INV-11 integration test now archives by product id and
+  asserts **all** variants flip `is_active = false` while keeping
+  `deleted_at = NULL` (soft delete, history preserved).
+- **Edit functionality — backend.** `ProductVariant.updateDetails()` domain
+  method (validates price/cost currency consistency, updates updatedAt);
+  `updateProduct`/`updateVariant` repo methods (field-set SQL, no write when
+  nothing changed); new `UpdateProductUseCase` (name/description) and
+  `UpdateVariantUseCase` (sku/barcode/price/cost/reorder) with an **INV-10
+  self-excluding duplicate-SKU check** (org-wide uniqueness that ignores the
+  variant being edited); `PATCH /v1/inventory/products/:id` and
+  `PATCH /v1/inventory/variants/:id` routes with `@Audit` UPDATE decorators +
+  update DTOs; both use cases registered in the module + exported.
+- **Domain copy fix (real bug found while testing).**
+  `ProductVariant.fromPersistence()` returned the entity _sharing the same
+  object_ as the DB row, so `updateDetails()` mutated the row object in place —
+  the "SKU changed?" comparison saw the new SKU and the INV-10 branch silently
+  never fired. `fromPersistence` now copies the data (matching `create`); a
+  regression unit test locks the copy semantics in.
+- **Edit functionality — frontend.** `updateInventoryProduct` /
+  `updateInventoryVariant` API bindings; `updateProduct`/`updateVariant`
+  mutations in hooks (variant mutation invalidates the right product-detail
+  key); `ProductForm`/`VariantForm` gained `initialValues`, `existingSkus`, and
+  `submitLabel` props for prefilled edit mode; the products list row menu gained
+  an **Edit** action that fetches the product detail on demand and opens the
+  prefilled form; the product detail view gained a header **Edit** button and a
+  per-variant **Edit** button with a prefilled variant form.
+- **i18n.** `products.edit/updatedMessage`, `variants.edit/updatedMessage` added
+  to **en/ar/fr/es**; parity spec green.
+- **Tests.** Integration **28/28** (new: archive-product by productId archives
+  all variants, update-product, update-variant happy path + INV-10 duplicate
+  rejection); API unit **1459/1459** (updateDetails + fromPersistence copy
+  regression); isolation **13/13** (new TEN-1 cross-org denial for
+  update-product and update-variant); web **26/26**; arch **8/8**; API + web
+  typechecks and lint clean. Code-reviewed (empty-archive event guard + TEN-1
+  coverage for the update use cases applied); PROGRESS.md updated.
+
+### Session 58 — Inventory frontend upgrade: spec + product detail, variants, warehouses, counts, reservations
+
+- **Spec.** Wrote
+  [docs/INVENTORY_FRONTEND_SPEC.md](./docs/INVENTORY_FRONTEND_SPEC.md) — the
+  full professional frontend spec (pages, flows, filters, i18n, backend gaps).
+  User scoped the build to **full stack, product detail + variants first**.
+- **Backend additions (additive, no schema changes).** `get-product` (product +
+  variants + per-warehouse stock + ledger history), `add-variant` (INV-10
+  org-wide duplicate SKU), `archive-variant` (INV-11 soft delete, one variant),
+  `create-warehouse` (INV `WAREHOUSE_DUPLICATE_CODE`, `isDefault` honoured
+  once), `list-reservations`, `get-stock-count` (+ enriched lines), plus
+  controller routes, response DTOs, and the two new descriptor nav items
+  (stock-counts, reservations) with icons.
+- **Frontend.** `product-detail-view` (variant management — add/archive with
+  `Can` guard, per-warehouse stock, movements), `warehouse-detail-view`
+  (composed from list + stock rows), `reservations-view`, `stock-count-detail`
+  (lines with variance, apply), create-warehouse form on the warehouses page,
+  stock sub-nav (movements/transfers/reservations), product/warehouse/count
+  links from the list pages, 4 new route pages, hooks + API bindings,
+  `sumQuantities` exact decimal helper (no JS floats on quantities),
+  duplicate-code/not-found error mappings.
+- **i18n.** New `detail`, `variants`, `reservations` sections + warehouse/
+  counts/stock/nav keys + 2 error keys in **en/ar/fr/es**; parity spec green.
+- **Tests.** 7 new integration cases (get-product, add-variant happy +
+  cross-product duplicate SKU, archive-variant, create-warehouse dup code,
+  list-reservations, get-stock-count) — integration suite now **21/21**; unit
+  31, isolation 11, web 26, arch 8, i18n 2 — all green; lint 0 errors.
+
+### Session 59 — Phase 5.10 inventory list filter/pagination UI (spec §5.6/5.7/5.11)
+
+- **URL-driven list views.** New `features/inventory/table-shared.tsx` —
+  `useInventoryListUrlState` (debounced `q`, `page`, generic `update` that
+  resets to page 1 on filter changes — the CRM pattern) + `InventoryPagination`
+  (previous/next + `{count} items` + `Page {page} of {pages}`, RTL chevrons).
+  Every filter lives in the URL so views are shareable and the back button
+  behaves.
+- **Stock page** — search (name/SKU), warehouse select, **low-stock chip**
+  (`aria-pressed` toggle, INV-13 available ≤ reorder), reset button when any
+  filter is active; calls the paged `useInventoryStock` with
+  `search`/`warehouseId`/`lowStock` + `page`/`pageSize`, pagination footer.
+- **Movements page** — search, movement-type select (8 types), from/to date
+  inputs (ISO `YYYY-MM-DD`, inclusive), reset; paged `useInventoryMovements`
+  - pagination. Toolbar extracted into `MovementsToolbar` (view complexity was
+    22 > 10).
+- **Reservations page** — status select (held/committed/released/expired,
+  sanitized by a type guard), paged `useInventoryReservations` + pagination.
+  Search intentionally omitted (the endpoint has no `search` filter) — noted in
+  a comment. Toolbar extracted into `StockToolbar` too.
+- **i18n** — `inventory.list.*` (total/pageOf/previous/next/resetFilters) +
+  stock/movements/reservations filter labels in **en/ar/fr/es**; parity spec
+  green.
+- **Validation** — web typecheck clean, lint 0 errors, web **26/26**, i18n
+  **2/2**. Reviewer feedback applied (toolbar extraction + search-omission
+  comment); no functional issues.
+
+### Session 60 — Phase 5.10 products + stock-counts list filters (spec §3)
+
+- **Products list** — `GET /v1/inventory/products` gained `search` (name/SKU)
+  and `status` (`active`/`archived`) + paged envelope. `listProducts` rewritten
+  with `DISTINCT ON (p.id)`: `is_active` is now derived via
+  `EXISTS(active variant)` (INV-10/11), and the variant JOIN includes archived
+  variants so an archived product still displays its last SKU/price (history
+  never lost). Display variant prefers the most recent ACTIVE variant, falling
+  back to the most recent archived. Controller validates `status` allow-list +
+  `page`; DTO envelope gains `total/page/pageSize`.
+- **Stock-counts list** — `GET /v1/inventory/stock-counts` gained `status`
+  (`draft`/`applied`) + paged envelope; `listStockCounts` now COUNT +
+  LIMIT/OFFSET, still returning `lines` per count. `apply`/`create` stock-count
+  use cases switched from full-list scans to `findStockCountById`.
+- **Frontend** — products view: search + active/archived select + reset +
+  pagination; stock-counts view: draft/applied status select + reset +
+  pagination. Both use the shared `useInventoryListUrlState` /
+  `InventoryPagination`. The count form's variant picker fetches `pageSize: 100`
+  (full catalog, not page 1). Hooks gained `productsKey` / `stockCountsKey`
+  flattened keys + `keepPreviousData`.
+- **i18n** — `products.searchPlaceholder/filterStatus/allStatuses` and
+  `counts.filterStatus/allStatuses` added to **en/ar/fr/es**; parity green.
+- **Tests** — integration **26/26** (new: products search/status/pagination
+  INV-10/11, counts status/pagination INV-14), unit **31/31**, isolation
+  **11/11**, web **26/26**, arch **8/8**; API + web typecheck and lint 0 errors.
+  Reviewer feedback applied: active-first display ordering + full-catalog count
+  picker (both were real edge cases).
+
+### Session 58 — Phase 5.10 inventory backend list filters + pagination (spec §3)
+
+- **Paged + filtered reads.** `GET /v1/inventory/stock` gained `search`,
+  `warehouseId`, `lowStock`; `/stock/movements` gained `search`, `type`,
+  `fromDate`, `toDate`; `/reservations` gained `status`. All three now return a
+  paged envelope `{ items, total, page, pageSize }` (CRM pattern: COUNT +
+  LIMIT/OFFSET, pageSize clamped 1–100, default 12). Query params are validated
+  in the controller (UUID / ISO-date / movement-type / reservation-state /
+  positive-int page) so malformed input is a 400, never a 500.
+- **Port + repo.** `PageResult<T>` + `StockLevelListFilter` /
+  `MovementListFilter` / `ReservationListFilter` in the repository port;
+  `listStockLevels` / `listMovements` / `listReservations` signatures changed to
+  `(filter, tx)`. New `all` flag on stock/movement filters for internal batch
+  reads — the low-stock alert job (INV-13), reconciliation job (INV-2), and
+  product-detail composition now pass `{ all: true }` so they can never be
+  silently truncated by the 12-row default (reviewer-caught regression).
+- **Web bindings.** `getInventoryStock/Movements/Reservations` take filter
+  params and return the paged shape; hooks use flattened query keys +
+  `keepPreviousData` (CRM pattern). Views render the same — the toolbar/paging
+  UI is the remaining frontend step.
+- **Tests.** Integration **24/24** (3 new: stock search/warehouse/low-stock +
+  pagination + `all`, movements search/type/date + pagination, reservations
+  status + pagination); unit **31/31** (jobs.spec mocks updated to the paged
+  shape); isolation **11/11**; web **26/26**; arch **8/8**. API + web typechecks
+  and lint clean.
+
+### Session 57 — Phase 5.9 inventory isolation tests + Phase 5 marked complete
+
+- **Isolation suite (5.9).** `inventory.isolation.spec.ts` grew from the
+  generator placeholder to the full required-case set — **11/11 passing**
+  against a real Postgres Testcontainer with RLS active: TEN-1 cross-org denial
+  for variant read, stock update, archive, product list, ledger views, warehouse
+  list, and stock-count list; TEN-2 injected `organizationId` in the create
+  input is ignored (row lands in the session org); TEN-3 no-context ⇒ zero rows;
+  AUTHZ-6 OWNER gets `MODULE_NOT_ENTITLED` when inventory is disabled; AUTHZ-5
+  permission denial (no `inventory:product:read`).
+- **INV-1 enforcement test (DoD gap closed).** The append-only trigger existed
+  in `0003_append_only.sql` but no test proved UPDATE/DELETE were blocked —
+  added a case to the integration suite asserting both fail with the trigger's
+  error and the ledger row is untouched. Integration suite now **14/14**.
+- **Docs.** PLAN.md Phase 5 DoD fully checked (5.8/5.9 marked done, incl. the
+  Phase 3.4 `TransactionRef`-minting note for the 5.6 core touch — same
+  justification as Phase 4's `DrizzleEntitlementStore` note); PROGRESS.md
+  header + phase table moved to Phase 5 ✅ / Phase 6 next; added the Phase 5
+  detailed-progress section and this session entry; also fixed a pre-existing
+  formatting bug where the Phase 4 status row had merged into the Phase 3 row.
+
+### Session 56 — Phase 5.8 inventory frontend + web build fix + scratch cleanup
+
+- **Frontend (5.8).** Finished the in-flight backend support (`listMovements`
+  repo method, `GET /v1/inventory/stock/movements` route + DTOs, unit-cost
+  fields on stock levels; fixed the pre-existing circular import in
+  `packages/contracts/events/inventory.ts`), then built the web half: inventory
+  bindings in `lib/api/resources.ts`, self-contained `features/inventory/`
+  (BigInt money helpers, schemas, hooks, forms, 6 views), low-stock +
+  stock-valuation dashboard widgets wired into the dashboard, `m/inventory/*`
+  routes, and the full `modules.inventory.*` key set in en/ar/fr/es with a
+  parity test. Tests: widget i18n regression, money units, E2E journey spec
+  (self-skips without a seeded env). Web **184/184**, API **1446/1446**,
+  inventory integration 13/13, arch 0 errors. Review found and fixed an
+  error-key namespace mismatch that would have broken every error banner.
+- **Next.js build fix (pre-existing).** `next build` failed during `/404`
+  prerender with `<Html> should not be imported outside of pages/_document` —
+  caused by the ambient `NODE_ENV=development` on this machine (known Next.js
+  bug: the production switch is skipped when `NODE_ENV` is already set). Fixed
+  with a dependency-free wrapper `apps/web/scripts/next-build.cjs` that forces
+  `NODE_ENV=production` before spawning `next build`; `web build` now exits 0
+  with the full route table (inventory pages included). CI + turbo route through
+  the package script, so both are covered.
+- **Scratch cleanup.** Deleted `apps/api/repro-company-insert.mjs`,
+  `repro-sql.mjs`, and the empty `results.sarif` (gitleaks output, 0 findings) —
+  API lint back to **0 errors**.
 
 ### Session 55 — Phase 4 CRM complete: grouped sidebar navigation, Arabic module name, commit + push
 

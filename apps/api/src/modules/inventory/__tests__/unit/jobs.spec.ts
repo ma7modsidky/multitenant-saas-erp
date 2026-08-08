@@ -46,7 +46,7 @@ function fakeRepo(overrides: Record<string, unknown> = {}) {
     getStockLevel: vi.fn(async () => undefined),
     upsertStockLevel: vi.fn(async () => {}),
     updateReservationState: vi.fn(async () => {}),
-    listStockLevels: vi.fn(async () => []),
+    listStockLevels: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 12 })),
     upsertLowStockAlert: vi.fn(async () => {}),
     sumMovementsByVariantWarehouse: vi.fn(async () => []),
     ...overrides,
@@ -132,31 +132,36 @@ describe('LowStockAlertJob (INV-13)', () => {
     await queue.add(LOW_STOCK_ALERT_JOB, {}, { organizationId: orgId });
 
     const repo = fakeRepo({
-      listStockLevels: vi.fn(async () => [
-        {
-          variantId,
-          sku: 'LOW-1',
-          nameI18n: { en: 'Low' },
-          warehouseId,
-          warehouseName: 'Default',
-          // on-hand 10 but reserved 8 → available 2 < reorder 5 → alert.
-          quantityOnHand: '10',
-          quantityReserved: '8',
-          reorderPoint: '5',
-          lastMovementId: null,
-        },
-        {
-          variantId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
-          sku: 'OK-1',
-          nameI18n: { en: 'Ok' },
-          warehouseId,
-          warehouseName: 'Default',
-          quantityOnHand: '50',
-          quantityReserved: '0',
-          reorderPoint: '5',
-          lastMovementId: null,
-        },
-      ]),
+      listStockLevels: vi.fn(async () => ({
+        items: [
+          {
+            variantId,
+            sku: 'LOW-1',
+            nameI18n: { en: 'Low' },
+            warehouseId,
+            warehouseName: 'Default',
+            // on-hand 10 but reserved 8 → available 2 < reorder 5 → alert.
+            quantityOnHand: '10',
+            quantityReserved: '8',
+            reorderPoint: '5',
+            lastMovementId: null,
+          },
+          {
+            variantId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+            sku: 'OK-1',
+            nameI18n: { en: 'Ok' },
+            warehouseId,
+            warehouseName: 'Default',
+            quantityOnHand: '50',
+            quantityReserved: '0',
+            reorderPoint: '5',
+            lastMovementId: null,
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 12,
+      })),
     });
     const uow = fakeUnitOfWork();
 
@@ -181,19 +186,24 @@ describe('StockReconciliationJob (INV-2)', () => {
       sumMovementsByVariantWarehouse: vi.fn(async () => [
         { variantId, warehouseId, total: '7' }, // ledger truth
       ]),
-      listStockLevels: vi.fn(async () => [
-        {
-          variantId,
-          sku: 'REC-1',
-          nameI18n: { en: 'Recon' },
-          warehouseId,
-          warehouseName: 'Default',
-          quantityOnHand: '10', // drift: projection says 10, ledger says 7
-          quantityReserved: '0',
-          reorderPoint: '5',
-          lastMovementId: null,
-        },
-      ]),
+      listStockLevels: vi.fn(async () => ({
+        items: [
+          {
+            variantId,
+            sku: 'REC-1',
+            nameI18n: { en: 'Recon' },
+            warehouseId,
+            warehouseName: 'Default',
+            quantityOnHand: '10', // drift: projection says 10, ledger says 7
+            quantityReserved: '0',
+            reorderPoint: '5',
+            lastMovementId: null,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 12,
+      })),
     });
 
     const job = new StockReconciliationJob(queue as never, repo as never, fakeTxManager() as never);
@@ -209,19 +219,24 @@ describe('StockReconciliationJob (INV-2)', () => {
 
     const repo = fakeRepo({
       sumMovementsByVariantWarehouse: vi.fn(async () => [{ variantId, warehouseId, total: '7' }]),
-      listStockLevels: vi.fn(async () => [
-        {
-          variantId,
-          sku: 'REC-1',
-          nameI18n: { en: 'Recon' },
-          warehouseId,
-          warehouseName: 'Default',
-          quantityOnHand: '7',
-          quantityReserved: '0',
-          reorderPoint: '5',
-          lastMovementId: null,
-        },
-      ]),
+      listStockLevels: vi.fn(async () => ({
+        items: [
+          {
+            variantId,
+            sku: 'REC-1',
+            nameI18n: { en: 'Recon' },
+            warehouseId,
+            warehouseName: 'Default',
+            quantityOnHand: '7',
+            quantityReserved: '0',
+            reorderPoint: '5',
+            lastMovementId: null,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 12,
+      })),
     });
 
     const job = new StockReconciliationJob(queue as never, repo as never, fakeTxManager() as never);

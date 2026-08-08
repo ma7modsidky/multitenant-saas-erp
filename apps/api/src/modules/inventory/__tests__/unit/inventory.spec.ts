@@ -243,6 +243,92 @@ describe('ProductVariant', () => {
     expect(variant.isActive).toBe(false);
     expect(variant.deletedAt).not.toBeNull();
   });
+
+  it('INV-11 inverse: unarchive restores the variant (is_active true, soft delete lifted)', () => {
+    const variant = ProductVariant.create(variantData());
+    variant.archive(userId);
+    const at = new Date('2026-08-06T12:00:00Z');
+    variant.unarchive(userId, at);
+    expect(variant.isActive).toBe(true);
+    expect(variant.deletedAt).toBeNull();
+    expect(variant.toJSON().updatedAt).toEqual(at);
+  });
+
+  it('INV-11 inverse: rejects unarchiving a variant that is not archived', () => {
+    const variant = ProductVariant.create(variantData());
+    expectInventoryError(() => variant.unarchive(userId), INVENTORY_ERROR_CODE.VARIANT_NOT_ARCHIVED);
+  });
+
+  it('updates sellable fields and stamps updatedAt without touching history', () => {
+    const variant = ProductVariant.create(variantData());
+    const at = new Date('2026-08-06T10:00:00Z');
+    variant.updateDetails(
+      {
+        sku: 'ESP-002',
+        barcode: '5901234123457',
+        priceAmountMinor: '1500',
+        priceCurrency: 'USD',
+        costAmountMinor: '700',
+        costCurrency: 'USD',
+        reorderPoint: '8',
+        reorderQuantity: '25',
+      },
+      at,
+    );
+    const json = variant.toJSON();
+    expect(json.sku).toBe('ESP-002');
+    expect(json.barcode).toBe('5901234123457');
+    expect(json.priceAmountMinor).toBe('1500');
+    expect(json.costAmountMinor).toBe('700');
+    expect(json.reorderPoint).toBe('8');
+    expect(json.reorderQuantity).toBe('25');
+    expect(json.updatedAt).toEqual(at);
+    expect(json.isActive).toBe(true);
+    expect(json.deletedAt).toBeNull();
+  });
+
+  it('updateDetails trims the SKU and normalizes a null barcode', () => {
+    const variant = ProductVariant.create(variantData());
+    variant.updateDetails(
+      {
+        sku: '  ESP-003  ',
+        barcode: null,
+        priceAmountMinor: '1000',
+        priceCurrency: 'USD',
+        costAmountMinor: '400',
+        costCurrency: 'USD',
+        reorderPoint: '5',
+        reorderQuantity: '20',
+      },
+      new Date(),
+    );
+    expect(variant.sku).toBe('ESP-003');
+    expect(variant.barcode).toBeNull();
+  });
+
+  it('fromPersistence copies the row so entity mutations never touch it in place', () => {
+    const row = variantData();
+    const variant = ProductVariant.fromPersistence(row);
+    variant.updateDetails(
+      {
+        sku: 'NEW-SKU',
+        barcode: 'x',
+        priceAmountMinor: '900',
+        priceCurrency: 'USD',
+        costAmountMinor: '300',
+        costCurrency: 'USD',
+        reorderPoint: '3',
+        reorderQuantity: '9',
+      },
+      new Date(),
+    );
+    // The repository row keeps its original values — INV-10 change detection
+    // in UpdateVariantUseCase depends on this.
+    expect(row.sku).toBe('ESP-001');
+    expect(row.priceAmountMinor).toBe('1000');
+    expect(row.reorderPoint).toBe('5');
+    expect(variant.sku).toBe('NEW-SKU');
+  });
 });
 
 // ─── StockCount (INV-14) ─────────────────────────────────────────────────────

@@ -18,6 +18,9 @@ export interface ProductVariantData {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  /** Actor stamps (inv_product_variants.created_by/updated_by) — audit trail. */
+  createdByUserId?: string | null;
+  updatedByUserId?: string | null;
 }
 
 /**
@@ -43,9 +46,13 @@ export class ProductVariant {
     return new ProductVariant({ ...data });
   }
 
-  /** Reconstruct from persistence (already valid — no invariant re-check). */
+  /**
+   * Reconstruct from persistence (already valid — no invariant re-check).
+   * Copies the data so mutating the entity (archive/updateDetails) never
+   * mutates the repository's row object in place.
+   */
   static fromPersistence(data: ProductVariantData): ProductVariant {
-    return new ProductVariant(data);
+    return new ProductVariant({ ...data });
   }
 
   // ─── Getters ────────────────────────────────────────────────────────────────
@@ -113,6 +120,20 @@ export class ProductVariant {
   }
 
   /**
+   * INV-11 inverse: unarchives the variant (is_active = true, soft delete
+   * lifted) so it is sellable again. Rejected when it is not currently
+   * archived. History is never touched — the ledger stays the source of truth.
+   */
+  unarchive(by: string, at = new Date()): void {
+    if (this.data.deletedAt === null) {
+      throw new InventoryError(INVENTORY_ERROR_CODE.VARIANT_NOT_ARCHIVED, 'This variant is not archived.');
+    }
+    this.data.isActive = true;
+    this.data.deletedAt = null;
+    this.data.updatedAt = at;
+  }
+
+  /**
    * INV-11: a variant with movement history can only be archived, never
    * hard-deleted. Called by the repository/use case when a hard delete is
    * attempted and movement history exists.
@@ -124,5 +145,35 @@ export class ProductVariant {
         'A variant with stock movement history cannot be hard-deleted; archive it instead.',
       );
     }
+  }
+
+  /**
+   * Edits the variant's sellable fields (SKU, barcode, price/cost, reorder
+   * levels). Archived variants are excluded at the repository boundary
+   * (`findVariantById` filters `deleted_at IS NULL`), so editing history is
+   * impossible; this method only touches catalog metadata — never the ledger.
+   */
+  updateDetails(
+    details: {
+      sku: string;
+      barcode: string | null;
+      priceAmountMinor: string;
+      priceCurrency: string;
+      costAmountMinor: string;
+      costCurrency: string;
+      reorderPoint: string;
+      reorderQuantity: string;
+    },
+    at: Date,
+  ): void {
+    this.data.sku = details.sku.trim();
+    this.data.barcode = details.barcode ?? null;
+    this.data.priceAmountMinor = details.priceAmountMinor;
+    this.data.priceCurrency = details.priceCurrency;
+    this.data.costAmountMinor = details.costAmountMinor;
+    this.data.costCurrency = details.costCurrency;
+    this.data.reorderPoint = details.reorderPoint;
+    this.data.reorderQuantity = details.reorderQuantity;
+    this.data.updatedAt = at;
   }
 }

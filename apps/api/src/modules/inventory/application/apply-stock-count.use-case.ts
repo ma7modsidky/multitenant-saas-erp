@@ -31,7 +31,7 @@ export class ApplyStockCountUseCase {
     const now = new Date();
 
     const committed = await this.txManager.run(async (tx) => {
-      const row = await this.repo.listStockCounts(tx).then((counts) => counts.find((c) => c.id === stockCountId));
+      const row = await this.repo.findStockCountById(stockCountId, tx);
       if (!row) throw new NotFoundError('STOCK_COUNT_NOT_FOUND', { stockCountId });
 
       const count = StockCount.fromPersistence(row);

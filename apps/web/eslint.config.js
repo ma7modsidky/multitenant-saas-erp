@@ -15,7 +15,9 @@ export default [
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['eslint.config.*', 'postcss.config.*'],
+          // Node scripts (e.g. scripts/next-build.cjs) are plain CJS outside
+          // the tsconfig project — allow them like the config files below.
+          allowDefaultProject: ['eslint.config.*', 'postcss.config.*', 'scripts/*.cjs'],
         },
       },
     },
@@ -45,6 +47,18 @@ export default [
       'no-restricted-syntax': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+    },
+  },
+  // Plain Node.js CJS scripts (e.g. scripts/next-build.cjs) — not part of the
+  // TypeScript project; process/require/console are the intended globals.
+  {
+    files: ['scripts/*.cjs'],
+    rules: {
+      'no-undef': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
     },
   },
 ];

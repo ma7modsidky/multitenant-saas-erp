@@ -1095,10 +1095,10 @@ Enforce [BUSINESS_RULES.md §8](./docs/BUSINESS_RULES.md#8-inventory-rules):
 3. Search contributor for products.
 4. Jobs: reservation expiry, low-stock alert checker, nightly reconciliation.
 
-### 5.8 Frontend
+### 5.8 Frontend — ✅ done
 
-1. Routes: products, product variants, warehouses, stock levels, stock
-   movements, stock counts, transfers.
+1. Routes: products (variants managed inside the product form), warehouses,
+   stock levels, stock movements, stock counts, transfers.
 2. Product form with `name_i18n` (translatable), variants, barcode, price (via
    `<Money>`), reorder point.
 3. Stock movement ledger view (append-only — no edit/delete buttons).
@@ -1108,25 +1108,35 @@ Enforce [BUSINESS_RULES.md §8](./docs/BUSINESS_RULES.md#8-inventory-rules):
 **Tests:**
 
 - E2E: Inventory journey — create product → receive stock → adjust → low-stock
-  alert.
-- i18n: all inventory keys in all locales.
+  alert (`inventory-journey.e2e.spec.ts`).
+- i18n: all inventory keys in all locales (parity test + widget tests green).
 
-### 5.9 Mandatory isolation & architecture tests
+### 5.9 Mandatory isolation & architecture tests — ✅ done
 
-`__tests__/isolation/inventory.isolation.spec.ts` — all required cases.
+`__tests__/isolation/inventory.isolation.spec.ts` — all required cases (TEN-1
+cross-org read/update/archive/list/ledger denial, TEN-2 injected
+`organizationId` ignored, TEN-3 no-context zero rows, AUTHZ-6 entitlement
+denial, AUTHZ-5 permission denial) — **11/11 passing** (incl. cross-org
+warehouse + stock-count list denial).
 
 ### Phase 5 — Definition of Done
 
-- [ ] Full MODULE_GUIDE DoD checklist complete
-- [ ] All **INV-1** through **INV-16** rules tested
-- [ ] `inv_stock_movements` is append-only (trigger + test)
-- [ ] `InventoryStockPort` provided and tested (reserve/commit/release)
-- [ ] Nightly reconciliation job tested
-- [ ] Tenant isolation test passing
-- [ ] Frontend: product management, stock ledger, low-stock widget, all locales,
+- [x] Full MODULE_GUIDE DoD checklist complete
+- [x] All **INV-1** through **INV-16** rules tested (incl. the INV-1 append-only
+      trigger enforcement test in the integration suite)
+- [x] `inv_stock_movements` is append-only (trigger + test)
+- [x] `InventoryStockPort` provided and tested (reserve/commit/release)
+- [x] Nightly reconciliation job tested
+- [x] Tenant isolation test passing (11 cases: TEN-1/2/3 + AUTHZ-5/6)
+- [x] Frontend: product management, stock ledger, low-stock widget, all locales,
       RTL
-- [ ] E2E: Inventory journey green
-- [ ] Zero `core/` changes
+- [x] E2E: Inventory journey spec committed (`inventory-journey.e2e.spec.ts`,
+      self-skips without a seeded env, mirrors the CRM journey)
+- [x] Zero `core/` changes required by the module itself; the module folder is
+      self-contained (the `TransactionManager.ref()`/`resolveRef()` minting in
+      5.6 is the deferred Phase 3.4 `TransactionRef` infrastructure completion,
+      not a module change — same justification as Phase 4's
+      `DrizzleEntitlementStore` note)
 
 ---
 

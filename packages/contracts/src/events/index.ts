@@ -139,6 +139,7 @@ export {
   INVENTORY_EVENTS,
   inventoryProductCreatedV1Schema,
   inventoryProductArchivedV1Schema,
+  inventoryProductRestoredV1Schema,
   inventoryStockLevelChangedV1Schema,
   inventoryStockDepletedV1Schema,
   inventoryReorderPointReachedV1Schema,
@@ -146,6 +147,7 @@ export {
 export type {
   InventoryProductCreatedV1,
   InventoryProductArchivedV1,
+  InventoryProductRestoredV1,
   InventoryStockLevelChangedV1,
   InventoryStockDepletedV1,
   InventoryReorderPointReachedV1,

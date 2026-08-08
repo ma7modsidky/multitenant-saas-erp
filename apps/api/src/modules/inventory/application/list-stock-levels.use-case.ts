@@ -3,7 +3,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 
-import { INVENTORY_REPOSITORY, type InventoryRepository, type StockLevelRow } from './ports/index.js';
+import {
+  INVENTORY_REPOSITORY,
+  type InventoryRepository,
+  type PageResult,
+  type StockLevelListFilter,
+  type StockLevelRow,
+} from './ports/index.js';
 
 /** ListStockLevelsUseCase — the stock ledger view (on-hand / reserved / reorder). */
 @Injectable()
@@ -14,8 +20,8 @@ export class ListStockLevelsUseCase {
     private readonly txManager: TransactionManager,
   ) {}
 
-  async execute(): Promise<StockLevelRow[]> {
+  async execute(filter: StockLevelListFilter = {}): Promise<PageResult<StockLevelRow>> {
     TenantContext.requireOrganizationId();
-    return this.txManager.run((tx) => this.repo.listStockLevels(tx));
+    return this.txManager.run((tx) => this.repo.listStockLevels(filter, tx));
   }
 }

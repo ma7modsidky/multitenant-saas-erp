@@ -627,3 +627,442 @@ export function createCrmNote(input: {
 }): Promise<CrmNote> {
   return apiFetch<CrmNote>('/v1/crm/notes', { method: 'POST', body: JSON.stringify(input) });
 }
+
+// ─── Inventory ───────────────────────────────────────────────────────────────
+
+/** Product row — product + its first active variant (list response). */
+export interface InventoryProduct {
+  id: string;
+  nameI18n: Record<string, string>;
+  isActive: boolean;
+  variantId: string | null;
+  sku: string | null;
+  price: { amountMinor: string; currency: string } | null;
+  reorderPoint: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  /** Number of non-deleted variants (INV-11) — the "Variants" table column. */
+  variantCount: number;
+  /**
+   * Every variant of the product (active + archived, INV-11), primary first —
+   * the grouped products table renders these rows under a product header.
+   */
+  variants: Array<{
+    id: string;
+    sku: string;
+    price: { amountMinor: string; currency: string };
+    reorderPoint: string;
+    isActive: boolean;
+  }>;
+}
+
+/** One sellable variant in the picker list (receive/adjust/transfer/count forms). */
+export interface InventoryVariantOption {
+  variantId: string;
+  productId: string;
+  sku: string;
+  nameI18n: Record<string, string>;
+}
+
+/** Filters for the variants picker list. */
+export interface InventoryVariantParams {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function getInventoryVariants(
+  params: InventoryVariantParams = {},
+): Promise<InventoryPage<InventoryVariantOption>> {
+  const qs = inventoryQueryString(params);
+  return apiFetch<InventoryPage<InventoryVariantOption>>(`/v1/inventory/variants${qs ? `?${qs}` : ''}`);
+}
+
+/** Stock projection row with availability (INV-5). */
+export interface InventoryStockLevel {
+  variantId: string;
+  sku: string;
+  /** Owning product — the stock page groups variant rows under it. */
+  productId: string;
+  nameI18n: Record<string, string>;
+  /** Null only for a never-received variant when the org has no warehouse yet. */
+  warehouseId: string | null;
+  warehouseName: string | null;
+  quantityOnHand: string;
+  quantityReserved: string;
+  quantityAvailable: string;
+  reorderPoint: string;
+  /** INV-2 — last movement id that updated this projection. */
+  lastMovementId: string | null;
+  /** Variant unit cost (stock valuation widget / reports). */
+  unitCost: { amountMinor: string; currency: string } | null;
+}
+
+/** One append-only stock movement row (INV-1 ledger view). */
+export interface InventoryMovement {
+  id: string;
+  type:
+    'receipt' | 'sale' | 'return' | 'transfer_in' | 'transfer_out' | 'adjustment' | 'count_correction' | 'write_off';
+  /** Owning variant — transfers pair movements by variant for repeat. */
+  variantId: string;
+  sku: string;
+  nameI18n: Record<string, string>;
+  warehouseId: string | null;
+  warehouseName: string | null;
+  /** Signed quantity in UoM units (decimal string, INV-15). */
+  quantity: string;
+  unitCost: { amountMinor: string; currency: string } | null;
+  referenceType: string;
+  referenceId: string;
+  reasonCode: string | null;
+  occurredAt: string;
+  createdBy: string | null;
+}
+
+export interface InventoryWarehouse {
+  id: string;
+  name: string;
+  code: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+export interface InventoryStockCountLine {
+  id: string;
+  variantId: string;
+  expectedQuantity: string;
+  countedQuantity: string;
+  variance: string;
+}
+
+export interface InventoryStockCount {
+  id: string;
+  warehouseId: string;
+  status: 'draft' | 'applied';
+  countedAt: string | null;
+  countedBy: string | null;
+  notes: string | null;
+  lines: InventoryStockCountLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Filters for the products list (search / active-archived status). */
+export interface InventoryProductParams {
+  search?: string;
+  /** `active` = has a sellable variant; `archived` = every variant archived. */
+  status?: 'active' | 'archived';
+  page?: number;
+  pageSize?: number;
+}
+
+export function getInventoryProducts(params: InventoryProductParams = {}): Promise<InventoryPage<InventoryProduct>> {
+  const qs = inventoryQueryString(params);
+  return apiFetch<InventoryPage<InventoryProduct>>(`/v1/inventory/products${qs ? `?${qs}` : ''}`);
+}
+
+export function createInventoryProduct(input: {
+  nameI18n: Record<string, string>;
+  sku: string;
+  barcode?: string | null;
+  price: { amountMinor: string; currency: string };
+  cost: { amountMinor: string; currency: string };
+  reorderPoint: string;
+  reorderQuantity: string;
+}): Promise<{ productId: string; variantId: string }> {
+  return apiFetch<{ productId: string; variantId: string }>('/v1/inventory/products', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Renames the product (catalog metadata — name_i18n). */
+export function updateInventoryProduct(
+  id: string,
+  input: { nameI18n?: Record<string, string>; descriptionI18n?: Record<string, string> },
+): Promise<{ productId: string; updatedAt: string }> {
+  return apiFetch<{ productId: string; updatedAt: string }>(`/v1/inventory/products/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function archiveInventoryProduct(id: string): Promise<{ archivedAt: string }> {
+  return apiFetch<{ archivedAt: string }>(`/v1/inventory/products/${id}/archive`, { method: 'POST' });
+}
+
+export function unarchiveInventoryProduct(id: string): Promise<{ restoredAt: string }> {
+  return apiFetch<{ restoredAt: string }>(`/v1/inventory/products/${id}/unarchive`, { method: 'POST' });
+}
+
+/** One variant inside the product detail response. */
+export interface InventoryVariant {
+  id: string;
+  productId: string;
+  sku: string;
+  barcode: string | null;
+  price: { amountMinor: string; currency: string };
+  cost: { amountMinor: string; currency: string };
+  reorderPoint: string;
+  reorderQuantity: string;
+  isActive: boolean;
+  /** Actor stamps — who created / last edited this variant (audit trail). */
+  createdByUserId: string | null;
+  updatedByUserId: string | null;
+  /** Per-warehouse stock projection rows for this variant. */
+  stock: InventoryStockLevel[];
+}
+
+/** Product detail — product + variants + per-warehouse stock + ledger history. */
+export interface InventoryProductDetail {
+  product: {
+    id: string;
+    nameI18n: Record<string, string>;
+    descriptionI18n: Record<string, string>;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+    /** Actor stamps — who created / last edited this product (audit trail). */
+    createdByUserId: string | null;
+    updatedByUserId: string | null;
+  };
+  variants: InventoryVariant[];
+  movements: InventoryMovement[];
+}
+
+/** One reservation row (INV-7/8 list view). */
+export interface InventoryReservation {
+  id: string;
+  variantId: string;
+  sku: string;
+  nameI18n: Record<string, string>;
+  warehouseId: string;
+  warehouseName: string;
+  quantity: string;
+  state: 'held' | 'committed' | 'released' | 'expired';
+  expiresAt: string;
+  referenceType: string;
+  referenceId: string;
+  createdAt: string;
+}
+
+/** Stock-count detail — count + warehouse name + enriched lines. */
+export interface InventoryStockCountDetail {
+  id: string;
+  warehouseId: string;
+  warehouseName: string;
+  status: 'draft' | 'applied';
+  countedAt: string | null;
+  countedBy: string | null;
+  notes: string | null;
+  lines: Array<
+    InventoryStockCountLine & {
+      sku: string;
+      nameI18n: Record<string, string>;
+    }
+  >;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function getInventoryProduct(id: string): Promise<InventoryProductDetail> {
+  return apiFetch<InventoryProductDetail>(`/v1/inventory/products/${id}`);
+}
+
+export function createInventoryVariant(
+  productId: string,
+  input: {
+    sku: string;
+    barcode?: string | null;
+    price: { amountMinor: string; currency: string };
+    cost: { amountMinor: string; currency: string };
+    reorderPoint: string;
+    reorderQuantity: string;
+  },
+): Promise<{ variantId: string }> {
+  return apiFetch<{ variantId: string }>(`/v1/inventory/products/${productId}/variants`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Edits a variant's sellable fields (INV-10 SKU uniqueness is server-enforced). */
+export function updateInventoryVariant(
+  id: string,
+  input: {
+    sku?: string;
+    barcode?: string | null;
+    price?: { amountMinor: string; currency: string };
+    cost?: { amountMinor: string; currency: string };
+    reorderPoint?: string;
+    reorderQuantity?: string;
+  },
+): Promise<{ variantId: string; updatedAt: string }> {
+  return apiFetch<{ variantId: string; updatedAt: string }>(`/v1/inventory/variants/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function archiveInventoryVariant(id: string): Promise<{ archivedAt: string }> {
+  return apiFetch<{ archivedAt: string }>(`/v1/inventory/variants/${id}/archive`, { method: 'POST' });
+}
+
+export function unarchiveInventoryVariant(id: string): Promise<{ restoredAt: string }> {
+  return apiFetch<{ restoredAt: string }>(`/v1/inventory/variants/${id}/unarchive`, { method: 'POST' });
+}
+
+export function createInventoryWarehouse(input: {
+  name: string;
+  code: string;
+  isDefault?: boolean;
+}): Promise<InventoryWarehouse> {
+  return apiFetch<InventoryWarehouse>('/v1/inventory/warehouses', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Paginated inventory list response — `items` plus total/page/pageSize. */
+export interface InventoryPage<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Rows per page for inventory list views (matches the backend default clamp). */
+export const INVENTORY_PAGE_SIZE = 12;
+
+/** Filters for the stock-levels list (INV-5/13): search / warehouse / low-stock. */
+export interface InventoryStockParams {
+  search?: string;
+  warehouseId?: string;
+  /** Restrict to rows at or below their reorder point. */
+  lowStock?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Filters for the movements ledger (INV-1): search / type / date range. */
+export interface InventoryMovementParams {
+  search?: string;
+  type?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Filters for the reservations list (INV-7/8): status + pagination. */
+export interface InventoryReservationParams {
+  status?: 'held' | 'committed' | 'released' | 'expired';
+  page?: number;
+  pageSize?: number;
+}
+
+/** Serialize inventory list params to a query string (absent/empty/false omitted). */
+function inventoryQueryString(params: object): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '' && value !== false) query.set(key, String(value));
+  }
+  return query.toString();
+}
+
+export function getInventoryReservations(
+  params: InventoryReservationParams = {},
+): Promise<InventoryPage<InventoryReservation>> {
+  const qs = inventoryQueryString(params);
+  return apiFetch<InventoryPage<InventoryReservation>>(`/v1/inventory/reservations${qs ? `?${qs}` : ''}`);
+}
+
+export function getInventoryStockCount(id: string): Promise<InventoryStockCountDetail> {
+  return apiFetch<InventoryStockCountDetail>(`/v1/inventory/stock-counts/${id}`);
+}
+
+export function getInventoryWarehouses(): Promise<{ items: InventoryWarehouse[] }> {
+  return apiFetch<{ items: InventoryWarehouse[] }>('/v1/inventory/warehouses');
+}
+
+export function getInventoryStock(params: InventoryStockParams = {}): Promise<InventoryPage<InventoryStockLevel>> {
+  const qs = inventoryQueryString(params);
+  return apiFetch<InventoryPage<InventoryStockLevel>>(`/v1/inventory/stock${qs ? `?${qs}` : ''}`);
+}
+
+export function getInventoryMovements(params: InventoryMovementParams = {}): Promise<InventoryPage<InventoryMovement>> {
+  const qs = inventoryQueryString(params);
+  return apiFetch<InventoryPage<InventoryMovement>>(`/v1/inventory/stock/movements${qs ? `?${qs}` : ''}`);
+}
+
+export function receiveInventoryStock(input: {
+  variantId: string;
+  warehouseId?: string | null;
+  quantity: string;
+  unitCost: { amountMinor: string; currency: string };
+  referenceType: string;
+  referenceId: string;
+  idempotencyKey?: string;
+}): Promise<{ movementId: string }> {
+  return apiFetch<{ movementId: string }>('/v1/inventory/stock/receive', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function adjustInventoryStock(input: {
+  variantId: string;
+  warehouseId?: string | null;
+  quantity: string;
+  reasonCode: string;
+  referenceType: string;
+  referenceId: string;
+}): Promise<{ movementId: string }> {
+  return apiFetch<{ movementId: string }>('/v1/inventory/stock/adjust', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function transferInventoryStock(input: {
+  variantId: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  quantity: string;
+  referenceType: string;
+  referenceId: string;
+}): Promise<{ transferOutId: string; transferInId: string }> {
+  return apiFetch<{ transferOutId: string; transferInId: string }>('/v1/inventory/stock/transfer', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Filters for the stock-counts list (draft/applied status + pagination). */
+export interface InventoryStockCountParams {
+  status?: 'draft' | 'applied';
+  page?: number;
+  pageSize?: number;
+}
+
+export function getInventoryStockCounts(
+  params: InventoryStockCountParams = {},
+): Promise<InventoryPage<InventoryStockCount>> {
+  const qs = inventoryQueryString(params);
+  return apiFetch<InventoryPage<InventoryStockCount>>(`/v1/inventory/stock-counts${qs ? `?${qs}` : ''}`);
+}
+
+export function createInventoryStockCount(input: {
+  warehouseId: string;
+  notes?: string | null;
+  lines: Array<{ variantId: string; countedQuantity: string }>;
+}): Promise<InventoryStockCount> {
+  return apiFetch<InventoryStockCount>('/v1/inventory/stock-counts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function applyInventoryStockCount(id: string): Promise<{ correctionsApplied: number }> {
+  return apiFetch<{ correctionsApplied: number }>(`/v1/inventory/stock-counts/${id}/apply`, { method: 'POST' });
+}
