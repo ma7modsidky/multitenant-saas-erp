@@ -8,6 +8,8 @@ import {
   createPosRefund,
   createPosSale,
   getActiveOrganization,
+  getCrmContact,
+  getCrmContacts,
   getCurrencies,
   getInventoryProducts,
   getPosRegisters,
@@ -65,6 +67,42 @@ export function usePosSales(filters: PosSaleParams = {}) {
     queryKey: salesKey(filters),
     queryFn: () => getPosSales(filters),
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Contacts for the checkout customer picker (POS-18). Consumed from the CRM
+ * module's list endpoint; degrades to an empty list when the org has no CRM
+ * entitlement, so a POS-only org still gets the (optional) picker — it just
+ * shows no customers.
+ */
+export function usePosContacts() {
+  return useQuery({
+    queryKey: posKey(['contacts']),
+    queryFn: async () => {
+      try {
+        const page = await getCrmContacts({ pageSize: 50 });
+        return page.items;
+      } catch {
+        // CRM may not be entitled — the picker degrades to an empty list.
+        return [];
+      }
+    },
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Contact detail for the sale page — enabled only when the sale links one. */
+export function usePosContact(id: string | null, enabled = true) {
+  return useQuery({
+    queryKey: posKey(['contacts', id ?? 'none']),
+    queryFn: () => {
+      // The query is disabled without an id; the explicit branch keeps the
+      // type narrow without an `as` cast.
+      if (id === null) return Promise.resolve(null);
+      return getCrmContact(id);
+    },
+    enabled: enabled && id !== null,
   });
 }
 

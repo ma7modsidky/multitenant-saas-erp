@@ -59,7 +59,7 @@ export function RegistersView() {
       setSuccess(t('register.createdMessage'));
       setSection(null);
     } catch (err) {
-      setError(err instanceof ApiError ? posErrorKey(err.code) : t('errors.unknown'));
+      setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');
     }
   };
 
@@ -72,7 +72,7 @@ export function RegistersView() {
       setSection(null);
       setTargetRegisterId(null);
     } catch (err) {
-      setError(err instanceof ApiError ? posErrorKey(err.code) : t('errors.unknown'));
+      setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');
     }
   };
 
@@ -92,7 +92,7 @@ export function RegistersView() {
       setSection(null);
       setTargetRegisterId(null);
     } catch (err) {
-      setError(err instanceof ApiError ? posErrorKey(err.code) : t('errors.unknown'));
+      setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');
     }
   };
 

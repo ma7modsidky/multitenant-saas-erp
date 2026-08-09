@@ -74,6 +74,19 @@ test.describe('POS journey', () => {
     await page.locator('tr', { hasText: registerName }).getByRole('link', { name: 'New sale' }).click();
     await expect(page.getByRole('heading', { name: 'New sale' })).toBeVisible();
     await expect(page.getByText('Shift open — ready to sell')).toBeVisible();
+
+    // 5a. Link the sale to a NEW customer created inline (POS-18) — the
+    //     inline form creates the contact, then the picker selects it.
+    const customerFirstName = `Walk${stamp}`;
+    const customerLastName = `In${stamp}`;
+    await page.getByRole('button', { name: 'New customer' }).click();
+    await page.getByLabel('First name').fill(customerFirstName);
+    await page.getByLabel('Last name').fill(customerLastName);
+    await page.getByLabel('Email').fill(`walkin${stamp}@example.com`);
+    await page.getByRole('button', { name: 'Add customer' }).click();
+    // The customer combobox trigger now carries the selected contact's name.
+    await expect(page.getByRole('button', { name: `${customerFirstName} ${customerLastName}` })).toBeVisible();
+
     await page.getByRole('button', { name: 'Search products…' }).click();
     await page.getByRole('option', { name: `${productName} (${sku})` }).click();
     await page.getByLabel(/Tendered/).fill('3000');
@@ -81,6 +94,8 @@ test.describe('POS journey', () => {
     await expect(page.getByText('Sale completed successfully.')).toBeVisible();
     await page.getByRole('link', { name: 'View sale' }).click();
     await expect(page.getByRole('heading', { name: 'Sale' })).toBeVisible();
+    // The linked customer resolves on the sale detail (customerContactId → CRM).
+    await expect(page.getByRole('link', { name: `${customerFirstName} ${customerLastName}` })).toBeVisible();
 
     // 6. Refund the line in full through the sale's own register (which still
     //    has an open shift — POS-23).

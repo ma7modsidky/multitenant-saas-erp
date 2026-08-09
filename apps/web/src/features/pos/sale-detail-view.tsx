@@ -14,7 +14,14 @@ import { Can } from '@/lib/permissions';
 
 import { posErrorKey } from './errors';
 import { RefundDialog } from './forms';
-import { useCurrencies, useOrgBaseCurrency, usePosMutations, usePosRegisters, usePosSale } from './hooks';
+import {
+  useCurrencies,
+  useOrgBaseCurrency,
+  usePosContact,
+  usePosMutations,
+  usePosRegisters,
+  usePosSale,
+} from './hooks';
 import { localizedLabel } from './labels';
 import { formatMinorAmount, prorateRefundAmount } from './money';
 import { SaleStatusBadge } from './reports-view';
@@ -30,6 +37,7 @@ export function SaleDetailView({ saleId }: { saleId: string }) {
 
   const { data: sale, isPending } = usePosSale(saleId);
   const { data: registers } = usePosRegisters();
+  const { data: customer } = usePosContact(sale?.customerContactId ?? null, Boolean(sale));
   const { voidSale, refund } = usePosMutations();
 
   const [refundOpen, setRefundOpen] = useState(false);
@@ -59,7 +67,7 @@ export function SaleDetailView({ saleId }: { saleId: string }) {
       setSuccess(t('sale.voidMessage'));
       setVoidOpen(false);
     } catch (err) {
-      setError(err instanceof ApiError ? posErrorKey(err.code) : t('errors.unknown'));
+      setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');
       setVoidOpen(false);
     }
   };
@@ -87,7 +95,7 @@ export function SaleDetailView({ saleId }: { saleId: string }) {
       setSuccess(t('sale.refundMessage'));
       setRefundOpen(false);
     } catch (err) {
-      setError(err instanceof ApiError ? posErrorKey(err.code) : t('errors.unknown'));
+      setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');
     }
   };
 
@@ -166,6 +174,22 @@ export function SaleDetailView({ saleId }: { saleId: string }) {
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">{t('sale.total')}</p>
               <p className="mt-1 font-mono text-xl font-bold tabular-nums">{formatMinor(sale.total.amountMinor)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">{t('sale.customer')}</p>
+              {customer ? (
+                <Link
+                  className="mt-1 block font-medium hover:underline"
+                  href={`/${locale}/m/crm/contacts/${customer.id}`}
+                  dir="auto"
+                >
+                  {customer.firstName} {customer.lastName}
+                </Link>
+              ) : (
+                <p className="mt-1 text-muted-foreground">{t('sale.noCustomer')}</p>
+              )}
             </CardContent>
           </Card>
         </div>

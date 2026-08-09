@@ -1,10 +1,11 @@
 'use client';
 
-import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
+import { Minus, Plus, ShoppingCart, Trash2, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,9 +15,17 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectItem } from '@/components/ui/select';
 import { ApiError } from '@/lib/api';
 import { ModuleGate } from '@/lib/entitlements';
+import { createCrmContact } from '@/lib/api/resources';
 
 import { posErrorKey } from './errors';
-import { useCurrencies, useOrgBaseCurrency, usePosCatalog, usePosMutations, usePosRegisters } from './hooks';
+import {
+  useCurrencies,
+  useOrgBaseCurrency,
+  usePosCatalog,
+  usePosContacts,
+  usePosMutations,
+  usePosRegisters,
+} from './hooks';
 import { localizedLabel } from './labels';
 import {
   formatMinorAmount,
@@ -47,7 +56,21 @@ export function CheckoutView() {
 
   const { data: registers, isPending: registersPending } = usePosRegisters();
   const { data: catalog } = usePosCatalog();
+  const { data: contacts } = usePosContacts();
   const { checkout } = usePosMutations();
+
+  // Inline "New customer" creation — creates the contact, then selects it for
+  // the sale (POS-18). Errors stay KEYs (translated at render).
+  const client = useQueryClient();
+  const createCustomer = useMutation({
+    mutationFn: createCrmContact,
+    onSuccess: (contact) => {
+      void client.invalidateQueries({ queryKey: ['pos', 'contacts'] });
+      setCustomerContactId(contact.id);
+      setNewCustomerOpen(false);
+      setSuccess(null);
+    },
+  });
 
   // Cart state — the register (from the URL preselect), lines, and payment.
   const [registerId, setRegisterId] = useState(searchParams.get('registerId') ?? '');
@@ -55,6 +78,13 @@ export function CheckoutView() {
   const [method, setMethod] = useState<'cash' | 'card' | 'other'>('cash');
   const [tenderedAmountMinor, setTenderedAmountMinor] = useState('');
   const [pickerVariantId, setPickerVariantId] = useState('');
+  const [customerContactId, setCustomerContactId] = useState('');
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [customerFirstName, setCustomerFirstName] = useState('');
+  const [customerLastName, setCustomerLastName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerFormError, setCustomerFormError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ saleId: string; receiptNumber: string } | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
@@ -136,21 +166,21 @@ export function CheckoutView() {
     setError(null);
     setSuccess(null);
     if (!registerId) {
-      setError(t('checkout.noRegister'));
+      setError('checkout.noRegister');
       return;
     }
     if (lines.length === 0) {
-      setError(t('checkout.emptyCart'));
+      setError('checkout.emptyCart');
       return;
     }
     if (!hasOpenShift) {
-      setError(t('checkout.noOpenShift'));
+      setError('checkout.noOpenShift');
       return;
     }
     if (method === 'cash') {
       const tendered = BigInt(tenderedAmountMinor || '0');
       if (tendered < BigInt(totalMinor)) {
-        setError(t('checkout.insufficientTendered'));
+        setError('checkout.insufficientTendered');
         return;
       }
     }
@@ -183,14 +213,41 @@ export function CheckoutView() {
         // same key for the cart so a failed request can be retried without
         // creating a duplicate sale, then rotate it after success.
         idempotencyKey,
+        // POS-18: link the sale to an existing (or just-created) customer.
+        ...(customerContactId ? { customerContactId } : {}),
       });
       setSuccess(result);
       setLines([]);
       setTenderedAmountMinor('');
+      setCustomerContactId('');
       setIdempotencyKey(crypto.randomUUID());
     } catch (err) {
-      setError(err instanceof ApiError ? posErrorKey(err.code) : t('errors.unknown'));
+      setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');
     }
+  };
+
+  /** Create the inline new customer — CRM-1 requires email or phone too. */
+  const handleCreateCustomer = () => {
+    setCustomerFormError(null);
+    if (!customerFirstName.trim() || !customerLastName.trim()) {
+      setCustomerFormError('checkout.customerNameRequired');
+      return;
+    }
+    if (!customerEmail.trim() && !customerPhone.trim()) {
+      setCustomerFormError('checkout.customerContactRequired');
+      return;
+    }
+    createCustomer.mutate(
+      {
+        firstName: customerFirstName.trim(),
+        lastName: customerLastName.trim(),
+        email: customerEmail.trim() || null,
+        phone: customerPhone.trim() || null,
+      },
+      {
+        onError: (err) => setCustomerFormError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown'),
+      },
+    );
   };
 
   const formatMinor = (amountMinor: string) => formatMinorAmount(amountMinor, baseCurrency, { locale, exponent });
@@ -251,6 +308,95 @@ export function CheckoutView() {
                   ) : (
                     <p className="text-sm text-destructive">{t('checkout.noOpenShift')}</p>
                   ))}
+              </CardContent>
+            </Card>
+
+            {/* POS-18: optionally link the sale to a customer — pick an existing
+                contact or create one inline. Degrades to an empty list when
+                the org has no CRM module. */}
+            <Card>
+              <CardContent className="space-y-3 pt-6">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">{t('checkout.customer')}</p>
+                  {customerContactId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto px-2 text-xs"
+                      onClick={() => setCustomerContactId('')}
+                    >
+                      {t('checkout.clearCustomer')}
+                    </Button>
+                  )}
+                </div>
+                <Combobox
+                  value={customerContactId}
+                  onValueChange={(v) => {
+                    setCustomerContactId(v);
+                    setSuccess(null);
+                  }}
+                  options={(contacts ?? []).map((c) => {
+                    const contactHint = c.email ?? c.phone;
+                    return {
+                      value: c.id,
+                      label: `${c.firstName} ${c.lastName}`,
+                      ...(contactHint ? { hint: contactHint } : {}),
+                    };
+                  })}
+                  placeholder={t('checkout.selectCustomer')}
+                  searchPlaceholder={t('select.search')}
+                  emptyText={t('checkout.noCustomers')}
+                />
+                {newCustomerOpen ? (
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        aria-label={t('checkout.customerFirstName')}
+                        placeholder={t('checkout.customerFirstName')}
+                        value={customerFirstName}
+                        onChange={(e) => setCustomerFirstName(e.target.value)}
+                      />
+                      <Input
+                        aria-label={t('checkout.customerLastName')}
+                        placeholder={t('checkout.customerLastName')}
+                        value={customerLastName}
+                        onChange={(e) => setCustomerLastName(e.target.value)}
+                      />
+                    </div>
+                    <Input
+                      aria-label={t('checkout.customerEmail')}
+                      placeholder={t('checkout.customerEmail')}
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                    />
+                    <Input
+                      aria-label={t('checkout.customerPhone')}
+                      placeholder={t('checkout.customerPhone')}
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                    />
+                    {customerFormError && (
+                      <p role="alert" className="text-sm text-destructive">
+                        {t(customerFormError)}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" loading={createCustomer.isPending} onClick={() => void handleCreateCustomer()}>
+                        {t('checkout.createCustomer')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setNewCustomerOpen(false)}>
+                        {t('sale.cancel')}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setNewCustomerOpen(true)}>
+                    <UserPlus className="size-4" aria-hidden="true" />
+                    <span className="ms-1">{t('checkout.newCustomer')}</span>
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
