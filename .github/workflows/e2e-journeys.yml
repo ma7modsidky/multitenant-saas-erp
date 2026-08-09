@@ -133,8 +133,15 @@ jobs:
           # so this pins the target DB regardless of local .env drift.
           DATABASE_MIGRATION_URL: postgres://modubiz_owner:modubiz_owner_password@localhost:5432/modubiz
 
-      - name: Build web app
-        run: pnpm --filter web build
+      - name: Build workspace (packages first, then apps)
+        # A fresh checkout has NO compiled workspace packages: web imports
+        # `@modubiz/i18n/messages/{en,ar,fr,es}` from the package's built
+        # dist/ (packages/i18n/package.json → exports), so a bare
+        # `pnpm --filter web build` fails with "Module not found" (verified
+        # on the first real run). turbo builds ^build dependencies first —
+        # the same command as ci.yml's Build stage. The compiled packages
+        # also feed the dev servers started below.
+        run: pnpm build
 
       - name: Start dev servers (api + web)
         # Started explicitly so the seed step (which calls the API directly)
