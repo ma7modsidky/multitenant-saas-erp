@@ -85,8 +85,11 @@ jobs:
 
       - name: Install Playwright browsers
         # Journey specs run against a REAL browser; the binaries are not on
-        # the fresh runner. Same command as ci.yml's e2e smoke job.
-        run: npx playwright install --with-deps chromium
+        # the fresh runner. playwright ships via @playwright/test inside
+        # apps/web (there is NO root-level dep), so resolve the binary through
+        # the web package context — a root `npx playwright` fails with
+        # "playwright: not found" (verified on the runner).
+        run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Materialize .env for the dev servers
         # `pnpm --filter api dev` runs with `--env-file ../../.env` and the
