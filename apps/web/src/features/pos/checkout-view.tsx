@@ -220,6 +220,13 @@ export function CheckoutView() {
       setLines([]);
       setTenderedAmountMinor('');
       setCustomerContactId('');
+      // Reset the inline new-customer form so the next sale starts clean.
+      setNewCustomerOpen(false);
+      setCustomerFirstName('');
+      setCustomerLastName('');
+      setCustomerEmail('');
+      setCustomerPhone('');
+      setCustomerFormError(null);
       setIdempotencyKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');

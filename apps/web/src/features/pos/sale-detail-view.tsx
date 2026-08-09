@@ -187,6 +187,10 @@ export function SaleDetailView({ saleId }: { saleId: string }) {
                 >
                   {customer.firstName} {customer.lastName}
                 </Link>
+              ) : sale.customerContactId ? (
+                // Resolution pending, or CRM unentitled — show the raw id
+                // rather than a misleading "No customer".
+                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{sale.customerContactId}</p>
               ) : (
                 <p className="mt-1 text-muted-foreground">{t('sale.noCustomer')}</p>
               )}

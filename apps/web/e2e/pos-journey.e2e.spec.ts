@@ -87,6 +87,13 @@ test.describe('POS journey', () => {
     // The customer combobox trigger now carries the selected contact's name.
     await expect(page.getByRole('button', { name: `${customerFirstName} ${customerLastName}` })).toBeVisible();
 
+    // 5b. The EXISTING-customer path: clear the selection, then re-pick the
+    //     just-created contact from the dropdown (same sale, same totals).
+    await page.getByRole('button', { name: 'Remove customer' }).click();
+    await page.getByRole('button', { name: 'Search customers…' }).click();
+    await page.getByRole('option', { name: `${customerFirstName} ${customerLastName}` }).click();
+    await expect(page.getByRole('button', { name: `${customerFirstName} ${customerLastName}` })).toBeVisible();
+
     await page.getByRole('button', { name: 'Search products…' }).click();
     await page.getByRole('option', { name: `${productName} (${sku})` }).click();
     await page.getByLabel(/Tendered/).fill('3000');
