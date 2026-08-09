@@ -3,6 +3,7 @@ import {
   type InventoryStockPort,
   type ReservationRef,
   type ReserveStockInput,
+  type RestockInput,
   type TransactionRef,
 } from '@modubiz/contracts';
 import { Inject, Injectable } from '@nestjs/common';
@@ -193,5 +194,50 @@ export class InventoryStockPortImpl implements InventoryStockPort {
       tx,
     );
     await this.repo.updateReservationState(reservation.id, RESERVATION_STATE.RELEASED, now, tx);
+  }
+
+  async restock(input: RestockInput, txRef: TransactionRef): Promise<void> {
+    const tx = this.txManager.resolveRef(txRef);
+    const organizationId = TenantContext.requireOrganizationId();
+    const userId = TenantContext.getUserId() ?? null;
+    const now = new Date();
+
+    if (!(await this.repo.findVariantById(input.variantId, tx))) {
+      throw new NotFoundError('VARIANT_NOT_FOUND', { variantId: input.variantId });
+    }
+    const warehouse = await this.repo.findWarehouseById(input.warehouseId, tx);
+    if (!warehouse) throw new NotFoundError('WAREHOUSE_NOT_FOUND', { warehouseId: input.warehouseId });
+
+    // POS-22: restocked lines return goods (positive movement); damaged lines
+    // write them off (negative). Either way a movement is recorded — stock is
+    // never silently unchanged.
+    const movement = StockMovement.create({
+      id: crypto.randomUUID(),
+      organizationId,
+      variantId: input.variantId,
+      warehouseId: input.warehouseId,
+      type: input.restock ? MOVEMENT_TYPE.RETURN : MOVEMENT_TYPE.WRITE_OFF,
+      quantity: input.restock ? input.quantity : `-${input.quantity}`,
+      unitCostAmountMinor: null,
+      unitCostCurrency: null,
+      referenceType: input.referenceType,
+      referenceId: input.referenceId,
+      reasonCode: null,
+      idempotencyKey: null,
+      occurredAt: now,
+      createdBy: userId,
+    });
+    const persisted = await this.repo.insertMovement(movement.toJSON(), tx);
+
+    const level = await this.repo.getStockLevel(input.variantId, input.warehouseId, tx);
+    const newOnHand = addQuantity(level?.quantityOnHand ?? '0', movement.quantity);
+    await this.repo.upsertStockLevel(
+      input.variantId,
+      input.warehouseId,
+      newOnHand,
+      level?.quantityReserved ?? '0',
+      persisted.id,
+      tx,
+    );
   }
 }

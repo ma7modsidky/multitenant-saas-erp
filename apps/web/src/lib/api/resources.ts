@@ -1066,3 +1066,259 @@ export function createInventoryStockCount(input: {
 export function applyInventoryStockCount(id: string): Promise<{ correctionsApplied: number }> {
   return apiFetch<{ correctionsApplied: number }>(`/v1/inventory/stock-counts/${id}/apply`, { method: 'POST' });
 }
+
+// ─── POS ─────────────────────────────────────────────────────────────────────
+
+/** One register row (POS-1). `openShiftId` is null when the register is idle. */
+export interface PosRegister {
+  id: string;
+  name: string;
+  code: string;
+  warehouseId: string;
+  receiptPrefix: string;
+  isActive: boolean;
+  openShiftId: string | null;
+  createdAt: string;
+}
+
+/** One shift row (POS-2/4/5) — closed fields are null while the shift is open. */
+export interface PosShift {
+  id: string;
+  registerId: string;
+  openedBy: string;
+  openedAt: string;
+  openingFloatAmountMinor: string;
+  closedBy: string | null;
+  closedAt: string | null;
+  countedCashAmountMinor: string | null;
+  expectedCashAmountMinor: string | null;
+  varianceAmountMinor: string | null;
+  currency: string;
+  status: 'open' | 'closed';
+  forcedClose: boolean;
+}
+
+/** One sale line (pos_sale_lines) — name/sku snapshots at sale time (POS-12). */
+export interface PosSaleLine {
+  id: string;
+  saleId: string;
+  variantId: string;
+  skuSnapshot: string;
+  nameSnapshot: Record<string, string>;
+  quantity: string;
+  unitPriceAmountMinor: string;
+  lineDiscountAmountMinor: string;
+  taxRateBp: number;
+  taxAmountMinor: string;
+  lineTotalAmountMinor: string;
+  currency: string;
+}
+
+/** One payment (pos_payments) — append-only (POS-10). */
+export interface PosPayment {
+  id: string;
+  saleId: string;
+  method: 'cash' | 'card' | 'other';
+  amountMinor: string;
+  currency: string;
+  tenderedAmountMinor: string | null;
+  changeAmountMinor: string;
+  reference: string | null;
+  capturedAt: string;
+  createdBy: string | null;
+}
+
+/** One sale row with its lines + payments (POS-13 status vocabulary). */
+export interface PosSale {
+  id: string;
+  shiftId: string;
+  registerId: string;
+  receiptNumber: string;
+  status: 'completed' | 'partially_refunded' | 'refunded' | 'voided';
+  subtotal: { amountMinor: string; currency: string };
+  discount: { amountMinor: string; currency: string };
+  tax: { amountMinor: string; currency: string };
+  total: { amountMinor: string; currency: string };
+  currency: string;
+  locale: string;
+  customerContactId: string | null;
+  soldAt: string;
+  createdAt: string;
+  lines: PosSaleLine[];
+  payments: PosPayment[];
+}
+
+/** One refund (POS-20..24). */
+export interface PosRefund {
+  id: string;
+  originalSaleId: string;
+  reasonCode: string;
+  amount: { amountMinor: string; currency: string };
+  refundedAt: string;
+}
+
+/** Shift close report (POS-8): totals + the shift's sales and refunds. */
+export interface PosShiftReport {
+  shift: PosShift;
+  totals: {
+    salesAmountMinor: string;
+    refundsAmountMinor: string;
+    netAmountMinor: string;
+  };
+  sales: PosSale[];
+  refunds: PosRefund[];
+}
+
+export function getPosRegisters(): Promise<{ items: PosRegister[] }> {
+  return apiFetch<{ items: PosRegister[] }>('/v1/pos/registers');
+}
+
+export function createPosRegister(input: {
+  name: string;
+  code: string;
+  warehouseId: string;
+}): Promise<{ id: string; warehouseId: string }> {
+  return apiFetch<{ id: string; warehouseId: string }>('/v1/pos/registers', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function openPosShift(
+  registerId: string,
+  input: { openingFloatAmountMinor: string },
+): Promise<{ shiftId: string; openedAt: string }> {
+  return apiFetch<{ shiftId: string; openedAt: string }>(`/v1/pos/registers/${registerId}/shifts/open`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function closePosShift(
+  registerId: string,
+  input: { countedCashAmountMinor: string; forcedClose?: boolean },
+): Promise<{
+  shiftId: string;
+  expectedCashAmountMinor: string;
+  varianceAmountMinor: string;
+  closedAt: string;
+}> {
+  return apiFetch<{
+    shiftId: string;
+    expectedCashAmountMinor: string;
+    varianceAmountMinor: string;
+    closedAt: string;
+  }>(`/v1/pos/registers/${registerId}/shifts/close`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getPosShifts(): Promise<{ items: PosShift[] }> {
+  return apiFetch<{ items: PosShift[] }>('/v1/pos/shifts');
+}
+
+export function getPosShiftReport(shiftId: string): Promise<PosShiftReport> {
+  return apiFetch<PosShiftReport>(`/v1/pos/shifts/${shiftId}/report`);
+}
+
+/** Checkout line — price + name snapshot at sale time (POS-12). */
+export interface PosCheckoutLine {
+  variantId: string;
+  sku: string;
+  nameI18n: Record<string, string>;
+  quantity: string;
+  unitPrice: { amountMinor: string; currency: string };
+  lineDiscount?: { amountMinor: string; currency: string };
+  taxRateBp?: number;
+  currency: string;
+}
+
+export interface PosCheckoutPayment {
+  method: 'cash' | 'card' | 'other';
+  amount: { amountMinor: string; currency: string };
+  currency: string;
+  tenderedAmountMinor?: string;
+  changeAmountMinor?: string;
+  reference?: string | null;
+}
+
+export function createPosSale(input: {
+  registerId: string;
+  locale: string;
+  lines: PosCheckoutLine[];
+  payments: PosCheckoutPayment[];
+  customerContactId?: string | null;
+  idempotencyKey?: string;
+}): Promise<{ saleId: string; receiptNumber: string }> {
+  const { idempotencyKey, ...body } = input;
+  return apiFetch<{ saleId: string; receiptNumber: string }>('/v1/pos/sales', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+  });
+}
+
+export interface PosSaleParams {
+  status?: string;
+  shiftId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function getPosSales(params: PosSaleParams = {}): Promise<PosPage<PosSale>> {
+  const qs = posQueryString(params);
+  return apiFetch<PosPage<PosSale>>(`/v1/pos/sales${qs ? `?${qs}` : ''}`);
+}
+
+export function getPosSale(id: string): Promise<PosSale> {
+  return apiFetch<PosSale>(`/v1/pos/sales/${id}`);
+}
+
+export function voidPosSale(id: string): Promise<{ saleId: string; status: string }> {
+  return apiFetch<{ saleId: string; status: string }>(`/v1/pos/sales/${id}/void`, { method: 'POST' });
+}
+
+export interface PosRefundLine {
+  saleLineId: string;
+  variantId: string;
+  quantity: string;
+  restock: boolean;
+  amount: { amountMinor: string; currency: string };
+  currency: string;
+}
+
+export function createPosRefund(input: {
+  originalSaleId: string;
+  registerId: string;
+  reasonCode: string;
+  currency: string;
+  lines: PosRefundLine[];
+}): Promise<{ refundId: string; amountMinor: string; refundedAt: string }> {
+  return apiFetch<{ refundId: string; amountMinor: string; refundedAt: string }>('/v1/pos/refunds', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Paginated POS list response — `items` plus total/page/pageSize. */
+export interface PosPage<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Rows per page for POS list views (matches the backend default clamp). */
+export const POS_PAGE_SIZE = 12;
+
+/** Serialize POS list params to a query string (absent/empty omitted). */
+function posQueryString(params: PosSaleParams): string {
+  const query = new URLSearchParams();
+  if (params.status) query.set('status', params.status);
+  if (params.shiftId) query.set('shiftId', params.shiftId);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined && params.pageSize !== POS_PAGE_SIZE)
+    query.set('pageSize', String(params.pageSize));
+  return query.toString();
+}

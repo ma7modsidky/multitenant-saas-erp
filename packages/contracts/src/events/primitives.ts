@@ -9,6 +9,15 @@ import { z } from 'zod';
 /** Integer minor units as a decimal string (e.g. "250000" = 2500.00). */
 export const minorUnitsString = z.string().regex(/^\d+$/, 'minor units must be a non-negative integer string');
 
+/**
+ * Integer minor units that may be negative (e.g. "-500"). Used only for
+ * signed money amounts like the shift cash variance (POS-5), never for
+ * prices, totals, or balances.
+ */
+export const signedMinorUnitsString = z
+  .string()
+  .regex(/^-?\d+$/, 'minor units must be an integer string (may be negative)');
+
 /** ISO 4217 currency code, uppercase 3 letters. */
 export const currencyCode = z.string().regex(/^[A-Z]{3}$/, 'currency must be an uppercase ISO 4217 code');
 

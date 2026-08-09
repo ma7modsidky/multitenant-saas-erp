@@ -18,6 +18,7 @@ import { StorageModule } from './core/storage/storage.module.js';
 import { TenancyModule } from './core/tenancy/tenancy.module.js';
 import { CrmModule, CrmSearchContributor } from './modules/crm/public/index.js';
 import { InventoryModule, InventorySearchContributor } from './modules/inventory/public/index.js';
+import { PosModule } from './modules/pos/public/index.js';
 import { AuditLogModule } from './platform/audit-log/audit-log.module.js';
 import { BillingModule } from './platform/billing/billing.module.js';
 import { FxRatesModule } from './platform/fx-rates/fx-rates.module.js';
@@ -72,6 +73,7 @@ import { UsersModule } from './platform/users/users.module.js';
     FxRatesModule,
     CrmModule,
     InventoryModule,
+    PosModule,
   ],
   controllers: [],
   providers: [],

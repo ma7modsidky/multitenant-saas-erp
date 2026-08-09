@@ -152,3 +152,18 @@ export type {
   InventoryStockDepletedV1,
   InventoryReorderPointReachedV1,
 } from './inventory.js';
+
+// ─── POS events ─────────────────────────────────────────────────────────────
+//
+// @see PLAN.md §6.1 — Declare contracts first
+// @see DATA_MODEL.md §9 — POS schema (`pos_`)
+// @see BUSINESS_RULES.md §7 — POS rules
+
+export {
+  POS_EVENTS,
+  posSaleCompletedV1Schema,
+  posSaleRefundedV1Schema,
+  posShiftOpenedV1Schema,
+  posShiftClosedV1Schema,
+} from './pos.js';
+export type { PosSaleCompletedV1, PosSaleRefundedV1, PosShiftOpenedV1, PosShiftClosedV1 } from './pos.js';

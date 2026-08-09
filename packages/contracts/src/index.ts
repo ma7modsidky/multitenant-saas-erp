@@ -28,6 +28,11 @@ export {
   inventoryStockLevelChangedV1Schema,
   inventoryStockDepletedV1Schema,
   inventoryReorderPointReachedV1Schema,
+  POS_EVENTS,
+  posSaleCompletedV1Schema,
+  posSaleRefundedV1Schema,
+  posShiftOpenedV1Schema,
+  posShiftClosedV1Schema,
   minorUnitsString,
   currencyCode,
   decimalString,
@@ -44,6 +49,10 @@ export type {
   InventoryStockLevelChangedV1,
   InventoryStockDepletedV1,
   InventoryReorderPointReachedV1,
+  PosSaleCompletedV1,
+  PosSaleRefundedV1,
+  PosShiftOpenedV1,
+  PosShiftClosedV1,
 } from './events/index.js';
 
 export type {
@@ -54,6 +63,7 @@ export type {
   FxRateRead,
   AvailabilitySnapshot,
   ReserveStockInput,
+  RestockInput,
   ReservationRef,
   InventoryStockPort,
 } from './ports/index.js';

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CRM_EVENTS,
   INVENTORY_EVENTS,
+  POS_EVENTS,
   crmContactCreatedV1Schema,
   crmContactUpdatedV1Schema,
   crmDealLostV1Schema,
@@ -14,6 +15,10 @@ import {
   inventoryReorderPointReachedV1Schema,
   inventoryStockDepletedV1Schema,
   inventoryStockLevelChangedV1Schema,
+  posSaleCompletedV1Schema,
+  posSaleRefundedV1Schema,
+  posShiftClosedV1Schema,
+  posShiftOpenedV1Schema,
 } from '../src/events/index.js';
 import { MODULE_KEYS, type EventName } from '../src/module/index.js';
 
@@ -394,5 +399,165 @@ describe('inventoryReorderPointReachedV1Schema', () => {
 
   it('rejects a non-decimal reorderPoint', () => {
     expect(() => inventoryReorderPointReachedV1Schema.parse({ ...valid, reorderPoint: 'five' })).toThrow();
+  });
+});
+
+// ─── POS events (PLAN.md §6.1) ──────────────────────────────────────────────
+
+describe('POS event names (PLAN.md §6.1)', () => {
+  it('declares exactly the four planned events', () => {
+    expect(Object.values(POS_EVENTS).sort()).toEqual([
+      'pos.sale.completed.v1',
+      'pos.sale.refunded.v1',
+      'pos.shift.closed.v1',
+      'pos.shift.opened.v1',
+    ]);
+  });
+
+  it('every event name matches the EventName format and the POS module key', () => {
+    const names: EventName[] = Object.values(POS_EVENTS);
+    for (const name of names) {
+      expect(name.startsWith(`${MODULE_KEYS.POS}.`)).toBe(true);
+      expect(name).toMatch(/^pos\.[a-z_]+\.(completed|refunded|opened|closed)\.v1$/);
+    }
+  });
+});
+
+// ─── pos.sale.completed.v1 ──────────────────────────────────────────────────
+
+describe('posSaleCompletedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    saleId: id,
+    shiftId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    registerId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    receiptNumber: 'R-0001',
+    subtotalAmountMinor: '10000',
+    discountAmountMinor: '0',
+    taxAmountMinor: '700',
+    totalAmountMinor: '10700',
+    currency: 'USD',
+    lineCount: 2,
+    customerContactId: null,
+    locale: 'en',
+    soldAt: '2026-08-05T09:30:00.000Z',
+    occurredAt: '2026-08-05T09:30:00.000Z',
+  };
+
+  it('accepts a valid completed-sale payload (POS-10: payments equal total, POS-19: locale)', () => {
+    expect(posSaleCompletedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts the FX snapshot when the sale currency differs from base (POS-11)', () => {
+    const payload = { ...valid, exchangeRate: '3.6725', baseTotalAmountMinor: '2915' };
+    expect(posSaleCompletedV1Schema.parse(payload)).toEqual(payload);
+  });
+
+  it('accepts an omitted customerContactId (POS-18: linking is optional)', () => {
+    const { customerContactId: _omit, ...rest } = valid;
+    expect(posSaleCompletedV1Schema.parse(rest).customerContactId).toBeUndefined();
+  });
+
+  it('rejects zero lineCount (a completed sale has at least one line)', () => {
+    expect(() => posSaleCompletedV1Schema.parse({ ...valid, lineCount: 0 })).toThrow();
+  });
+
+  it('rejects an empty receiptNumber (POS-9: every sale carries a receipt number)', () => {
+    expect(() => posSaleCompletedV1Schema.parse({ ...valid, receiptNumber: '' })).toThrow();
+  });
+
+  it('rejects a float amount — money never travels as a float (M1)', () => {
+    expect(() => posSaleCompletedV1Schema.parse({ ...valid, totalAmountMinor: '107.00' })).toThrow();
+  });
+
+  it('rejects a lowercase currency code (M2)', () => {
+    expect(() => posSaleCompletedV1Schema.parse({ ...valid, currency: 'usd' })).toThrow();
+  });
+});
+
+// ─── pos.sale.refunded.v1 ───────────────────────────────────────────────────
+
+describe('posSaleRefundedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    refundId: id,
+    originalSaleId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    shiftId: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    registerId: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+    refundedAmountMinor: '5000',
+    currency: 'USD',
+    refundedAt: '2026-08-05T11:00:00.000Z',
+    occurredAt: '2026-08-05T11:00:00.000Z',
+  };
+
+  it('accepts a valid refund payload referencing the original sale (POS-20)', () => {
+    expect(posSaleRefundedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a missing originalSaleId (POS-20: refund must reference the original sale)', () => {
+    const { originalSaleId: _omit, ...rest } = valid;
+    expect(() => posSaleRefundedV1Schema.parse(rest)).toThrow();
+  });
+
+  it('rejects a negative refund amount (POS-21: cumulative refund never exceeds the sale)', () => {
+    expect(() => posSaleRefundedV1Schema.parse({ ...valid, refundedAmountMinor: '-5000' })).toThrow();
+  });
+});
+
+// ─── pos.shift.opened.v1 ────────────────────────────────────────────────────
+
+describe('posShiftOpenedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    shiftId: id,
+    registerId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    openedBy: userId,
+    openingFloatAmountMinor: '20000',
+    currency: 'USD',
+    openedAt: '2026-08-05T08:00:00.000Z',
+    occurredAt: '2026-08-05T08:00:00.000Z',
+  };
+
+  it('accepts a valid shift-opened payload (POS-4: float + operator recorded)', () => {
+    expect(posShiftOpenedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a missing openingFloatAmountMinor (POS-4)', () => {
+    const { openingFloatAmountMinor: _omit, ...rest } = valid;
+    expect(() => posShiftOpenedV1Schema.parse(rest)).toThrow();
+  });
+});
+
+// ─── pos.shift.closed.v1 ────────────────────────────────────────────────────
+
+describe('posShiftClosedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    shiftId: id,
+    registerId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    closedBy: userId,
+    expectedCashAmountMinor: '50000',
+    countedCashAmountMinor: '49500',
+    varianceAmountMinor: '-500',
+    currency: 'USD',
+    closedAt: '2026-08-05T18:00:00.000Z',
+    occurredAt: '2026-08-05T18:00:00.000Z',
+  };
+
+  it('accepts a valid shift-closed payload (POS-5: variance = counted − expected)', () => {
+    expect(posShiftClosedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts a negative variance (shortage) and a force-close flag (POS-7)', () => {
+    expect(posShiftClosedV1Schema.parse({ ...valid, forcedClose: true }).forcedClose).toBe(true);
+  });
+
+  it('rejects a float variance amount (money never travels as a float)', () => {
+    expect(() => posShiftClosedV1Schema.parse({ ...valid, varianceAmountMinor: '-5.00' })).toThrow();
+  });
+
+  it('rejects a missing countedCashAmountMinor (POS-5: counted cash is mandatory)', () => {
+    const { countedCashAmountMinor: _omit, ...rest } = valid;
+    expect(() => posShiftClosedV1Schema.parse(rest)).toThrow();
   });
 });

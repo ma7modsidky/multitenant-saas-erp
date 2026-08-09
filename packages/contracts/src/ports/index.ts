@@ -149,6 +149,22 @@ export interface ReservationRef {
 }
 
 /**
+ * Input for `restock` — returning stock to a warehouse after a POS refund
+ * (POS-22: restocked lines create a `return` movement, damaged lines a
+ * `write_off`; either way a movement is recorded).
+ */
+export interface RestockInput {
+  variantId: string;
+  warehouseId: string;
+  /** Quantity returned (decimal string, UoM units). */
+  quantity: string;
+  /** true → `return` movement (sellable goods); false → `write_off` (damaged). */
+  restock: boolean;
+  referenceType: string;
+  referenceId: string;
+}
+
+/**
  * Stock availability, reservation, and deduction — the Level 3 port POS
  * consumes inside its checkout transaction (POS-15).
  */
@@ -176,6 +192,13 @@ export interface InventoryStockPort {
    * `held → released`: returns the quantity to available (INV-8).
    */
   releaseReservation(reservationId: string, tx: TransactionRef): Promise<void>;
+
+  /**
+   * Create a `return` (restock=true) or `write_off` (restock=false) movement
+   * and update the projection — the POS refund path (POS-22). Stock is never
+   * silently unchanged: every refund line produces a movement.
+   */
+  restock(input: RestockInput, tx: TransactionRef): Promise<void>;
 }
 
 // ─── Platform read ports (Level 2) ──────────────────────────────────────────
