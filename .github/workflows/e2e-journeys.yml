@@ -154,16 +154,22 @@ jobs:
           echo "dev servers starting in background (logs: /tmp/api-dev.log, /tmp/web-dev.log)"
 
       - name: Wait for API and web to be ready
-        # Cold starts on CI runners can be slow (nest --watch + next dev). The
-        # API returns 401 on /v1/modules without a token — curl -f treats that
-        # as an error, so the poll only passes once the server is really
-        # routing, which is the point. Allow ~4 minutes (120 tries x 2s).
+        # Cold starts on CI runners can be slow (nest --watch + next dev).
+        # IMPORTANT: /v1/modules is auth-gated and returns 401 without a
+        # token, so a plain `curl -f` can NEVER pass here (caught on the first
+        # real run). Mirror Playwright's own webServer readiness check (same
+        # URL): any HTTP response — 401 included — means the API is routing;
+        # only 000 (no connection) is not ready. The web check requires a real
+        # 200 from /en (the first hit also compiles the page). Allow ~4
+        # minutes (120 tries x 2s).
         run: |
           sleep 5
           for i in $(seq 1 120); do
-            if curl -fsS http://localhost:4000/v1/modules >/dev/null 2>&1 && \
-               curl -fsS http://localhost:3000/en >/dev/null 2>&1; then
-              echo "✅ api + web are ready (${i} tries)"
+            api_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+              http://localhost:4000/v1/modules 2>/dev/null || echo 000)
+            if [ "$api_code" != "000" ] && \
+               curl -fsS --max-time 10 http://localhost:3000/en >/dev/null 2>&1; then
+              echo "✅ api + web are ready (${i} tries, api ${api_code})"
               exit 0
             fi
             sleep 2
