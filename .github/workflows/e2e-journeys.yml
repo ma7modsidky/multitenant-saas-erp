@@ -83,6 +83,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client
           psql --version
 
+      - name: Install Playwright browsers
+        # Journey specs run against a REAL browser; the binaries are not on
+        # the fresh runner. Same command as ci.yml's e2e smoke job.
+        run: npx playwright install --with-deps chromium
+
       - name: Materialize .env for the dev servers
         # `pnpm --filter api dev` runs with `--env-file ../../.env` and the
         # config schema validates EVERY variable at boot — the API refuses to
