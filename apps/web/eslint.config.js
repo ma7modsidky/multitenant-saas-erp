@@ -3,7 +3,7 @@ import modubizConfig from '@modubiz/eslint-config';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', '.next/**', 'next-env.d.ts'],
+    ignores: ['dist/**', 'node_modules/**', '.next/**', 'next-env.d.ts', 'coverage/**'],
   },
   ...modubizConfig,
   // Override projectService AFTER the base config to add allowDefaultProject
@@ -34,6 +34,7 @@ export default [
       'postcss.config.*', // PostCSS config (JS/CJS/ESM variants)
       'vitest.config.*', // Vitest config
       'playwright.config.*', // Playwright E2E config
+      'playwright.journey.config.*', // Playwright journey E2E config
       'next-env.d.ts', // Next.js type declarations
     ],
     rules: {

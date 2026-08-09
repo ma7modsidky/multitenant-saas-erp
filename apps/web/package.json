@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:journeys": "playwright test --config=playwright.journey.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

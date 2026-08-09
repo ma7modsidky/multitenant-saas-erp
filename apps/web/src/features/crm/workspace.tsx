@@ -408,14 +408,18 @@ function ContactForm({
   return (
     <FormCard>
       <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}>
-        <Field label={t('fields.firstName')} error={form.formState.errors.firstName?.message}>
-          <Input dir="auto" {...form.register('firstName')} />
+        <Field
+          label={t('fields.firstName')}
+          htmlFor="contact-first-name"
+          error={form.formState.errors.firstName?.message}
+        >
+          <Input id="contact-first-name" dir="auto" {...form.register('firstName')} />
         </Field>
-        <Field label={t('fields.lastName')} error={form.formState.errors.lastName?.message}>
-          <Input dir="auto" {...form.register('lastName')} />
+        <Field label={t('fields.lastName')} htmlFor="contact-last-name" error={form.formState.errors.lastName?.message}>
+          <Input id="contact-last-name" dir="auto" {...form.register('lastName')} />
         </Field>
-        <Field label={t('fields.email')} error={form.formState.errors.email?.message}>
-          <Input type="email" {...form.register('email')} />
+        <Field label={t('fields.email')} htmlFor="contact-email" error={form.formState.errors.email?.message}>
+          <Input id="contact-email" type="email" {...form.register('email')} />
         </Field>
         <Field label={t('fields.phone')} error={phoneError}>
           <Input {...form.register('phone')} />

@@ -21,6 +21,8 @@
     "test:arch": "npx depcruise --validate .dependency-cruiser.js apps packages",
     "test:isolation": "npx vitest run --config vitest.isolation.config.ts",
     "test:e2e": "turbo test:e2e",
+    "e2e:seed": "node scripts/seed-e2e-env.mjs",
+    "test:e2e:journeys": "pnpm --filter web run test:e2e:journeys",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "db:migrate": "pnpm --filter @modubiz/db run migrate",

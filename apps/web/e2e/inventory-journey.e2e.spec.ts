@@ -26,12 +26,15 @@ test.describe('Inventory journey', () => {
     await expect(page.getByRole('heading', { name: 'Stock levels' })).toBeVisible();
     await expect(page.getByText('Widget Pro')).toBeVisible();
     await expect(page.getByText('WIDGET-1')).toBeVisible();
-    await expect(page.getByText('Low stock')).toBeVisible();
+    // exact:true — "Low stock" also matches the "Low stock only" filter toggle.
+    await expect(page.getByText('Low stock', { exact: true })).toBeVisible();
 
     // Receive 10 units → level lifts above the reorder point. The variant
     // picker is a searchable combobox: open it and pick the option.
     await page.getByRole('button', { name: 'Receive stock' }).first().click();
-    await page.getByRole('button', { name: 'Select a product' }).click();
+    // The variant combobox trigger's accessible name is its field label
+    // ("Product"), not the placeholder (same fix as the POS journey spec).
+    await page.getByRole('button', { name: 'Product', exact: true }).click();
     await page.getByRole('option', { name: 'Widget Pro (WIDGET-1)' }).click();
     await page.getByLabel('Quantity').fill('10');
     // exact:true — the row action buttons carry "Receive stock: <SKU>" names.
@@ -41,7 +44,7 @@ test.describe('Inventory journey', () => {
 
     // Adjust −2 with a reason → still above reorder point, no alert.
     await page.getByRole('button', { name: 'Adjust stock' }).first().click();
-    await page.getByRole('button', { name: 'Select a product' }).click();
+    await page.getByRole('button', { name: 'Product', exact: true }).click();
     await page.getByRole('option', { name: 'Widget Pro (WIDGET-1)' }).click();
     await page.getByLabel('Quantity (negative to remove)').fill('-2');
     await page.getByLabel('Reason code').fill('damaged');

@@ -17,6 +17,8 @@ apps/web/test-results/
 apps/web/playwright-report/
 apps/web/blob-report/
 apps/web/playwright/.cache/
+# Seeded E2E session (scripts/seed-e2e-env.mjs) — tokens, never committed
+apps/web/e2e/.e2e-state.json
 
 # Environment files
 .env

@@ -25,16 +25,19 @@ export function FormCard({ children }: { children: React.ReactNode }) {
 
 export function Field({
   label,
+  htmlFor,
   error,
   children,
 }: {
   label: string;
+  /** Associates the label with the control (a11y + getByLabel in E2E). */
+  htmlFor?: string;
   error: string | undefined;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
@@ -104,13 +107,14 @@ export function DealForm({
   return (
     <FormCard>
       <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}>
-        <Field label={t('fields.title')} error={undefined}>
-          <Input dir="auto" {...form.register('title')} />
+        <Field label={t('fields.title')} htmlFor="deal-title" error={undefined}>
+          <Input id="deal-title" dir="auto" {...form.register('title')} />
         </Field>
-        <Field label={t('fields.contact')} error={undefined}>
+        <Field label={t('fields.contact')} htmlFor="deal-contact" error={undefined}>
           {/* Custom Select is controlled: value/onValueChange drive the custom
               trigger; register() keeps name/ref/validation wiring. */}
           <Select
+            id="deal-contact"
             value={form.watch('contactId')}
             onValueChange={(v) => form.setValue('contactId', v)}
             {...form.register('contactId')}
@@ -137,9 +141,9 @@ export function DealForm({
             ))}
           </Select>
         </Field>
-        <Field label={t('fields.amountMinor')} error={undefined}>
+        <Field label={t('fields.amountMinor')} htmlFor="deal-amount" error={undefined}>
           <div className="flex gap-2">
-            <Input className="font-mono" inputMode="numeric" {...form.register('amountMinor')} />
+            <Input id="deal-amount" className="font-mono" inputMode="numeric" {...form.register('amountMinor')} />
             <Select
               aria-label={t('fields.currency')}
               className="w-28"
