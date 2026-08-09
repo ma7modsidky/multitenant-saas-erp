@@ -1,0 +1,194 @@
+# ModuBiz — E2E Journeys (nightly + on demand)
+#
+# Runs the seeded journey specs (`apps/web/e2e/*-journey.e2e.spec.ts`) against
+# a REAL browser, REAL API, and a fresh Postgres database. This is the "full
+# suite nightly" counterpart to the PR-time E2E smoke in ci.yml (TESTING.md
+# §8).
+#
+# Flow:
+#   checkout → install → Postgres + Redis service containers
+#   → materialize .env (the API dev server requires it: `--env-file ../../.env`)
+#   → migrate as the owner role + bootstrap the modubiz_app role (RLS
+#     non-owner, mirrors docker/postgres/init/init.sql)
+#   → start the api + web dev servers → seed a fresh E2E session (signup →
+#     org → module trials) → run the journeys
+#
+# The journey specs self-skip without a seeded environment, so this job only
+# exercises them when the seed step actually succeeded.
+
+name: E2E Journeys
+
+on:
+  # Nightly full journey run on main. 02:17 UTC deliberately avoids GitHub's
+  # most congested top-of-the-hour cron slots.
+  schedule:
+    - cron: '17 2 * * *'
+  # Manual on-demand run (Actions → E2E Journeys → Run workflow) so the
+  # journeys can be triggered without waiting for the nightly tick.
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  journeys:
+    name: E2E Journey Specs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: modubiz_owner
+          POSTGRES_PASSWORD: modubiz_owner_password
+          POSTGRES_DB: modubiz
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.17.0 --activate
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install postgresql-client (for role bootstrap)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          psql --version
+
+      - name: Materialize .env for the dev servers
+        # `pnpm --filter api dev` runs with `--env-file ../../.env` and the
+        # config schema validates EVERY variable at boot — the API refuses to
+        # start without a complete file. Base it on the committed template
+        # (all keys present, placeholders inert: signup, org creation, and
+        # trial enablement are DB-only — no Stripe, Resend, R2, or FX calls on
+        # those paths) and override the connectivity vars for this job.
+        run: |
+          cp .env.example .env
+          cat >> .env <<'EOF'
+
+          # ─── CI overrides (e2e-journeys.yml) ────────────────────────────────
+          NODE_ENV=development
+          API_BASE_URL=http://localhost:4000
+          WEB_BASE_URL=http://localhost:3000
+          DATABASE_URL=postgres://modubiz_app:modubiz_app_password@localhost:5432/modubiz
+          DATABASE_MIGRATION_URL=postgres://modubiz_owner:modubiz_owner_password@localhost:5432/modubiz
+          REDIS_URL=redis://localhost:6379
+          NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+          NEXT_PUBLIC_APP_URL=http://localhost:3000
+          EOF
+          echo "✅ .env written (example + CI overrides)"
+
+      - name: Migrate database and bootstrap roles and grants
+        # ORDER MATTERS: the core RLS migration (0003_rls.sql) grants policies
+        # to modubiz_app, so the role must exist BEFORE pnpm db:migrate. The
+        # grants run after so `GRANT ... ON ALL TABLES/SEQUENCES` covers every
+        # table the migrations just created. init.sql only runs in
+        # docker-compose, so this replicates it for the service container.
+        run: |
+          psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE modubiz_app LOGIN PASSWORD 'modubiz_app_password' NOBYPASSRLS;
+          SQL
+          pnpm db:migrate
+          psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          GRANT USAGE ON SCHEMA public TO modubiz_app;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO modubiz_app;
+          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO modubiz_app;
+          ALTER DEFAULT PRIVILEGES FOR ROLE modubiz_owner IN SCHEMA public
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO modubiz_app;
+          ALTER DEFAULT PRIVILEGES FOR ROLE modubiz_owner IN SCHEMA public
+            GRANT USAGE, SELECT ON SEQUENCES TO modubiz_app;
+          SQL
+        env:
+          # Redundant with the .env written above (the packages/db migrate
+          # script runs `--env-file ../../.env`), but explicit: Node's
+          # --env-file never overrides a variable already in the process env,
+          # so this pins the target DB regardless of local .env drift.
+          DATABASE_MIGRATION_URL: postgres://modubiz_owner:modubiz_owner_password@localhost:5432/modubiz
+
+      - name: Build web app
+        run: pnpm --filter web build
+
+      - name: Start dev servers (api + web)
+        # Started explicitly so the seed step (which calls the API directly)
+        # can run BEFORE the Playwright run. Playwright's base config starts
+        # these same servers with reuseExistingServer: true, so it will reuse
+        # them rather than spawn duplicates.
+        run: |
+          pnpm --filter api dev > /tmp/api-dev.log 2>&1 &
+          pnpm --filter web dev > /tmp/web-dev.log 2>&1 &
+          echo "dev servers starting in background (logs: /tmp/api-dev.log, /tmp/web-dev.log)"
+
+      - name: Wait for API and web to be ready
+        # Cold starts on CI runners can be slow (nest --watch + next dev). The
+        # API returns 401 on /v1/modules without a token — curl -f treats that
+        # as an error, so the poll only passes once the server is really
+        # routing, which is the point. Allow ~4 minutes (120 tries x 2s).
+        run: |
+          sleep 5
+          for i in $(seq 1 120); do
+            if curl -fsS http://localhost:4000/v1/modules >/dev/null 2>&1 && \
+               curl -fsS http://localhost:3000/en >/dev/null 2>&1; then
+              echo "✅ api + web are ready (${i} tries)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ dev servers did not become ready" >&2
+          echo "────── api-dev.log ──────" >&2
+          tail -40 /tmp/api-dev.log >&2
+          echo "────── web-dev.log ──────" >&2
+          tail -40 /tmp/web-dev.log >&2
+          exit 1
+
+      - name: Seed E2E session (fresh user, org, module trials)
+        run: pnpm e2e:seed
+
+      - name: Run journey specs
+        # The journeys config injects the seeded storageState and defaults
+        # E2E_BASE_URL; Playwright reuses the dev servers started above.
+        # NOTE: NODE_ENV=test applies to this runner process only — the
+        # already-booted dev servers keep NODE_ENV=development from .env, so
+        # server logs keep the dev (pino-pretty) format in the artifacts.
+        run: pnpm test:e2e:journeys
+        env:
+          NODE_ENV: test
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-journeys-artifacts
+          path: |
+            apps/web/test-results/
+            apps/web/playwright-report/
+            /tmp/api-dev.log
+            /tmp/web-dev.log
+          retention-days: 7

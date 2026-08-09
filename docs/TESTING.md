@@ -388,6 +388,37 @@ POS: open shift → sell → refund → close shift with variance · POS offline
 offline → sell → reconnect → verify sync · switch to `ar` and verify RTL ·
 switch organizations and verify data separation.
 
+**Running the journey specs locally.** The `*-journey.e2e.spec.ts` specs
+self-skip unless a seeded environment exists (an authenticated session whose org
+has the module trials enabled). Seed it once per dev stack with the committed
+helper, then run the journeys (see `apps/web/playwright.journey.config.ts`):
+
+```bash
+pnpm e2e:seed          # signup → org → crm+inventory+pos trials → storageState
+pnpm test:e2e:journeys # runs apps/web/e2e/*-journey.e2e.spec.ts with that session
+```
+
+`scripts/seed-e2e-env.mjs` is re-runnable (fresh user + org each run, unique
+stamps) and validates module keys against the live catalog, enabling
+dependencies first (BILL-8). Narrow the module set with `--modules` and override
+the state path with `--out` / `E2E_STORAGE_STATE`. The seeded
+`apps/web/e2e/.e2e-state.json` (session tokens) is gitignored and dev-only — it
+holds live credentials, never commit or ship it; the default `pnpm test:e2e` run
+never reads it and keeps skipping the journeys (CI-safe).
+
+Because the seeder always creates a **fresh** org, the journeys are safe to
+re-run against a persistent dev DB: the POS and CRM specs stamp their records
+with unique suffixes, and the inventory spec (fixed names like `WIDGET-1`)
+simply starts clean in each new org.
+
+**Nightly + on-demand runs.** `.github/workflows/e2e-journeys.yml` runs the full
+journey suite on a nightly cron (and on demand via the Actions UI) against fresh
+Postgres + Redis service containers. It materializes `.env` from the committed
+template, creates the `modubiz_app` RLS role _before_ `pnpm db:migrate` (the
+core RLS migration grants policies to it), grants table/sequence access after,
+boots the dev servers, seeds the session, and then runs the journeys. On failure
+it uploads the Playwright artifacts and the server logs.
+
 ---
 
 ## 8. CI pipeline and merge gates
@@ -406,22 +437,22 @@ graph LR
     J --> K["Merge allowed"]
 ```
 
-| Stage                         | Blocking | Notes                                                         |
-| ----------------------------- | -------- | ------------------------------------------------------------- |
-| Install (`--frozen-lockfile`) | yes      | Lockfile drift fails                                          |
-| Lint + Prettier               | yes      | Includes import-boundary and RTL rules                        |
-| Typecheck                     | yes      | Whole workspace                                               |
-| Architecture + schema rules   | yes      | Boundaries, RLS coverage, money column types, FK prefix check |
-| Unit tests                    | yes      | Must run in under 2 minutes                                   |
-| Integration + isolation tests | yes      | Testcontainers; sharded                                       |
-| Build                         | yes      | API Docker image + Next.js build                              |
-| E2E smoke                     | yes      | Critical journeys only on PRs; full suite nightly             |
-| Security scan                 | yes      | gitleaks + `pnpm audit`; critical advisories block            |
-| Coverage gates                | yes      | Thresholds in §2 plus the no-decrease ratchet                 |
-| OpenAPI / api-client drift    | yes      | Regenerate and `git diff --exit-code`                         |
-| i18n completeness             | yes      | Missing keys or unmapped error codes fail                     |
-| Business-rule coverage        | yes      | Critical rule ids must appear in test names                   |
-| Performance suite             | no       | Nightly; regression opens an issue                            |
+| Stage                         | Blocking | Notes                                                                    |
+| ----------------------------- | -------- | ------------------------------------------------------------------------ |
+| Install (`--frozen-lockfile`) | yes      | Lockfile drift fails                                                     |
+| Lint + Prettier               | yes      | Includes import-boundary and RTL rules                                   |
+| Typecheck                     | yes      | Whole workspace                                                          |
+| Architecture + schema rules   | yes      | Boundaries, RLS coverage, money column types, FK prefix check            |
+| Unit tests                    | yes      | Must run in under 2 minutes                                              |
+| Integration + isolation tests | yes      | Testcontainers; sharded                                                  |
+| Build                         | yes      | API Docker image + Next.js build                                         |
+| E2E smoke                     | yes      | Critical journeys only on PRs; full suite nightly via `e2e-journeys.yml` |
+| Security scan                 | yes      | gitleaks + `pnpm audit`; critical advisories block                       |
+| Coverage gates                | yes      | Thresholds in §2 plus the no-decrease ratchet                            |
+| OpenAPI / api-client drift    | yes      | Regenerate and `git diff --exit-code`                                    |
+| i18n completeness             | yes      | Missing keys or unmapped error codes fail                                |
+| Business-rule coverage        | yes      | Critical rule ids must appear in test names                              |
+| Performance suite             | no       | Nightly; regression opens an issue                                       |
 
 Additional merge requirements: at least one approving review; the
 [MODULE_GUIDE.md §5](./MODULE_GUIDE.md#5-definition-of-done-checklist) checklist

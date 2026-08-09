@@ -1,10 +1,21 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 63 — Inventory/audit UI fixes: warehouse create form
-no longer mislabels the name field as "Product name", the missing
-`modules.inventory.fields.code` key added in all four locales, and the audit log
-page now resolves actor ids to member names (id fallback for removed users).
-**Current phase:** Phase 6 — POS Module (not started)
+**Last updated:** Session 67 — journey specs wired into CI: new
+`.github/workflows/e2e-journeys.yml` (nightly cron + on-demand dispatch) boots
+fresh Postgres/Redis service containers, creates the `modubiz_app` RLS role
+before migrating, materializes `.env`, starts the dev servers, seeds the
+session, and runs the full journey suite — the fresh-DB bootstrap sequence was
+validated against a throwaway Postgres container (role-before-migrate ordering
+was caught and fixed there).
+
+**Previous (Session 66):** POS journey spec confirmed + committed E2E seeder.
+The previously never-run `pos-journey.e2e.spec.ts` now passes against an
+API-seeded session (combobox accessible-name selectors fixed, checkout
+preselects the register via the row's "New sale" link), the inventory journey
+fixed the same way, and a new committed `scripts/seed-e2e-env.mjs` +
+`apps/web/playwright.journey.config.ts` make all three journey specs runnable on
+demand (`pnpm e2e:seed && pnpm test:e2e:journeys`) — 3/3 green twice. **Current
+phase:** Phase 6 — POS Module (full stack done except the offline PWA)
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -21,7 +32,7 @@ page now resolves actor ids to member names (id fallback for removed users).
 | 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |
 | 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified     |
 | 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                     |
-| 6 — POS Module                        | ⬜ Not started |                                                               |
+| 6 — POS Module                        | 🚧 Full stack  | 6.1–6.6 + 6.9 + 6.7 non-PWA (Sessions 64–65); PWA deferred    |
 | 7 — Production Hardening & Deployment | ⬜ Not started |                                                               |
 
 ---
@@ -580,7 +591,192 @@ page now resolves actor ids to member names (id fallback for removed users).
 
 ---
 
+## Phase 6 — Detailed progress
+
+### 6.1–6.6 + 6.9 Backend (contracts → scaffold → schema → domain → application → API → isolation)
+
+- [x] **6.1 Contracts** — `pos.sale.completed.v1` / `pos.sale.refunded.v1` /
+      `pos.shift.opened.v1` / `pos.shift.closed.v1` event schemas
+      (`POS_EVENTS`), `signedMinorUnitsString` primitive (shift variance),
+      `RestockInput` added to `INVENTORY_STOCK_PORT` (POS-22 return/write_off)
+- [x] **6.2 Scaffold** — `pnpm generate:module pos` (28 files, auto-registered);
+      removed the stale inline POS descriptor duplicated in
+      `registered-modules.ts`
+- [x] **6.3 Schema** — `0001_init.sql` (8 tables), `0002_rls.sql` (FORCE RLS on
+      every table), `0003_append_only.sql` (`pos_payments` trigger); POS-2
+      partial-unique open shift, POS-9 unique org+register+receipt, POS-16
+      non-negative total check, POS-26 unique org+idempotency_key
+- [x] **6.4 Domain** — Register (POS-1), Shift (POS-2/3/5/6/7), Sale
+      (POS-10/11/12/13/14/16/17/19), Refund (POS-20/21/22/23); exact bigint
+      money helpers + `sumDecimalQuantities`/`decimalQuantityExceeds`; 26 unit
+      tests (incl. POS-2/10/11/16/17/21/22)
+- [x] **6.5 Application** — Create/ListRegister, Open/CloseShift, Checkout
+      (POS-3/9/15/26), VoidSale (POS-14), ProcessRefund (POS-20→24), Sync
+      (POS-26/27/28/29), List/GetSale, ListShifts, GetShiftReport;
+      `DrizzlePosRepository`; 12 integration tests
+- [x] **6.6 API** — `v1/pos/*` controller with `@RequiresModule` +
+      `@RequiresPermission`, UUID `Idempotency-Key` header validation (POS-26),
+      `status`/`shiftId` filter validation, org base currency via read port
+- [x] **6.9 Isolation** — `pos.isolation.spec.ts` **11/11**: TEN-1 cross-org
+      register read / open-shift / checkout / list denials + sale read + lists,
+      TEN-2 injected `organizationId` ignored, TEN-3 no-context zero rows,
+      AUTHZ-6 `MODULE_NOT_ENTITLED`, AUTHZ-5 permission denial
+
+**Reviewer fixes applied (Session 64):** POS-28 multi-line stock-leak (rejected
+syncs now throw OUT of the transaction so earlier lines' reservations roll back;
+the `rejected` sync-log row is written in its own transaction; only genuine
+stock rejections are classified `rejected` — regression test added); POS-21
+per-line quantity cap now normalizes decimal scales before comparing;
+`Idempotency-Key` header + sales filters validated at the API layer.
+
+**Validation:** contracts 1544/1544 · API unit 1544/1544 (incl. POS 26) · POS
+integration 12/12 · isolation 35/35 (incl. POS 11) · lint 0 errors · arch 0
+errors · API/web typechecks clean.
+
+---
+
 ## Session log
+
+### Session 67 — Journey specs wired into CI (nightly + on demand)
+
+- **`.github/workflows/e2e-journeys.yml`.** New workflow with a nightly cron
+  (02:17 UTC) + `workflow_dispatch` so the full journey suite runs against a
+  REAL browser + REAL API + a FRESH Postgres. Postgres and Redis run as GitHub
+  service containers; the runner installs `postgresql-client` for the role
+  bootstrap step.
+- **Fresh-DB bootstrap proven against a throwaway container.** Migrating a
+  pristine database surfaced an ordering bug the local stack had hidden: core
+  migration `0003_rls.sql` grants RLS policies **to `modubiz_app`**, so the role
+  must exist _before_ `pnpm db:migrate`. The workflow now creates the role
+  first, migrates as `modubiz_owner`, then grants `ALL TABLES/SEQUENCES` +
+  `ALTER DEFAULT PRIVILEGES` (mirroring `docker/postgres/init/init.sql`).
+  Verified end-to-end on postgres:16-alpine: app-role reads tenant tables
+  fail-closed (0 rows), global tables readable.
+- **`.env` materialization.** The API dev server runs `--env-file ../../.env`
+  and the config schema refuses to boot with missing keys, so the job copies
+  `.env.example` and appends CI overrides (DB URLs → service container,
+  placeholder secrets — inert: signup/org/trial are DB-only).
+- **Dev servers start before seeding.** `pnpm e2e:seed` calls the API directly,
+  so the job boots `api` + `web` in the background, polls `/v1/modules` + `/en`
+  until ready, then seeds and runs `pnpm test:e2e:journeys` (Playwright reuses
+  the running servers).
+- **Failure artifacts.** On failure it uploads Playwright `test-results/`,
+  `playwright-report/`, and the api/web dev-server logs.
+- **Docs.** TESTING.md §8 documents the nightly workflow and the
+  role-before-migrate bootstrap; PROGRESS.md header updated.
+
+### Session 66 — POS journey confirmed + committed E2E seeder (journey specs runnable on demand)
+
+- **POS journey confirmed.** `pos-journey.e2e.spec.ts` was written but never
+  executed (it self-skips without a seeded env). Seeded a real session through
+  the API (signup → org USD → inventory trial → POS trial → Playwright
+  storageState) and ran it: **passes, twice in a row** against the persistent
+  dev DB. Fixed three stale selectors the run surfaced: (1) combobox triggers
+  are named by their field label ("Product"/"Selling warehouse"), not the
+  placeholder text; (2) checkout now clicks the register row's "New sale" link
+  (`?registerId=`) instead of a bare `/checkout` visit, which on a re-run
+  preselected the FIRST (previous run's, shift-closed) register; (3) `Low stock`
+  badge assertion needed `exact: true` (collides with the "Low stock only"
+  filter toggle) — inventory journey, same fix.
+- **Committed E2E seeder.** `scripts/seed-e2e-env.mjs` — signup → login → org →
+  switch-org → enable trials **dependency-first from the live catalog** (BILL-8;
+  defaults to crm+inventory+pos, `--modules` to narrow) → writes the gitignored
+  `apps/web/e2e/.e2e-state.json` storageState. Re-runnable (fresh user + org per
+  run). `apps/web/playwright.journey.config.ts` injects the storageState +
+  defaults `E2E_BASE_URL` so the specs' skip guard passes; `testMatch` limits it
+  to `*-journey` specs (invitation-flow still runs its own signed-out flow).
+  Root + web scripts: `pnpm e2e:seed` and `pnpm test:e2e:journeys`.
+- **CRM journey fixed to pass too** (it runs under the same config): the CRM
+  `Field` component had no `htmlFor`/id label associations (getByLabel would
+  never resolve), the contact select gained `id="deal-contact"` (previously the
+  spec fell back to a fragile `getByRole('combobox').first()` that hit the
+  sidebar search), the "Deals" subnav link is targeted via `getByLabel('CRM')`
+  (strict-mode: two "Deals" links), and the final assertion moved to the deals
+  TABLE view — the board's default "today" date filter hides deals created near
+  the UTC midnight boundary. Contact/deal names stamped so the journey is
+  re-runnable.
+- **Validation.** `pnpm e2e:seed && pnpm test:e2e:journeys` **3/3 twice** (CRM
+  3–4s · inventory 4–5s · POS 6–8s); default `pnpm test:e2e` still skips the
+  journeys (CI-safe); web typecheck + lint clean on all touched files; docs
+  updated (TESTING.md §7 running-locally note).
+
+### Session 65 — Phase 6.7 POS frontend (register/shift mgmt + checkout + refund, no PWA)
+
+- **API bindings.** POS section in `lib/api/resources.ts` — registers, shifts,
+  shift reports, sales (paged + status filter), checkout (with `Idempotency-Key`
+  header, POS-26), void, refunds; typed against the real controller mappers
+  (money envelopes, `PosSaleLine`/`PosPayment` row shapes).
+- **Checkout UI** (`/m/pos/checkout`). Register combobox (URL preselect from the
+  registers page's "New sale" row action), sellable-variant picker fed by the
+  full products catalog (`pageSize: 100`, priced in the org base currency per
+  POS-11), cart with exact BigInt line totals + 4-decimal quantity stepping,
+  cash/card/other payment with tendered/change math, open-shift guard (POS-3),
+  and a reused idempotency key rotated after success (POS-26).
+- **Registers** (`/m/pos`). Create-register form (warehouse combobox),
+  open/close shift forms with row preselect, status badges, variance summary on
+  close (POS-4/5/8), permission-gated actions.
+- **Shifts + reports.** Shifts list (`/m/pos/shifts`) with open/closed filter
+  and member-name resolution; shift report (`/m/pos/shifts/[id]`) with
+  sales/refunds/net totals + expected-vs-counted variance + per-sale links.
+- **Sales + refunds.** Sales list (`/m/pos/reports`) with status filter and
+  pagination; sale detail (`/m/pos/sales/[id]`) with lines/payments tables, void
+  (POS-14, ConfirmDialog), and the refund dialog (POS-20..24) — per-line
+  quantity with client-side POS-21 cap + re-proration, restock toggle, reason,
+  register defaulting to the sale's own register.
+- **i18n.** Full `modules.pos` block (register/checkout/shifts/report/reports/
+  sale/refund/errors/select/list) added to **en/ar/fr/es** + `pos-completeness`
+  parity spec; a code→catalog audit over every `t('…')` found no missing keys.
+- **Tests.** POS money math + error-mapping units (7); web **201/201**; i18n
+  **1547/1547**; web typecheck clean; lint 0 errors (line/complexity warnings
+  match the existing inventory-view baseline). Reviewer fixes applied: exact
+  4-decimal quantity stepping (no float math), refund default register + cap,
+  `usePosCatalog` key under the shared `['inventory']` scope, and the
+  `Idempotency-Key` header merge verified safe in `apiFetch`.
+- **Deferred.** Offline PWA parts (service worker, IndexedDB outbox, POS-25/27)
+  per the scope decision.
+
+### Session 64 — Phase 6 POS backend: contracts → schema → domain → application → API → isolation
+
+- **Contracts (6.1).** `pos.sale.completed.v1`, `pos.sale.refunded.v1`,
+  `pos.shift.opened.v1`, `pos.shift.closed.v1` payload schemas with the shared
+  money block (minor-units strings + currency, POS-11) and
+  `signedMinorUnitsString` primitive for the shift variance (POS-5). Added
+  `RestockInput` to `INVENTORY_STOCK_PORT` and implemented `restock` in the
+  inventory port impl (POS-22: `return` vs `write_off` movement, same
+  transaction).
+- **Scaffold + schema (6.2/6.3).** Generated the module, removed a stale inline
+  POS descriptor that duplicated the imported one in `registered-modules.ts`,
+  and wrote the 8-table schema with RLS on every table and the POS-2/9/16/26
+  constraints. `pos_payments` is append-only (POS-13).
+- **Domain (6.4).** `Register` (POS-1), `Shift` (POS-2/3/5/6/7), `Sale`
+  (POS-10/11/12/13/14/16/17/19 — line snapshots, per-line tax in bp, payments =
+  total, void rules), `Refund` (POS-20/21/22/23 — per-line restock, reason
+  code). Exact bigint money helpers; 26 unit tests.
+- **Application (6.5).** 13 use cases incl. the critical `CheckoutUseCase`
+  (allocates the receipt atomically, deducts stock via the Level 3 port in the
+  SAME transaction — POS-15 — and publishes the event after commit).
+  `ProcessRefundUseCase` allows successive partial refunds with cumulative caps.
+  `SyncOfflineSaleUseCase` is idempotent (POS-26), server-assigns the receipt
+  (POS-27), and records every attempt (POS-29). 12 integration tests incl. a
+  multi-line rejected-sync regression proving earlier lines' stock effects roll
+  back.
+- **API (6.6).** `v1/pos/*` controller: registers, shifts
+  (open/close/list/report), sales (checkout/sync/list/get/void), refunds;
+  guards + permissions per route; org base currency resolved through
+  `ORGANIZATION_READ_PORT`; UUID `Idempotency-Key` header validation.
+- **E2E journey (6.7).** `pos-journey.e2e.spec.ts` mirrors the inventory journey
+  (self-skips without a seeded env): create product → receive stock (lazily
+  creates the default warehouse) → create register → open shift → checkout a
+  $25 cash sale → full refund → close the shift asserting the
+  POS-5 expected-cash math (float 0 + sales 2500 − refunds 2500 = $0
+  expected, zero variance). Registers-view row actions gained register-name
+  aria-labels (`register.openFor`/`closeFor`) so E2E can target a row while the
+  form-submit keeps the plain "Open shift"/"Close shift" accessible name; the
+  checkout tendered input gained an aria-label for `getByLabel`.
+- **Isolation (6.9).** 11/11 cases against a real Postgres Testcontainer.
+- **Reviewer fixes.** Applied all review findings: the POS-28 partial stock leak
+  (HIGH), the POS-21 decimal-scale cap (MEDIUM), the over-broad sync catch
+  (MEDIUM), and the header/filter validation (LOW).
 
 ### Session 63 — Inventory/audit UI fixes: warehouse form labels, missing i18n key, audit actor names
 
