@@ -1,12 +1,13 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 67 — journey specs wired into CI: new
-`.github/workflows/e2e-journeys.yml` (nightly cron + on-demand dispatch) boots
-fresh Postgres/Redis service containers, creates the `modubiz_app` RLS role
-before migrating, materializes `.env`, starts the dev servers, seeds the
-session, and runs the full journey suite — the fresh-DB bootstrap sequence was
-validated against a throwaway Postgres container (role-before-migrate ordering
-was caught and fixed there).
+**Last updated:** Session 68 — E2E Journeys workflow verified end-to-end on a
+real GitHub runner via `workflow_dispatch`: **GREEN (all 16 steps)**, with the
+CRM, Inventory, and POS journeys passing (3 passed in 31.3s). Three
+fresh-checkout bugs the local stack couldn't catch were found and fixed by the
+real runs: the web build needs the workspace packages compiled first (turbo
+`pnpm build`), the readiness poll now accepts the API's auth-gated 401 (mirrors
+Playwright's own webServer check), and the Playwright browser install resolves
+the binary via `pnpm --filter web exec` (no root-level dep).
 
 **Previous (Session 66):** POS journey spec confirmed + committed E2E seeder.
 The previously never-run `pos-journey.e2e.spec.ts` now passes against an
@@ -636,6 +637,32 @@ errors · API/web typechecks clean.
 ---
 
 ## Session log
+
+### Session 68 — E2E Journeys verified on a real GitHub runner (workflow_dispatch)
+
+- **Pushed + dispatched.** The POS/journeys/CI work landed on `main` as three
+  commits (`feat(pos)` full stack, `test(web)` journeys + seeder, `ci(ci)`
+  workflow), then `workflow_dispatch` runs exercised the real runner path.
+- **Run 1 — web build failed on a fresh checkout.** `pnpm --filter web build`
+  alone breaks: `src/i18n/request.ts` imports
+  `@modubiz/i18n/messages/{en,ar,fr,es}` from the package's built `dist/`
+  (exports map), which doesn't exist until the workspace packages are compiled.
+  The job now runs `pnpm build` (turbo builds `^build` deps first — same as
+  ci.yml's Build stage).
+- **Run 2 — readiness poll could never pass.** The poll used `curl -f` on
+  `/v1/modules`, which is auth-gated and returns 401 without a token — `-f`
+  treats 401 as an error, so the check always failed even though the API was up
+  and routing. Now mirrors Playwright's own webServer readiness semantics (same
+  URL): any HTTP response (401 included) means routing; only 000 (no connection)
+  is not ready.
+- **Runs 3–4 — no browser binaries.** Added the Playwright install step, but a
+  root-level `npx playwright` fails with "playwright: not found" (the binary
+  ships via `@playwright/test` inside apps/web only) — resolved through
+  `pnpm --filter web exec playwright install --with-deps chromium`.
+- **Run 5 — GREEN.** All 16 steps pass: containers → deps → role-before-migrate
+  bootstrap → workspace build → dev servers → seed (fresh user/org/trials) →
+  journeys: CRM 7.6s, Inventory 8.6s, POS 12.4s (3 passed, 31.3s total).
+  Artifact upload skipped (nothing to upload).
 
 ### Session 67 — Journey specs wired into CI (nightly + on demand)
 
