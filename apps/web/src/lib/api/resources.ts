@@ -1314,6 +1314,33 @@ export function getPosSale(id: string): Promise<PosSale> {
   return apiFetch<PosSale>(`/v1/pos/sales/${id}`);
 }
 
+/** Offline sale sync body (POS-26..29) — the server dedupes by idempotency_key. */
+export interface PosSyncSaleInput {
+  clientDeviceId: string;
+  idempotencyKey: string;
+  registerId: string;
+  locale: string;
+  soldAt: string;
+  lines: PosCheckoutLine[];
+  payments: PosCheckoutPayment[];
+  customerContactId?: string | null;
+}
+
+/**
+ * Sync an offline sale (POS-26/28/29). `replay: true` means the idempotency
+ * key was already accepted — the server returns the ORIGINAL sale, never a
+ * duplicate. A business rejection (e.g. oversold) throws ApiError with the
+ * code while still being recorded in pos_sync_log.
+ */
+export function createPosOfflineSale(
+  input: PosSyncSaleInput,
+): Promise<{ saleId: string; receiptNumber: string; replay: boolean }> {
+  return apiFetch<{ saleId: string; receiptNumber: string; replay: boolean }>('/v1/pos/sales/sync', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export function voidPosSale(id: string): Promise<{ saleId: string; status: string }> {
   return apiFetch<{ saleId: string; status: string }>(`/v1/pos/sales/${id}/void`, { method: 'POST' });
 }

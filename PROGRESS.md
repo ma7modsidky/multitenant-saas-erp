@@ -1,22 +1,23 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 68 — E2E Journeys workflow verified end-to-end on a
-real GitHub runner via `workflow_dispatch`: **GREEN (all 16 steps)**, with the
-CRM, Inventory, and POS journeys passing (3 passed in 31.3s). Three
-fresh-checkout bugs the local stack couldn't catch were found and fixed by the
-real runs: the web build needs the workspace packages compiled first (turbo
-`pnpm build`), the readiness poll now accepts the API's auth-gated 401 (mirrors
-Playwright's own webServer check), and the Playwright browser install resolves
-the binary via `pnpm --filter web exec` (no root-level dep).
+**Last updated:** Session 69 — **Phase 6.7 installable PWA shell done**: service
+worker (`public/sw.js`, hand-rolled — no workbox per the locked stack), web app
+manifest (`app/manifest.ts` → `/manifest.webmanifest`), generated brand icons
+(`scripts/generate-pwa-icons.mjs` — dependency-free PNG encoder), a
+self-contained `/offline.html` fallback, SW registration in the root layout, a
+`beforeinstallprompt` install button on the POS, and an offline e2e journey
+(register SW → warm cache → `context.setOffline(true)` → reload → checkout still
+renders). Review fixes applied: navigation `cache.put` is now awaited (kills the
+offline-reload race), the e2e asserts locale-agnostic `[data-i18n="title"]`,
+loopback IPs register too, and logout wipes the SW page cache (shared-tablet
+privacy). Web 225/225 · i18n parity · build green.
 
-**Previous (Session 66):** POS journey spec confirmed + committed E2E seeder.
-The previously never-run `pos-journey.e2e.spec.ts` now passes against an
-API-seeded session (combobox accessible-name selectors fixed, checkout
-preselects the register via the row's "New sale" link), the inventory journey
-fixed the same way, and a new committed `scripts/seed-e2e-env.mjs` +
-`apps/web/playwright.journey.config.ts` make all three journey specs runnable on
-demand (`pnpm e2e:seed && pnpm test:e2e:journeys`) — 3/3 green twice. **Current
-phase:** Phase 6 — POS Module (full stack done except the offline PWA)
+**Previous (Session 68):** E2E Journeys workflow verified end-to-end on a real
+GitHub runner via `workflow_dispatch`: **GREEN (all 16 steps)**, CRM/Inventory/
+POS journeys passing (3 passed in 31.3s); three fresh-checkout bugs fixed by the
+real runs (workspace build order, 401-tolerant readiness poll, Playwright
+browser install via `pnpm --filter web exec`). **Current phase:** Phase 6 — POS
+Module (full stack done except the offline PWA — now in progress)
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -25,16 +26,16 @@ phase:** Phase 6 — POS Module (full stack done except the offline PWA)
 
 ## Phase status
 
-| Phase                                 | Status         | Notes                                                         |
-| ------------------------------------- | -------------- | ------------------------------------------------------------- |
-| 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                |
-| 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                               |
-| 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19) |
-| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof     |
-| 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified     |
-| 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                     |
-| 6 — POS Module                        | 🚧 Full stack  | 6.1–6.6 + 6.9 + 6.7 non-PWA (Sessions 64–65); PWA deferred    |
-| 7 — Production Hardening & Deployment | ⬜ Not started |                                                               |
+| Phase                                 | Status         | Notes                                                                   |
+| ------------------------------------- | -------------- | ----------------------------------------------------------------------- |
+| 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                          |
+| 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                                         |
+| 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19)           |
+| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof               |
+| 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified               |
+| 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                               |
+| 6 — POS Module                        | 🚧 Full stack  | 6.1–6.6 + 6.9 done; 6.7 offline engine + PWA shell (Sessions 64–65, 69) |
+| 7 — Production Hardening & Deployment | ⬜ Not started |                                                                         |
 
 ---
 
@@ -637,6 +638,56 @@ errors · API/web typechecks clean.
 ---
 
 ## Session log
+
+### Session 69 — Phase 6.7 installable PWA shell (service worker + manifest + offline-first routing)
+
+- **Service worker (`public/sw.js`).** Hand-rolled (no workbox — TECH_STACK
+  locked). Versioned caches (`CACHE_VERSION`, bumped on deploy); install
+  precaches the static shell (offline.html, manifest, icons); activate purges
+  stale `modubiz-pos-*` caches + claims clients; navigation is **network-first
+  with exact-page cache fallback then `/offline.html`** (UI spec §9.2 — checkout
+  opens with no network at all after a warm visit); hashed prod `/_next/static`
+  assets use stale-while-revalidate while un-hashed DEV chunks stay
+  network-first (no stale HMR); API traffic (`/v1/*`, `/api/*`), RSC payloads
+  (`_rsc`), and Authorization-bearing requests are NEVER cached; cross-origin
+  untouched.
+- **Manifest (`app/manifest.ts`).** `MetadataRoute.Manifest` →
+  `/manifest.webmanifest`: `start_url: /en/m/pos/checkout`,
+  `display: standalone`, brand navy `theme_color` (`#0f1729` = `--primary`), PNG
+  192/512 + maskable 512 + SVG icons, and shortcuts (Checkout/Reports). Root
+  layout gained `icons`/`appleWebApp` metadata + `viewport.themeColor`.
+- **Brand icons.** `scripts/generate-pwa-icons.mjs` — a **dependency-free PNG
+  encoder** (node:zlib deflate + hand-rolled CRC32/IHDR/IDAT/IEND) that draws
+  the navy-square white-M mark (matching the sidebar logo) with 3×3 supersampled
+  anti-aliasing; emits
+  `public/icons/{icon-192,icon-512, icon-maskable-512,apple-touch-icon}.png` +
+  `public/icon.svg`. Committed — regenerate after a brand tweak.
+- **Offline fallback (`public/offline.html`).** 100% self-contained (inline
+  style/script only — renders with zero network); locale picked from the
+  `NEXT_LOCALE` cookie / path prefix with strings for all four locales; RTL for
+  `ar`; auto-reload Retry.
+- **Registration + install.** `SwRegister` (root layout) registers `/sw.js` on
+  https/localhost/loopback, silently (progressive enhancement).
+  `PosInstallPrompt` (POS layout) surfaces `beforeinstallprompt` as a floating
+  install button, hides on `appinstalled` or `display-mode: standalone`;
+  `modules.pos.pwa.*` keys in en/ar/fr/es.
+- **Tests.** `pwa.test.ts` (9) pins the manifest shape + on-disk icons + SW
+  contract + offline.html self-containment/4-locale strings;
+  `pwa-offline-journey.e2e.spec.ts` proves the milestone: load checkout online →
+  wait for SW control → reload (warm cache) → `context.setOffline(true)` →
+  reload → **"New sale" still renders** → unknown route falls back to
+  offline.html → restore network.
+- **Reviewer fixes applied.** (1) Navigation `cache.put` is **awaited** — the
+  fire-and-forget put raced the offline reload in the e2e (page load could fire
+  before the HTML was durably cached → spurious offline.html fallback). (2) The
+  e2e asserts locale-agnostic `[data-i18n="title"]` (seeded storageState can
+  carry `NEXT_LOCALE=ar`). (3) `SwRegister` now registers on `127.0.0.1`/`[::1]`
+  too (dev via loopback IP). (4) `wipePosOfflineData()` also deletes the SW page
+  cache on logout — org-specific SSR'd HTML must not survive on a shared POS
+  tablet.
+- **Validation.** Web typecheck · lint 0 errors · web **225/225** (incl. 15
+  offline + 9 PWA tests) · i18n `pos-completeness` + build ·
+  `pnpm --filter web build` green (manifest emitted).
 
 ### Session 68 — E2E Journeys verified on a real GitHub runner (workflow_dispatch)
 

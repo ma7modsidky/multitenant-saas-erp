@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { clearPosOfflineCaches, wipePosOfflineData } from '@/features/pos/offline/outbox';
+
 import { authEvents, decodeJwtPayload, setAuthedCookie, sessionStore } from './session';
 
 import {
@@ -164,6 +166,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const switchOrg = useCallback(
     async (orgId: string) => {
       await switchOrgRequest(orgId);
+      // POS-31: cached tenant data (catalog/registers) is org-scoped — drop it
+      // on switch so the next org can never read the previous one's cache. The
+      // outbox is kept (its items are org-keyed and only flush while active).
+      void clearPosOfflineCaches();
       refreshOrgId();
     },
     [refreshOrgId],
@@ -171,6 +177,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await logoutRequest();
+    // POS-31: logout clears every cached tenant value AND the durable outbox.
+    void wipePosOfflineData();
     setUserState(null);
     setOrganizationId(null);
     setStatus('unauthenticated');

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!--
+    offline.html — the PWA's last-resort shell, served by sw.js when a
+    navigation fails with no network and no cached page exists.
+
+    It is deliberately 100% self-contained (no CSS/JS/font assets, only the
+    inline <style>) so it renders with zero network. User-facing strings are
+    inlined for all four supported locales and picked from the NEXT_LOCALE
+    cookie / path prefix — static fallbacks cannot reach next-intl, so this is
+    the closest the rule allows. Do not add external asset references here.
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ModuBiz POS — Offline</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --navy: #0f1729;
+      --muted: #64748b;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--navy);
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+    }
+    .card {
+      max-width: 26rem;
+      width: 100%;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 1px 2px rgb(15 23 41 / 0.05);
+    }
+    .mark {
+      width: 3.5rem;
+      height: 3.5rem;
+      margin: 0 auto 1.25rem;
+      border-radius: 0.75rem;
+      background: var(--navy);
+      color: #f8fafc;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 1.5rem;
+    }
+    h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; }
+    p { margin-top: 0.5rem; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
+    .actions { margin-top: 1.5rem; display: flex; gap: 0.5rem; justify-content: center; }
+    button {
+      font: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--navy);
+      cursor: pointer;
+      transition: background 150ms ease-out;
+    }
+    button:hover { background: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <main class="card" role="status" aria-live="polite">
+    <div class="mark" aria-hidden="true">M</div>
+    <h1 data-i18n="title">You're offline</h1>
+    <p data-i18n="body">Connect to the internet to continue using the POS. Your queued sales will sync automatically.</p>
+    <div class="actions">
+      <button type="button" data-i18n="retry" onclick="location.reload()">Retry</button>
+    </div>
+  </main>
+  <script>
+    // Pick the best supported locale from the NEXT_LOCALE cookie, then the path.
+    var strings = {
+      en: { title: "You're offline", body: 'Connect to the internet to continue using the POS. Your queued sales will sync automatically.', retry: 'Retry' },
+      ar: { title: 'أنت غير متصل', body: 'اتصل بالإنترنت للمتابعة. سيتم مزامنة المبيعات المعلقة تلقائيًا.', retry: 'إعادة المحاولة' },
+      fr: { title: 'Vous êtes hors ligne', body: 'Connectez-vous à Internet pour continuer. Les ventes en attente seront synchronisées automatiquement.', retry: 'Réessayer' },
+      es: { title: 'Estás sin conexión', body: 'Conéctate a internet para continuar. Las ventas pendientes se sincronizarán automáticamente.', retry: 'Reintentar' },
+    };
+    (function () {
+      var locale = 'en';
+      var m = /(?:^|;\s*)NEXT_LOCALE=([a-z]{2})/.exec(document.cookie);
+      if (m && strings[m[1]]) locale = m[1];
+      else {
+        var seg = (location.pathname.split('/')[1] || '').toLowerCase();
+        if (strings[seg]) locale = seg;
+      }
+      var s = strings[locale];
+      document.title = 'ModuBiz POS — ' + s.title;
+      document.documentElement.lang = locale;
+      document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
+      document.querySelector('[data-i18n="title"]').textContent = s.title;
+      document.querySelector('[data-i18n="body"]').textContent = s.body;
+      document.querySelector('[data-i18n="retry"]').textContent = s.retry;
+    })();
+  </script>
+</body>
+</html>

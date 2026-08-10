@@ -278,6 +278,9 @@ importers:
       eslint:
         specifier: ^9.17.0
         version: 9.39.5(jiti@1.21.7)(supports-color@10.2.2)
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1
@@ -4364,6 +4367,11 @@ packages:
   extend@3.0.2:
     resolution:
       { integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g== }
+
+  fake-indexeddb@6.2.5:
+    resolution:
+      { integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w== }
+    engines: { node: '>=18' }
 
   fast-check@4.9.0:
     resolution:
@@ -10761,6 +10769,8 @@ snapshots:
   expect-type@1.4.0: {}
 
   extend@3.0.2: {}
+
+  fake-indexeddb@6.2.5: {}
 
   fast-check@4.9.0:
     dependencies:

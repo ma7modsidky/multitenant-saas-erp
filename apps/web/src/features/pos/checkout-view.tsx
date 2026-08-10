@@ -1,11 +1,11 @@
 'use client';
 
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Minus, Plus, ShoppingCart, Trash2, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,8 +14,9 @@ import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectItem } from '@/components/ui/select';
 import { ApiError } from '@/lib/api';
-import { ModuleGate } from '@/lib/entitlements';
 import { createCrmContact } from '@/lib/api/resources';
+import { useSession } from '@/lib/auth/session-context';
+import { ModuleGate } from '@/lib/entitlements';
 
 import { posErrorKey } from './errors';
 import {
@@ -35,6 +36,11 @@ import {
   sumMinorAmounts,
   unscaleQuantity,
 } from './money';
+import { useOfflinePos } from './offline/context';
+import { getClientDeviceId } from './offline/device';
+import { queuedSaleToLocalReceipt } from './offline/local-sale';
+import { queueOfflineSale } from './offline/outbox';
+import type { QueuedSale } from './offline/types';
 import { ReceiptPrint } from './receipt-print';
 import type { CartLineValues } from './schemas';
 
@@ -52,6 +58,8 @@ export function CheckoutView() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const baseCurrency = useOrgBaseCurrency();
+  const { organizationId } = useSession();
+  const { refresh: refreshOutbox } = useOfflinePos();
   const { data: currencies } = useCurrencies();
   const exponent = currencies?.find((c) => c.code === baseCurrency)?.exponent ?? 2;
 
@@ -87,7 +95,12 @@ export function CheckoutView() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerFormError, setCustomerFormError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ saleId: string; receiptNumber: string } | null>(null);
+  const [success, setSuccess] = useState<{
+    saleId: string | null;
+    receiptNumber: string;
+    queued: boolean;
+    queuedSale?: QueuedSale;
+  } | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   // When the registers land, honor the URL preselect (a register id from the
@@ -185,39 +198,40 @@ export function CheckoutView() {
         return;
       }
     }
-    try {
-      const result = await checkout.mutateAsync({
-        registerId,
-        locale,
-        lines: lines.map((line) => ({
-          variantId: line.variantId,
-          sku: line.sku,
-          nameI18n: line.nameI18n,
-          quantity: line.quantity,
-          unitPrice: { amountMinor: line.unitPriceAmountMinor, currency: baseCurrency },
-          taxRateBp: 0,
-          currency: baseCurrency,
-        })),
-        payments:
-          method === 'cash'
-            ? [
-                {
-                  method,
-                  amount: { amountMinor: totalMinor, currency: baseCurrency },
-                  currency: baseCurrency,
-                  tenderedAmountMinor,
-                  changeAmountMinor: changeMinor,
-                },
-              ]
-            : [{ method, amount: { amountMinor: totalMinor, currency: baseCurrency }, currency: baseCurrency }],
-        // POS-26: a client-generated key makes retries idempotent — reuse the
-        // same key for the cart so a failed request can be retried without
-        // creating a duplicate sale, then rotate it after success.
-        idempotencyKey,
-        // POS-18: link the sale to an existing (or just-created) customer.
-        ...(customerContactId ? { customerContactId } : {}),
-      });
-      setSuccess(result);
+    // POS-26: a client-generated key makes retries idempotent — reuse the same
+    // key for the cart so a failed request can be retried without creating a
+    // duplicate sale, then rotate it after success. The SAME payload feeds the
+    // online path and the offline outbox (POS-25).
+    const payload = {
+      registerId,
+      locale,
+      lines: lines.map((line) => ({
+        variantId: line.variantId,
+        sku: line.sku,
+        nameI18n: line.nameI18n,
+        quantity: line.quantity,
+        unitPrice: { amountMinor: line.unitPriceAmountMinor, currency: baseCurrency },
+        taxRateBp: 0,
+        currency: baseCurrency,
+      })),
+      payments:
+        method === 'cash'
+          ? [
+              {
+                method,
+                amount: { amountMinor: totalMinor, currency: baseCurrency },
+                currency: baseCurrency,
+                tenderedAmountMinor,
+                changeAmountMinor: changeMinor,
+              },
+            ]
+          : [{ method, amount: { amountMinor: totalMinor, currency: baseCurrency }, currency: baseCurrency }],
+      idempotencyKey,
+      // POS-18: link the sale to an existing (or just-created) customer.
+      ...(customerContactId ? { customerContactId } : {}),
+    };
+
+    const resetCart = () => {
       setLines([]);
       setTenderedAmountMinor('');
       setCustomerContactId('');
@@ -229,7 +243,47 @@ export function CheckoutView() {
       setCustomerPhone('');
       setCustomerFormError(null);
       setIdempotencyKey(crypto.randomUUID());
+    };
+
+    try {
+      const result = await checkout.mutateAsync(payload);
+      setSuccess({ saleId: result.saleId, receiptNumber: result.receiptNumber, queued: false });
+      resetCart();
     } catch (err) {
+      // POS-25: an unreachable API (offline or a dead network) queues the sale
+      // in the durable outbox with a provisional receipt (POS-27). The sale
+      // KEEPS its idempotency key so the sync replay can never duplicate it
+      // (POS-26); the key rotates only after the cart resets.
+      if (err instanceof ApiError && err.code === 'NETWORK_ERROR' && organizationId !== null) {
+        try {
+          const queued = await queueOfflineSale({
+            organizationId,
+            registerId,
+            registerName: selectedRegister?.name ?? null,
+            locale,
+            currency: baseCurrency,
+            soldAt: new Date().toISOString(),
+            lines: payload.lines,
+            payments: payload.payments,
+            customerContactId: customerContactId || null,
+            idempotencyKey,
+            clientDeviceId: getClientDeviceId(),
+          });
+          setSuccess({
+            saleId: null,
+            receiptNumber: queued.provisionalReceiptNumber,
+            queued: true,
+            queuedSale: queued,
+          });
+          resetCart();
+          // Update the badge immediately; the provider flushes when
+          // connectivity returns (or right away if the API was merely slow).
+          void refreshOutbox();
+          return;
+        } catch {
+          // IndexedDB unavailable — fall through to the plain error state.
+        }
+      }
       setError(err instanceof ApiError ? posErrorKey(err.code) : 'errors.unknown');
     }
   };
@@ -278,21 +332,39 @@ export function CheckoutView() {
             role="status"
             className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400"
           >
-            <p>{t('checkout.success')}</p>
-            <p className="mt-1 font-semibold">{t('checkout.receiptNumber', { number: success.receiptNumber })}</p>
+            <p>{success.queued ? t('checkout.queuedSuccess') : t('checkout.success')}</p>
+            <p className="mt-1 font-semibold">
+              {success.queued
+                ? t('offline.provisionalReceipt', { number: success.receiptNumber })
+                : t('checkout.receiptNumber', { number: success.receiptNumber })}
+            </p>
+            {success.queued && <p className="mt-1">{t('offline.willSync')}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <Button asChild variant="link" size="sm" className="h-auto p-0">
-                <Link href={`/${locale}/m/pos/sales/${success.saleId}`}>{t('checkout.viewSale')}</Link>
-              </Button>
-              <ReceiptPrint
-                saleId={success.saleId}
-                variant="link"
-                compact
-                // The success banner always belongs to the currently selected
-                // register (changing it clears the banner), so its display name
-                // is safe to snapshot here — matches the sale-detail page.
-                {...(selectedRegister?.name ? { registerName: selectedRegister.name } : {})}
-              />
+              {!success.queued && success.saleId !== null && (
+                <Button asChild variant="link" size="sm" className="h-auto p-0">
+                  <Link href={`/${locale}/m/pos/sales/${success.saleId}`}>{t('checkout.viewSale')}</Link>
+                </Button>
+              )}
+              {success.queued && success.queuedSale ? (
+                // POS-27: no server record yet — print from the queued payload.
+                <ReceiptPrint
+                  saleId={success.queuedSale.id}
+                  sale={queuedSaleToLocalReceipt(success.queuedSale)}
+                  variant="link"
+                  compact
+                  {...(success.queuedSale.registerName ? { registerName: success.queuedSale.registerName } : {})}
+                />
+              ) : (
+                <ReceiptPrint
+                  saleId={success.saleId ?? ''}
+                  variant="link"
+                  compact
+                  // The success banner always belongs to the currently selected
+                  // register (changing it clears the banner), so its display name
+                  // is safe to snapshot here — matches the sale-detail page.
+                  {...(selectedRegister?.name ? { registerName: selectedRegister.name } : {})}
+                />
+              )}
             </div>
           </div>
         )}

@@ -17,7 +17,14 @@ export default [
         projectService: {
           // Node scripts (e.g. scripts/next-build.cjs) are plain CJS outside
           // the tsconfig project — allow them like the config files below.
-          allowDefaultProject: ['eslint.config.*', 'postcss.config.*', 'scripts/*.cjs'],
+          // public/sw.js is the shipped service worker (verbatim, plain JS).
+          allowDefaultProject: [
+            'eslint.config.*',
+            'postcss.config.*',
+            'scripts/*.cjs',
+            'scripts/*.mjs',
+            'public/sw.js',
+          ],
         },
       },
     },
@@ -36,6 +43,7 @@ export default [
       'playwright.config.*', // Playwright E2E config
       'playwright.journey.config.*', // Playwright journey E2E config
       'next-env.d.ts', // Next.js type declarations
+      'src/app/manifest.ts', // Web app manifest (MetadataRoute.Manifest default export)
     ],
     rules: {
       'import/no-default-export': 'off',
@@ -60,6 +68,37 @@ export default [
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
+    },
+  },
+  // Plain Node.js ESM scripts (scripts/generate-pwa-icons.mjs) — same treatment.
+  // These are standalone tool scripts: browser-style lib DOM types don't apply
+  // and console output is the CLI's interface.
+  {
+    files: ['scripts/*.mjs'],
+    rules: {
+      'no-console': 'off',
+      'no-undef': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+    },
+  },
+  // public/sw.js is the shipped service worker — browser globals are its
+  // runtime; it is intentionally plain and ships verbatim to /sw.js. The
+  // type-aware rules cannot reason about untyped Cache/Fetch APIs, so the
+  // unsafe-* family is disabled here.
+  {
+    files: ['public/sw.js'],
+    rules: {
+      'no-undef': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
 ];

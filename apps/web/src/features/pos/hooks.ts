@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { ApiError } from '@/lib/api';
 import {
   closePosShift,
   createPosRegister,
@@ -24,6 +25,8 @@ import {
 } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
 
+import { cacheRegisters, cacheSellableCatalog, readCachedCatalog, readCachedRegisters } from './offline/cache';
+
 /** Stable query-key namespace for the POS module (invalidation scope). */
 const posKey = (parts: string[]): string[] => ['pos', ...parts];
 
@@ -42,7 +45,26 @@ function salesKey(filters: PosSaleParams = {}): string[] {
 }
 
 export function usePosRegisters() {
-  return useQuery({ queryKey: posKey(['registers']), queryFn: getPosRegisters });
+  const { organizationId } = useSession();
+  return useQuery({
+    queryKey: posKey(['registers']),
+    queryFn: async () => {
+      try {
+        const data = await getPosRegisters();
+        // POS-31 write-through: keep the last-known registers (incl. open-shift
+        // ids) so selling can continue offline on a register that was open.
+        if (organizationId) void cacheRegisters(organizationId, data.items);
+        return data;
+      } catch (err) {
+        if (err instanceof ApiError && err.code === 'NETWORK_ERROR' && organizationId) {
+          const cached = await readCachedRegisters(organizationId);
+          if (cached) return { items: cached };
+        }
+        throw err;
+      }
+    },
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function usePosShifts(filters: PosShiftParams = {}) {
@@ -125,9 +147,23 @@ export function usePosContact(id: string | null, enabled = true) {
  * the POS catalog is just a different view of the same products data.
  */
 export function usePosCatalog() {
+  const { organizationId } = useSession();
   return useQuery({
     queryKey: ['inventory', 'products', 'pos-catalog'],
-    queryFn: () => getInventoryProducts({ pageSize: 100 }),
+    queryFn: async () => {
+      try {
+        const page = await getInventoryProducts({ pageSize: 100 });
+        // POS-31: cache the sellable catalog (org-scoped) for offline selling.
+        if (organizationId) void cacheSellableCatalog(organizationId, page);
+        return page;
+      } catch (err) {
+        if (err instanceof ApiError && err.code === 'NETWORK_ERROR' && organizationId) {
+          const cached = await readCachedCatalog(organizationId);
+          if (cached) return cached;
+        }
+        throw err;
+      }
+    },
     placeholderData: keepPreviousData,
   });
 }
