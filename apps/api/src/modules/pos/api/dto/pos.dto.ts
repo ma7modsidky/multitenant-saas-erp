@@ -164,7 +164,16 @@ export class PosSaleEnvelopeResponse {
 
 export class PosSaleListEnvelopeResponse {
   @ApiProperty({ type: [PosSaleResponse] })
-  data!: { items: PosSaleResponse[]; total: number; page: number; pageSize: number };
+  data!: {
+    items: PosSaleResponse[];
+    total: number;
+    /** Σ sale totals of the matching set (minor units). */
+    totalAmountMinor: string;
+    /** Σ refunds issued in the same window against matching sales (minor units). */
+    refundsAmountMinor: string;
+    page: number;
+    pageSize: number;
+  };
 }
 
 export class PosCheckoutResponse {

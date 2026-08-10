@@ -89,11 +89,12 @@ function stockCountsKey(filters: InventoryStockCountParams = {}): string[] {
   return ['inventory', 'stock-counts', filters.status ?? '', String(filters.page ?? 1), String(filters.pageSize ?? 12)];
 }
 
-export function useInventoryProducts(filters: InventoryProductParams = {}) {
+export function useInventoryProducts(filters: InventoryProductParams = {}, enabled = true) {
   return useQuery({
     queryKey: productsKey(filters),
     queryFn: () => getInventoryProducts(filters),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

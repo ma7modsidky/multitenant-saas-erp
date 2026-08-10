@@ -51,6 +51,8 @@ import {
   CloseShiftUseCase,
   CreateRegisterUseCase,
   GetSaleUseCase,
+  ListSalesUseCase,
+  ListShiftsUseCase,
   OpenShiftUseCase,
   ProcessRefundUseCase,
   SyncOfflineSaleUseCase,
@@ -853,5 +855,174 @@ describe('POS application layer (integration)', () => {
       openingFloatAmountMinor: '5000',
       currency: 'USD',
     });
+  });
+
+  it('POS-4: the shifts list filters by opened_at date range and carries sales/refund aggregates', async () => {
+    const { orgId } = await createOrgForOwner();
+    const { variantId, warehouseId } = await seedInventory(orgId, { receiveQuantity: '10' });
+    const registerId = await createRegister(orgId, warehouseId);
+    const shiftId = await openShift(orgId, registerId);
+    // One sale of 2 units at 1000 → total 2000 (so the aggregates are non-zero).
+    await checkout(orgId, registerId, variantId, { qty: '2' });
+
+    const { repo, txManager } = buildPos(orgId);
+    const listShifts = new ListShiftsUseCase(repo, txManager);
+    const list = (filter: Parameters<typeof listShifts.execute>[0] = {}) =>
+      TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        listShifts.execute(filter),
+      );
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Unfiltered: the shift is listed with its aggregates (POS-8 semantics).
+    const all = await list();
+    const shift = all.find((s) => s.id === shiftId);
+    expect(shift).toBeDefined();
+    expect(shift?.salesCount).toBe(1);
+    expect(shift?.salesAmountMinor).toBe('2000');
+    expect(shift?.refundsAmountMinor).toBe('0');
+
+    // today → today: the shift opened today is included (toDate is inclusive).
+    const inRange = await list({ fromDate: today, toDate: today });
+    expect(inRange.map((s) => s.id)).toContain(shiftId);
+
+    // A past or future range excludes it.
+    const past = await list({ fromDate: '2020-01-01', toDate: '2020-01-31' });
+    expect(past).toHaveLength(0);
+    const future = await list({ fromDate: '2099-01-01', toDate: '2099-12-31' });
+    expect(future).toHaveLength(0);
+  });
+
+  it('POS-9: the sales list filters by sold-at date range (inclusive toDate)', async () => {
+    const { orgId } = await createOrgForOwner();
+    const { variantId, warehouseId } = await seedInventory(orgId, { receiveQuantity: '10' });
+    const registerId = await createRegister(orgId, warehouseId);
+    await openShift(orgId, registerId);
+    const { saleId } = await checkout(orgId, registerId, variantId);
+
+    const { repo, txManager } = buildPos(orgId);
+    const listSales = new ListSalesUseCase(repo, txManager);
+    const list = (filter: Parameters<typeof listSales.execute>[0] = {}) =>
+      TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        listSales.execute(filter),
+      );
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Unfiltered: the sale is listed, and the page carries the exact Σ of the
+    // matching set (1000 = the single $10.00 sale).
+    const all = await list({ pageSize: 50 });
+    expect(all.items.some((s) => s.id === saleId)).toBe(true);
+    expect(all.totalAmountMinor).toBe('1000');
+    // No refunds exist — the net-revenue refund Σ is 0.
+    expect(all.refundsAmountMinor).toBe('0');
+
+    // today → today: the sale sold today is included (toDate is inclusive).
+    const inRange = await list({ fromDate: today, toDate: today });
+    expect(inRange.items.map((s) => s.id)).toContain(saleId);
+    expect(inRange.totalAmountMinor).toBe('1000');
+    expect(inRange.refundsAmountMinor).toBe('0');
+
+    // A past or future range excludes it — and the Σ is 0.
+    const past = await list({ fromDate: '2020-01-01', toDate: '2020-01-31' });
+    expect(past.items).toHaveLength(0);
+    expect(past.totalAmountMinor).toBe('0');
+    expect(past.refundsAmountMinor).toBe('0');
+    const future = await list({ fromDate: '2099-01-01', toDate: '2099-12-31' });
+    expect(future.items).toHaveLength(0);
+    expect(future.totalAmountMinor).toBe('0');
+    expect(future.refundsAmountMinor).toBe('0');
+  });
+
+  it('POS-13: the sales list statuses filter sums completed+partially_refunded and excludes voided', async () => {
+    const { orgId } = await createOrgForOwner();
+    const { variantId, warehouseId } = await seedInventory(orgId, { receiveQuantity: '20' });
+    const registerId = await createRegister(orgId, warehouseId);
+    await openShift(orgId, registerId);
+
+    // A completed sale (1000) and a partially_refunded one (3000 − 1000 refund).
+    const completed = await checkout(orgId, registerId, variantId);
+    const { saleId: refundedId } = await checkout(orgId, registerId, variantId, { qty: '3' });
+
+    // Grab the refunded sale's line id, then refund 1 unit (POS-20 → POS-21).
+    const { repo: posRepo, txManager: getTx } = buildPos(orgId);
+    const getSale = new GetSaleUseCase(posRepo, getTx);
+    const sale = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      getSale.execute(refundedId),
+    );
+    const saleLineId = sale.lines[0].id;
+
+    const { repo, txManager: refundTx, unitOfWork, portRegistry } = buildPos(orgId);
+    const refund = new ProcessRefundUseCase(repo, refundTx, unitOfWork, portRegistry);
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      refund.execute({
+        originalSaleId: refundedId,
+        registerId,
+        reasonCode: 'customer_return',
+        currency: 'USD',
+        lines: [{ saleLineId, variantId, quantity: '1', restock: true, amountMinor: '1000', currency: 'USD' }],
+      }),
+    );
+
+    const listSales = new ListSalesUseCase(repo, refundTx);
+    const list = (filter: Parameters<typeof listSales.execute>[0] = {}) =>
+      TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        listSales.execute(filter),
+      );
+
+    // Revenue semantics: completed + partially_refunded only — BOTH sales count
+    // and the exact Σ is their sale totals (4000 = 1000 + 3000; the refund is
+    // a separate record, matching the shift-report sales total). The refund Σ
+    // carries the 1000 refunded against the partially_refunded sale — so
+    // Net Revenue = 4000 − 1000 = 3000.
+    const today = new Date().toISOString().slice(0, 10);
+    const revenue = await list({ statuses: ['completed', 'partially_refunded'], pageSize: 50 });
+    expect(revenue.items.map((s) => s.id).sort()).toEqual([completed.saleId, refundedId].sort());
+    expect(revenue.totalAmountMinor).toBe('4000');
+    expect(revenue.refundsAmountMinor).toBe('1000');
+
+    // The refund Σ honors the same inclusive date window (on refunded_at).
+    const revenueToday = await list({
+      statuses: ['completed', 'partially_refunded'],
+      fromDate: today,
+      toDate: today,
+      pageSize: 50,
+    });
+    expect(revenueToday.totalAmountMinor).toBe('4000');
+    expect(revenueToday.refundsAmountMinor).toBe('1000');
+
+    // A past window excludes both the sales and the refund Σ.
+    const past = await list({
+      statuses: ['completed', 'partially_refunded'],
+      fromDate: '2020-01-01',
+      toDate: '2020-01-31',
+      pageSize: 50,
+    });
+    expect(past.totalAmountMinor).toBe('0');
+    expect(past.refundsAmountMinor).toBe('0');
+
+    // A single-status filter narrows to that status only — and its refund Σ.
+    const completedOnly = await list({ statuses: ['completed'], pageSize: 50 });
+    expect(completedOnly.items.map((s) => s.id)).toEqual([completed.saleId]);
+    expect(completedOnly.totalAmountMinor).toBe('1000');
+    expect(completedOnly.refundsAmountMinor).toBe('0');
+
+    // Voided sales never count toward revenue. (POS-14 forbids voiding a sale
+    // with a captured payment via the app layer, so the status is flipped
+    // directly — the read path only cares about the persisted status.)
+    await ownerSql`UPDATE pos_sales SET status = 'voided' WHERE id = ${completed.saleId}`;
+
+    const afterVoid = await list({ statuses: ['completed', 'partially_refunded'], pageSize: 50 });
+    expect(afterVoid.items.map((s) => s.id)).toEqual([refundedId]);
+    expect(afterVoid.totalAmountMinor).toBe('3000');
+    // The refund stays in the Σ — its sale is still partially_refunded.
+    expect(afterVoid.refundsAmountMinor).toBe('1000');
+
+    // The voided-only filter still sees it (reports/audit need the row).
+    const voided = await list({ statuses: ['voided'], pageSize: 50 });
+    expect(voided.items.map((s) => s.id)).toEqual([completed.saleId]);
+    expect(voided.totalAmountMinor).toBe('1000');
+    // No refunds belong to a voided sale (POS-14) — the refund Σ is 0.
+    expect(voided.refundsAmountMinor).toBe('0');
   });
 });

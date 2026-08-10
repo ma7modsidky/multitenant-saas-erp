@@ -35,6 +35,7 @@ import {
   sumMinorAmounts,
   unscaleQuantity,
 } from './money';
+import { ReceiptPrint } from './receipt-print';
 import type { CartLineValues } from './schemas';
 
 /** One sellable variant in the checkout picker (price + name snapshot). */
@@ -279,9 +280,20 @@ export function CheckoutView() {
           >
             <p>{t('checkout.success')}</p>
             <p className="mt-1 font-semibold">{t('checkout.receiptNumber', { number: success.receiptNumber })}</p>
-            <Button asChild variant="link" size="sm" className="h-auto p-0">
-              <Link href={`/${locale}/m/pos/sales/${success.saleId}`}>{t('checkout.viewSale')}</Link>
-            </Button>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <Button asChild variant="link" size="sm" className="h-auto p-0">
+                <Link href={`/${locale}/m/pos/sales/${success.saleId}`}>{t('checkout.viewSale')}</Link>
+              </Button>
+              <ReceiptPrint
+                saleId={success.saleId}
+                variant="link"
+                compact
+                // The success banner always belongs to the currently selected
+                // register (changing it clears the banner), so its display name
+                // is safe to snapshot here — matches the sale-detail page.
+                {...(selectedRegister?.name ? { registerName: selectedRegister.name } : {})}
+              />
+            </div>
           </div>
         )}
 

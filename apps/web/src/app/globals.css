@@ -74,6 +74,46 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+}
+
+/* POS receipt printing (receipt-print.tsx) — the receipt is hidden on screen
+   and becomes the ONLY printed content: every other element is hidden in the
+   print media, and the receipt flows at the top, centered, receipt-width. */
+#pos-receipt {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 8mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  /* Children of the receipt still match `body *` directly, so they must be
+     re-visible explicitly — inheritance from the parent does not override a
+     directly-applied `visibility: hidden`. */
+  #pos-receipt,
+  #pos-receipt * {
+    visibility: visible;
+  }
+
+  #pos-receipt {
+    display: block;
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-width: 80mm;
+    margin: 0 auto;
+    background: #fff;
+    color: #000;
   }
 }

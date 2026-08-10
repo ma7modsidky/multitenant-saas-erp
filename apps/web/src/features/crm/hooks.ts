@@ -110,11 +110,12 @@ export function useCompaniesList(params: CrmListParams = {}) {
 }
 
 /** Paginated deals list (most recently updated first). */
-export function useDealsList(params: CrmListParams = {}) {
+export function useDealsList(params: CrmListParams = {}, enabled = true) {
   return useQuery({
     queryKey: dealsKey(params),
     queryFn: () => getCrmDeals(params),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

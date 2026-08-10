@@ -7,7 +7,7 @@ import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.pr
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import { TenantContext } from '../../../../core/tenancy/tenant-context.js';
 import {
-  type PageResult,
+  type SalesListPage,
   type PaymentRow,
   type PosRepository,
   type RefundLineRow,
@@ -15,6 +15,8 @@ import {
   type RegisterRow,
   type SaleLineRow,
   type SaleListFilter,
+  type ShiftListFilter,
+  type ShiftSummaryRow,
   type SaleRow,
   type ShiftRow,
   type SyncLogRow,
@@ -55,9 +57,9 @@ export class DrizzlePosRepository implements PosRepository {
   }
 
   /** `'a','b'` fragment for `IN (...)` — postgres.js can't bind JS arrays. */
-  private uuidList(ids: string[]): ReturnType<typeof sql> {
+  private valueList(values: string[]): ReturnType<typeof sql> {
     return sql.join(
-      ids.map((id) => sql`${id}`),
+      values.map((value) => sql`${value}`),
       sql.raw(', '),
     );
   }
@@ -139,12 +141,45 @@ export class DrizzlePosRepository implements PosRepository {
     return row ? this.rowToShift(row) : undefined;
   }
 
-  async listShifts(tx?: TxOrDb): Promise<ShiftRow[]> {
+  async listShifts(filter: ShiftListFilter = {}, tx?: TxOrDb): Promise<ShiftSummaryRow[]> {
     const db = this.getDb(tx);
-    const rows = await db.execute<Record<string, unknown>>(
-      sql`SELECT * FROM ${this.shifts} ORDER BY opened_at DESC, id DESC`,
-    );
-    return rows.map((row) => this.rowToShift(row));
+    const conditions = [sql`TRUE`];
+    if (filter.fromDate) conditions.push(sql`opened_at >= ${filter.fromDate}::date`);
+    if (filter.toDate) {
+      // Inclusive: a shift opened on toDate itself still matches.
+      conditions.push(sql`opened_at < (${filter.toDate}::date + interval '1 day')`);
+    }
+    const where = sql.join(conditions, sql.raw(' AND '));
+    // Per-shift aggregates (POS-8 semantics): count + Σ sale totals and
+    // Σ refund amounts. The LEFT JOINs are RLS-scoped like every read, so a
+    // shift can never leak another org's sales/refunds.
+    const rows = await db.execute<Record<string, unknown>>(sql`
+      SELECT s.*,
+        COALESCE(sales_agg.sales_count, 0) AS sales_count,
+        COALESCE(sales_agg.sales_total, 0)::text AS sales_total,
+        COALESCE(refunds_agg.refunds_total, 0)::text AS refunds_total
+      FROM ${this.shifts} s
+      LEFT JOIN (
+        SELECT shift_id, count(*)::int AS sales_count, SUM(total_amount_minor) AS sales_total
+        FROM ${this.sales}
+        GROUP BY shift_id
+      ) sales_agg ON sales_agg.shift_id = s.id
+      LEFT JOIN (
+        SELECT shift_id, SUM(amount_minor) AS refunds_total
+        FROM ${this.refunds}
+        GROUP BY shift_id
+      ) refunds_agg ON refunds_agg.shift_id = s.id
+      WHERE ${where}
+      ORDER BY s.opened_at DESC, s.id DESC
+    `);
+    return rows.map((row) => ({
+      ...this.rowToShift(row),
+      salesCount: Number(row.sales_count ?? 0),
+      // The aggregate columns are `::text`-cast in SQL, so they read back as
+      // strings (same pattern as sumCashSalesByShift).
+      salesAmountMinor: (row.sales_total as string) ?? '0',
+      refundsAmountMinor: (row.refunds_total as string) ?? '0',
+    }));
   }
 
   async insertShift(shift: ShiftData, tx?: TxOrDb): Promise<ShiftRow> {
@@ -240,16 +275,26 @@ export class DrizzlePosRepository implements PosRepository {
     return this.composeSale(row, db);
   }
 
-  async listSales(filter: SaleListFilter = {}, tx?: TxOrDb): Promise<PageResult<SaleRow>> {
+  async listSales(filter: SaleListFilter = {}, tx?: TxOrDb): Promise<SalesListPage> {
     const db = this.getDb(tx);
     const page = Math.max(1, filter.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 12));
     const offset = (page - 1) * pageSize;
 
     const conditions = [sql`TRUE`];
-    if (filter.status) conditions.push(sql`s.status = ${filter.status}`);
+    // Multi-status (POS-13) — a revenue-style filter passes the statuses to
+    // include (e.g. completed + partially_refunded) so voided/refunded sales
+    // drop out of the count AND the exact Σ.
+    if (filter.statuses && filter.statuses.length > 0) {
+      conditions.push(sql`s.status IN (${this.valueList(filter.statuses)})`);
+    }
     if (filter.shiftId) conditions.push(sql`s.shift_id = ${filter.shiftId}`);
     if (filter.registerId) conditions.push(sql`s.register_id = ${filter.registerId}`);
+    if (filter.fromDate) conditions.push(sql`s.sold_at >= ${filter.fromDate}::date`);
+    if (filter.toDate) {
+      // Inclusive: a sale sold on toDate itself still matches.
+      conditions.push(sql`s.sold_at < (${filter.toDate}::date + interval '1 day')`);
+    }
     const where = sql.join(conditions, sql.raw(' AND '));
 
     const countRows = await db.execute<{ n: number }>(
@@ -257,23 +302,56 @@ export class DrizzlePosRepository implements PosRepository {
     );
     const total = Number(countRows[0]?.n ?? 0);
 
+    // Exact Σ of the MATCHING set (ignoring pagination) so the reports page
+    // can show filtered totals — same WHERE as the count and the page query.
+    const sumRows = await db.execute<Record<string, unknown>>(
+      sql`SELECT COALESCE(SUM(total_amount_minor), 0)::text AS total FROM ${this.sales} s WHERE ${where}`,
+    );
+    const totalAmountMinor = (sumRows[0]?.total as string) ?? '0';
+
+    // Net revenue (dashboard): Σ refunds issued in the same window against
+    // sales matching the filter. Joining the original sale keeps the statuses
+    // semantic — a fully-refunded sale ('refunded') drops out of BOTH this Σ
+    // and the revenue Σ, so a sale refunded in the same period nets to 0. A
+    // sale fully refunded in a later period is not netted retroactively (no
+    // sale-status history exists to attribute it).
+    const refundConditions = [sql`TRUE`];
+    if (filter.statuses && filter.statuses.length > 0) {
+      refundConditions.push(sql`s.status IN (${this.valueList(filter.statuses)})`);
+    }
+    if (filter.shiftId) refundConditions.push(sql`s.shift_id = ${filter.shiftId}`);
+    if (filter.registerId) refundConditions.push(sql`s.register_id = ${filter.registerId}`);
+    if (filter.fromDate) refundConditions.push(sql`r.refunded_at >= ${filter.fromDate}::date`);
+    if (filter.toDate) {
+      // Inclusive: a refund issued on toDate itself still matches.
+      refundConditions.push(sql`r.refunded_at < (${filter.toDate}::date + interval '1 day')`);
+    }
+    const refundWhere = sql.join(refundConditions, sql.raw(' AND '));
+    const refundRows = await db.execute<Record<string, unknown>>(sql`
+      SELECT COALESCE(SUM(r.amount_minor), 0)::text AS total
+      FROM ${this.refunds} r
+      JOIN ${this.sales} s ON s.id = r.original_sale_id
+      WHERE ${refundWhere}
+    `);
+    const refundsAmountMinor = (refundRows[0]?.total as string) ?? '0';
+
     const rows = await db.execute<Record<string, unknown>>(sql`
       SELECT * FROM ${this.sales} s
       WHERE ${where}
       ORDER BY s.sold_at DESC, s.id DESC
       LIMIT ${pageSize} OFFSET ${offset}
     `);
-    if (rows.length === 0) return { items: [], total, page, pageSize };
+    if (rows.length === 0) return { items: [], total, totalAmountMinor, refundsAmountMinor, page, pageSize };
 
     const saleIds = rows.map((r) => r.id as string);
     const [lineRows, paymentRows] = await Promise.all([
       db.execute<Record<string, unknown>>(sql`
         SELECT * FROM ${this.saleLines}
-        WHERE sale_id IN (${this.uuidList(saleIds)}) ORDER BY created_at ASC, id ASC
+        WHERE sale_id IN (${this.valueList(saleIds)}) ORDER BY created_at ASC, id ASC
       `),
       db.execute<Record<string, unknown>>(sql`
         SELECT * FROM ${this.payments}
-        WHERE sale_id IN (${this.uuidList(saleIds)}) ORDER BY captured_at ASC, id ASC
+        WHERE sale_id IN (${this.valueList(saleIds)}) ORDER BY captured_at ASC, id ASC
       `),
     ]);
     const linesBySale = groupBy(
@@ -294,6 +372,8 @@ export class DrizzlePosRepository implements PosRepository {
         payments: paymentsBySale.get(row.id as string) ?? [],
       })),
       total,
+      totalAmountMinor,
+      refundsAmountMinor,
       page,
       pageSize,
     };

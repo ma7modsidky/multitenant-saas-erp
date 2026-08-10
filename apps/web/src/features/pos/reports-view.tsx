@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -8,6 +8,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectItem } from '@/components/ui/select';
 import { POS_PAGE_SIZE } from '@/lib/api/resources';
 import { ModuleGate } from '@/lib/entitlements';
@@ -17,6 +19,9 @@ import { useCurrencies, useOrgBaseCurrency, usePosSales } from './hooks';
 import { formatMinorAmount } from './money';
 
 const SALE_STATUS: string[] = ['completed', 'partially_refunded', 'refunded', 'voided'];
+
+/** Revenue semantics shared with the dashboard's Revenue (MTD) stat (POS-13). */
+const REVENUE_STATUSES = 'completed,partially_refunded';
 
 export function ReportsView() {
   const t = useTranslations('modules.pos');
@@ -29,7 +34,15 @@ export function ReportsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const status = searchParams.get('status') ?? '';
+  const from = searchParams.get('from') ?? '';
+  const to = searchParams.get('to') ?? '';
   const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+
+  // Default (no status param) is the REVENUE view — completed + partially
+  // refunded only, the same semantics as the dashboard's Revenue (MTD) stat.
+  // `all` opts back into every status (the audit view); anything else is a
+  // single POS-13 status. The API accepts the comma-separated status list.
+  const apiStatus = status === 'all' ? undefined : status === '' ? REVENUE_STATUSES : status;
 
   const basePath = `/${locale}/m/pos/reports`;
 
@@ -43,10 +56,14 @@ export function ReportsView() {
     router.replace(qs ? `${basePath}?${qs}` : basePath, { scroll: false });
   };
 
+  const hasActiveFilters = Boolean(status || from || to);
+
   const { data: sales, isPending } = usePosSales({
     page,
     pageSize: POS_PAGE_SIZE,
-    ...(status ? { status } : {}),
+    ...(apiStatus ? { status: apiStatus } : {}),
+    ...(from ? { fromDate: from } : {}),
+    ...(to ? { toDate: to } : {}),
   });
 
   const pages = Math.max(1, Math.ceil((sales?.total ?? 0) / POS_PAGE_SIZE));
@@ -59,19 +76,66 @@ export function ReportsView() {
           <p className="mt-1 text-sm text-muted-foreground">{t('reports.subtitle')}</p>
         </div>
 
-        <Select
-          value={status}
-          onValueChange={(value) => setParam({ status: value, page: '' })}
-          className="w-48"
-          aria-label={t('reports.filterStatus')}
-        >
-          <SelectItem value="">{t('reports.allStatuses')}</SelectItem>
-          {SALE_STATUS.map((s) => (
-            <SelectItem key={s} value={s}>
-              {t(`reports.status.${s}`)}
-            </SelectItem>
-          ))}
-        </Select>
+        <div className="flex flex-wrap items-end gap-2">
+          <Select
+            value={status}
+            onValueChange={(value) => setParam({ status: value, page: '' })}
+            className="w-48"
+            aria-label={t('reports.filterStatus')}
+          >
+            <SelectItem value="">{t('reports.activeSales')}</SelectItem>
+            <SelectItem value="all">{t('reports.allStatuses')}</SelectItem>
+            {SALE_STATUS.map((s) => (
+              <SelectItem key={s} value={s}>
+                {t(`reports.status.${s}`)}
+              </SelectItem>
+            ))}
+          </Select>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">{t('reports.fromDate')}</Label>
+            <Input
+              type="date"
+              value={from}
+              onChange={(event) => setParam({ from: event.target.value, page: '' })}
+              className="h-9"
+              aria-label={t('reports.fromDate')}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">{t('reports.toDate')}</Label>
+            <Input
+              type="date"
+              value={to}
+              onChange={(event) => setParam({ to: event.target.value, page: '' })}
+              className="h-9"
+              aria-label={t('reports.toDate')}
+            />
+          </div>
+          {/* Reset returns to the DEFAULT (revenue) view — so from `all` it
+              hides refunded/voided rows again; the dropdown shows the state. */}
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={() => setParam({ status: '', from: '', to: '', page: '' })}>
+              <X aria-hidden="true" />
+              <span className="ms-1">{t('list.resetFilters')}</span>
+            </Button>
+          )}
+        </div>
+
+        {/* Exact totals of the FILTERED set (server-side Σ, not this page) —
+            only once the list has data to avoid a 0/$0.00 line while loading.
+            Net = total − refunds (BigInt integer math, hard rule #3). */}
+        {!isPending && (
+          <p className="text-sm text-muted-foreground">
+            {t('reports.summary', {
+              count: sales?.total ?? 0,
+              total: formatMinor(sales?.totalAmountMinor ?? '0'),
+              refunds: formatMinor(sales?.refundsAmountMinor ?? '0'),
+              net: formatMinor(
+                (BigInt(sales?.totalAmountMinor ?? '0') - BigInt(sales?.refundsAmountMinor ?? '0')).toString(),
+              ),
+            })}
+          </p>
+        )}
 
         <Card>
           <CardContent className="p-0">
@@ -136,8 +200,7 @@ export function ReportsView() {
         </Card>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">{t('list.total', { count: sales?.total ?? 0 })}</p>
-          <div className="flex items-center gap-2">
+          <div className="ms-auto flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"

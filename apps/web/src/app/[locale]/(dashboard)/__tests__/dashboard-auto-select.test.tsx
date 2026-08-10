@@ -5,17 +5,27 @@ import { render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as ResourceModule from '@/lib/api/resources';
+
 const switchOrg = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
 
-vi.mock('@/lib/api/resources', () => ({
-  createOrganization: vi.fn(),
-  getActiveOrganization: vi.fn(),
-  getMyOrganizations: vi.fn(),
-}));
+// Spread the real resources module so the module hooks the dashboard composes
+// (useInventoryProducts, usePosSales, useDealsList, useCurrencies) import
+// cleanly. `useQuery` is mocked to never run queryFns, so the real resource
+// functions are never invoked (no network in tests).
+vi.mock('@/lib/api/resources', async (importOriginal) => {
+  const actual = await importOriginal<typeof ResourceModule>();
+  return {
+    ...actual,
+    createOrganization: vi.fn(),
+    getActiveOrganization: vi.fn(),
+    getMyOrganizations: vi.fn(),
+  };
+});
 
 vi.mock('@/lib/auth/session-context', () => ({
   useSession: () => ({
@@ -37,6 +47,9 @@ vi.mock('@/lib/entitlements', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
+  // The dashboard composes module hooks (useInventoryProducts, usePosSales,
+  // useDealsList), which import keepPreviousData for pagination placeholders.
+  keepPreviousData: undefined,
   useQuery: () => ({ data: undefined }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));

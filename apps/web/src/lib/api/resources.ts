@@ -1096,6 +1096,14 @@ export interface PosShift {
   currency: string;
   status: 'open' | 'closed';
   forcedClose: boolean;
+  /**
+   * Per-shift aggregates — present on the shifts list response only, so the
+   * list can show filtered totals without fetching each shift report
+   * (POS-8 semantics: Σ sale totals, Σ refund amounts).
+   */
+  salesCount?: number;
+  salesAmountMinor?: string;
+  refundsAmountMinor?: string;
 }
 
 /** One sale line (pos_sale_lines) — name/sku snapshots at sale time (POS-12). */
@@ -1214,8 +1222,20 @@ export function closePosShift(
   });
 }
 
-export function getPosShifts(): Promise<{ items: PosShift[] }> {
-  return apiFetch<{ items: PosShift[] }>('/v1/pos/shifts');
+/** Filters for the shifts list — a range on the shift's opened_at date. */
+export interface PosShiftParams {
+  /** Inclusive lower bound on opened_at (ISO date YYYY-MM-DD). */
+  fromDate?: string;
+  /** Inclusive upper bound on opened_at (ISO date YYYY-MM-DD). */
+  toDate?: string;
+}
+
+export function getPosShifts(params: PosShiftParams = {}): Promise<{ items: PosShift[] }> {
+  const query = new URLSearchParams();
+  if (params.fromDate) query.set('fromDate', params.fromDate);
+  if (params.toDate) query.set('toDate', params.toDate);
+  const qs = query.toString();
+  return apiFetch<{ items: PosShift[] }>(`/v1/pos/shifts${qs ? `?${qs}` : ''}`);
 }
 
 export function getPosShiftReport(shiftId: string): Promise<PosShiftReport> {
@@ -1260,15 +1280,34 @@ export function createPosSale(input: {
 }
 
 export interface PosSaleParams {
+  /**
+   * One status, or a comma-separated list (e.g. `completed,partially_refunded`)
+   * for revenue-style sums — the server allow-lists every token (POS-13).
+   */
   status?: string;
   shiftId?: string;
+  /** Inclusive lower bound on sold_at (ISO date YYYY-MM-DD). */
+  fromDate?: string;
+  /** Inclusive upper bound on sold_at (ISO date YYYY-MM-DD). */
+  toDate?: string;
   page?: number;
   pageSize?: number;
 }
 
-export function getPosSales(params: PosSaleParams = {}): Promise<PosPage<PosSale>> {
+/** Sales list page — carries the exact Σ of the matching set (server-side). */
+export interface PosSalesPage extends PosPage<PosSale> {
+  /** Σ sale totals of every sale matching the filter (minor units). */
+  totalAmountMinor: string;
+  /**
+   * Σ refunds issued in the same date window against matching sales (minor
+   * units) — Net Revenue = totalAmountMinor − refundsAmountMinor.
+   */
+  refundsAmountMinor: string;
+}
+
+export function getPosSales(params: PosSaleParams = {}): Promise<PosSalesPage> {
   const qs = posQueryString(params);
-  return apiFetch<PosPage<PosSale>>(`/v1/pos/sales${qs ? `?${qs}` : ''}`);
+  return apiFetch<PosSalesPage>(`/v1/pos/sales${qs ? `?${qs}` : ''}`);
 }
 
 export function getPosSale(id: string): Promise<PosSale> {
@@ -1317,6 +1356,8 @@ function posQueryString(params: PosSaleParams): string {
   const query = new URLSearchParams();
   if (params.status) query.set('status', params.status);
   if (params.shiftId) query.set('shiftId', params.shiftId);
+  if (params.fromDate) query.set('fromDate', params.fromDate);
+  if (params.toDate) query.set('toDate', params.toDate);
   if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
   if (params.pageSize !== undefined && params.pageSize !== POS_PAGE_SIZE)
     query.set('pageSize', String(params.pageSize));

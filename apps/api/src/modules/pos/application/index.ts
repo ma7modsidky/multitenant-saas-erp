@@ -25,5 +25,8 @@ export type {
   RefundLineRow,
   SyncLogRow,
   PageResult,
+  SalesListPage,
   SaleListFilter,
+  ShiftListFilter,
+  ShiftSummaryRow,
 } from './ports/index.js';

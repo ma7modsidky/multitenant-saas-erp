@@ -13,6 +13,17 @@ import { disableBillingModule, enableModuleTrial, getModuleCatalog } from '@/lib
 import { useSession } from '@/lib/auth/session-context';
 import { useEntitlements } from '@/lib/entitlements';
 
+/**
+ * Whole days remaining in a free trial (ceiling, so the final partial day
+ * still counts). 0 once the end date has passed.
+ */
+function trialDaysLeft(trialEndsAt: string): number {
+  const end = new Date(trialEndsAt).getTime();
+  if (Number.isNaN(end)) return 0;
+  const ms = end - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
+
 export default function ModulesSettingsPage() {
   const t = useTranslations();
   const queryClient = useQueryClient();
@@ -25,7 +36,6 @@ export default function ModulesSettingsPage() {
   if (organizationId === null) return <NoOrganizationState />;
 
   const entitlements = billing?.entitlements ?? [];
-  const stateOf = (moduleKey: string): string => entitlements.find((e) => e.moduleKey === moduleKey)?.state ?? 'none';
   const enabledStates = ['active', 'trialing', 'past_due'];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['entitlements'] });
@@ -78,8 +88,14 @@ export default function ModulesSettingsPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {(catalog ?? []).map((mod) => {
-          const state = stateOf(mod.key);
+          const entitlement = entitlements.find((e) => e.moduleKey === mod.key);
+          const state = entitlement?.state ?? 'none';
           const enabled = enabledStates.includes(state);
+          // Live countdown for modules actually in trial (BILL-2) — the card
+          // switches from the static trial-length line to days remaining.
+          // Falls back to the static line once the trial has run out.
+          const trialEnd = entitlement?.state === 'trialing' ? entitlement.trialEndsAt : null;
+          const trialRemaining = trialEnd ? trialDaysLeft(trialEnd) : 0;
           return (
             <Card key={mod.key}>
               <CardHeader>
@@ -92,7 +108,9 @@ export default function ModulesSettingsPage() {
               <CardContent>
                 {mod.trialDays > 0 && (
                   <p className="mb-4 text-xs text-muted-foreground">
-                    {t('modules.trialDays', { days: mod.trialDays })}
+                    {trialRemaining > 0
+                      ? t('modules.trialDaysLeft', { count: trialRemaining })
+                      : t('modules.trialDays', { days: mod.trialDays })}
                   </p>
                 )}
                 {enabled ? (

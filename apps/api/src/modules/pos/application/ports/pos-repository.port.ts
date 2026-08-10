@@ -151,13 +151,66 @@ export interface PageResult<T> {
   pageSize: number;
 }
 
+/**
+ * Sales list page — carries the exact Σ of the MATCHING set (ignoring
+ * pagination) so the reports page can show filtered totals without summing
+ * the current page (mirrors the CRM deals `DealListPage.totalValueBaseMinor`).
+ */
+export interface SalesListPage extends PageResult<SaleRow> {
+  /** Σ sale totals of every sale matching the filter (minor units). */
+  totalAmountMinor: string;
+  /**
+   * Σ refund amounts issued in the same date window against sales that match
+   * the filter (minor units). A fully-refunded sale's status ('refunded')
+   * drops it out of BOTH this Σ and the revenue Σ, so net revenue never
+   * double-counts a sale refunded within the same period (net = 0).
+   *
+   * Known limitation (deliberate): a sale fully refunded in a LATER period
+   * than it was sold is not netted retroactively — the org has no sale-status
+   * history to attribute its refund to the sale period, so the refund only
+   * counts in the period it was issued while the sale still counts for
+   * revenue. Net revenue = totalAmountMinor − refundsAmountMinor.
+   */
+  refundsAmountMinor: string;
+}
+
 /** Filter for the paginated sales list (reports / history). */
 export interface SaleListFilter {
-  status?: string;
+  /**
+   * One or more statuses to include (POS-13). Omitted = every status. The
+   * controller turns the comma-separated `status` query into this array, so
+   * revenue-style sums can exclude voided/refunded sales server-side.
+   */
+  statuses?: string[];
   shiftId?: string;
   registerId?: string;
+  /** Inclusive lower bound on sold_at (ISO date YYYY-MM-DD). */
+  fromDate?: string;
+  /** Inclusive upper bound on sold_at (ISO date YYYY-MM-DD). */
+  toDate?: string;
   page?: number;
   pageSize?: number;
+}
+
+/** Filter for the shifts list (shifts page) — range on opened_at. */
+export interface ShiftListFilter {
+  /** Inclusive lower bound on opened_at (ISO date YYYY-MM-DD). */
+  fromDate?: string;
+  /** Inclusive upper bound on opened_at (ISO date YYYY-MM-DD). */
+  toDate?: string;
+}
+
+/**
+ * A shift row plus its sales/refund aggregates — matches the shift-report
+ * totals semantics (POS-8: Σ sale totals, Σ refund amounts).
+ */
+export interface ShiftSummaryRow extends ShiftRow {
+  /** Number of sales in the shift. */
+  salesCount: number;
+  /** Σ sale totals in the shift (minor units). */
+  salesAmountMinor: string;
+  /** Σ refund amounts in the shift (minor units). */
+  refundsAmountMinor: string;
 }
 
 /** The POS read/write repository. RLS scopes every query to the org. */
@@ -173,7 +226,7 @@ export interface PosRepository {
   // ─── Shifts (POS-2, POS-4, POS-5, POS-7) ───────────────────────────────
   findOpenShiftByRegister(registerId: string, tx?: TxOrDb): Promise<ShiftRow | undefined>;
   findShiftById(id: string, tx?: TxOrDb): Promise<ShiftRow | undefined>;
-  listShifts(tx?: TxOrDb): Promise<ShiftRow[]>;
+  listShifts(filter?: ShiftListFilter, tx?: TxOrDb): Promise<ShiftSummaryRow[]>;
   insertShift(shift: ShiftData, tx?: TxOrDb): Promise<ShiftRow>;
   updateShiftClosed(shift: ShiftData, tx?: TxOrDb): Promise<void>;
   /** POS-7: true when any sale in the shift has `synced_at IS NULL`. */
@@ -189,7 +242,7 @@ export interface PosRepository {
   allocateReceiptNumber(registerId: string, tx?: TxOrDb): Promise<number>;
   findSaleById(id: string, tx?: TxOrDb): Promise<SaleRow | undefined>;
   findSaleByIdempotencyKey(idempotencyKey: string, tx?: TxOrDb): Promise<SaleRow | undefined>;
-  listSales(filter: SaleListFilter, tx?: TxOrDb): Promise<PageResult<SaleRow>>;
+  listSales(filter: SaleListFilter, tx?: TxOrDb): Promise<SalesListPage>;
   listSalesByShift(shiftId: string, tx?: TxOrDb): Promise<SaleRow[]>;
   insertSale(sale: SaleData, tx?: TxOrDb): Promise<void>;
   updateSaleStatus(id: string, status: string, tx?: TxOrDb): Promise<void>;

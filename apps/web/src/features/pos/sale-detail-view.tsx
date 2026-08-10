@@ -24,6 +24,7 @@ import {
 } from './hooks';
 import { localizedLabel } from './labels';
 import { formatMinorAmount, prorateRefundAmount } from './money';
+import { ReceiptPrint } from './receipt-print';
 import { SaleStatusBadge } from './reports-view';
 import type { RefundFormValues } from './schemas';
 
@@ -107,13 +108,16 @@ export function SaleDetailView({ saleId }: { saleId: string }) {
             <h1 className="text-2xl font-bold tracking-tight">{t('sale.title')}</h1>
             <p className="mt-1 font-mono text-sm text-muted-foreground">{sale.receiptNumber}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link href={`/${locale}/m/pos/reports`}>
+              {/* "All sales" label is truthful only in the every-status view —
+                  the reports default is now the revenue (active) filter. */}
+              <Link href={`/${locale}/m/pos/reports?status=all`}>
                 <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" />
                 <span className="ms-1">{t('sale.backToReports')}</span>
               </Link>
             </Button>
+            <ReceiptPrint saleId={sale.id} sale={sale} {...(register?.name ? { registerName: register.name } : {})} />
             <Can permission="pos:refund:process">
               {canRefund && (
                 <Button variant="outline" size="sm" onClick={() => setRefundOpen(true)}>

@@ -10,5 +10,8 @@ export type {
   RefundLineRow,
   SyncLogRow,
   PageResult,
+  SalesListPage,
   SaleListFilter,
+  ShiftListFilter,
+  ShiftSummaryRow,
 } from './pos-repository.port.js';

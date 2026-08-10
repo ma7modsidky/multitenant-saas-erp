@@ -56,8 +56,18 @@ export function InventoryLowStockWidget() {
                 href={`/${locale}/m/inventory/stock`}
                 className="group flex items-center justify-between gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/50"
               >
-                <span className="min-w-0 flex-1 truncate text-sm font-medium group-hover:text-primary" dir="auto">
-                  {localizedLabel(row.nameI18n, locale, row.sku)}
+                <span className="min-w-0 flex-1">
+                  {/* Product name on its own line; the SKU below is the row's
+                      variant identifier (same as the stock page), so a product
+                      with several low-stock variants reads as distinct rows
+                      instead of repeated names. */}
+                  <span className="block truncate text-sm font-medium group-hover:text-primary" dir="auto">
+                    {localizedLabel(row.nameI18n, locale)}
+                  </span>
+                  <span className="block truncate font-mono text-xs text-muted-foreground">
+                    {row.sku}
+                    {row.warehouseName ? ` · ${row.warehouseName}` : ''}
+                  </span>
                 </span>
                 <span className="shrink-0 font-mono text-xs tabular-nums text-destructive">
                   {row.quantityAvailable} / {row.reorderPoint}

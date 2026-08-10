@@ -17,6 +17,7 @@ import {
   getPosSales,
   getPosShiftReport,
   getPosShifts,
+  type PosShiftParams,
   openPosShift,
   voidPosSale,
   type PosSaleParams,
@@ -33,6 +34,8 @@ function salesKey(filters: PosSaleParams = {}): string[] {
     'sales',
     filters.status ?? '',
     filters.shiftId ?? '',
+    filters.fromDate ?? '',
+    filters.toDate ?? '',
     String(filters.page ?? 1),
     String(filters.pageSize ?? 12),
   ];
@@ -42,8 +45,11 @@ export function usePosRegisters() {
   return useQuery({ queryKey: posKey(['registers']), queryFn: getPosRegisters });
 }
 
-export function usePosShifts() {
-  return useQuery({ queryKey: posKey(['shifts']), queryFn: getPosShifts });
+export function usePosShifts(filters: PosShiftParams = {}) {
+  return useQuery({
+    queryKey: posKey(['shifts', filters.fromDate ?? '', filters.toDate ?? '']),
+    queryFn: () => getPosShifts(filters),
+  });
 }
 
 export function usePosShiftReport(shiftId: string, enabled = true) {
@@ -62,11 +68,12 @@ export function usePosSale(id: string, enabled = true) {
   });
 }
 
-export function usePosSales(filters: PosSaleParams = {}) {
+export function usePosSales(filters: PosSaleParams = {}, enabled = true) {
   return useQuery({
     queryKey: salesKey(filters),
     queryFn: () => getPosSales(filters),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
@@ -130,14 +137,22 @@ export function useCurrencies() {
   return useQuery({ queryKey: ['fx', 'currencies'], queryFn: getCurrencies });
 }
 
-/** Org base currency — the default for register float / cart currency. */
-export function useOrgBaseCurrency(): string {
+/**
+ * The active organization (name, base currency, settings) — a single cached
+ * query shared by every POS page (receipt headers, currency defaults).
+ */
+export function useActiveOrganization() {
   const { organizationId } = useSession();
-  const { data } = useQuery({
+  return useQuery({
     queryKey: ['organization', organizationId],
     queryFn: getActiveOrganization,
     enabled: organizationId !== null,
   });
+}
+
+/** Org base currency — the default for register float / cart currency. */
+export function useOrgBaseCurrency(): string {
+  const { data } = useActiveOrganization();
   return data?.data.baseCurrency ?? 'USD';
 }
 

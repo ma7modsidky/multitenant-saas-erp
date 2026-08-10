@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Package, Users, DollarSign, Building2, TrendingUp, Puzzle } from 'lucide-react';
+import { ArrowRight, Package, Users, DollarSign, Building2, TrendingUp, Wallet, Puzzle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
@@ -13,7 +13,11 @@ import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CrmRecentDealsWidget, CrmUpcomingActivitiesWidget } from '@/features/crm/dashboard-widgets';
+import { useDealsList } from '@/features/crm/hooks';
 import { InventoryLowStockWidget, InventoryStockValuationWidget } from '@/features/inventory/dashboard-widgets';
+import { useCurrencies, useInventoryProducts } from '@/features/inventory/hooks';
+import { formatMinorAmount } from '@/features/inventory/money';
+import { usePosSales } from '@/features/pos/hooks';
 import { ApiError } from '@/lib/api';
 import { createOrganization, getActiveOrganization } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
@@ -184,6 +188,41 @@ export default function DashboardPage() {
     enabled: organizationId !== null,
   });
 
+  // Stat cards pull their values from the modules' existing read endpoints
+  // (same pattern as the widget cards below). Queries are gated on the org's
+  // entitlement so an unentitled module never 403s — it just shows the 0 +
+  // hint state.
+  const entitlements = billing?.entitlements ?? [];
+  const hasModule = (moduleKey: string) =>
+    entitlements.some((e) => e.moduleKey === moduleKey && ['active', 'trialing', 'past_due'].includes(e.state));
+
+  // Revenue (MTD) range — the org's local dates, matching the sales reports
+  // page's inclusive date-range semantics.
+  const now = new Date();
+  const isoDay = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const mtdFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const mtdTo = isoDay(now);
+
+  const { data: productsPage } = useInventoryProducts({ pageSize: 1 }, hasModule('inventory'));
+  const { data: dealsPage } = useDealsList({ status: 'open', pageSize: 1 }, hasModule('crm'));
+  // Revenue counts completed + partially_refunded sales only — the server-side
+  // statuses filter excludes voided (no payment captured) and refunded sales.
+  const { data: salesPage } = usePosSales(
+    { fromDate: mtdFrom, toDate: mtdTo, status: 'completed,partially_refunded', pageSize: 1 },
+    hasModule('pos'),
+  );
+  // ISO currency reference data (exponents) for the revenue stat formatting.
+  const { data: currencies } = useCurrencies();
+
+  // Net Revenue (MTD) = gross revenue − refunds issued in the month (exact
+  // BigInt integer math, hard rule #3 — never floating-point money). The
+  // server computes both Σs on the matching set, so the dashboard never sums
+  // a page of rows.
+  const revenueMinor = BigInt(salesPage?.totalAmountMinor ?? '0');
+  const refundsMinor = BigInt(salesPage?.refundsAmountMinor ?? '0');
+  const netRevenueMinor = (revenueMinor - refundsMinor).toString();
+
   // Org auto-selection (AUTHZ-5 UX) lives in ShellLayout, which wraps every
   // dashboard route — including direct /settings/* navigation. See
   // components/shell/shell-layout.tsx.
@@ -226,8 +265,10 @@ export default function DashboardPage() {
     };
   });
 
-  const activeModules =
-    billing?.entitlements?.filter((e) => ['active', 'trialing', 'past_due'].includes(e.state)).length ?? 0;
+  const activeModules = entitlements.filter((e) => ['active', 'trialing', 'past_due'].includes(e.state)).length;
+
+  const baseCurrency = activeOrg?.data?.baseCurrency ?? 'USD';
+  const exponent = currencies?.find((c) => c.code === baseCurrency)?.exponent ?? 2;
 
   // Widgets are registered by modules (PLAN §3.3) and served by
   // GET /v1/me/dashboard/widgets — the dashboard never hardcodes a widget list.
@@ -261,9 +302,42 @@ export default function DashboardPage() {
       icon: Puzzle,
       change: t('dashboard.stats.modulesHint'),
     },
-    { label: t('dashboard.stats.products'), value: '0', icon: Package, change: t('dashboard.stats.startInventory') },
-    { label: t('dashboard.stats.revenueMtd'), value: '0', icon: TrendingUp, change: t('dashboard.stats.startSelling') },
-    { label: t('dashboard.stats.activeDeals'), value: '0', icon: DollarSign, change: t('dashboard.stats.dealsHint') },
+    {
+      label: t('dashboard.stats.products'),
+      value: String(productsPage?.total ?? 0),
+      icon: Package,
+      change: t('dashboard.stats.startInventory'),
+    },
+    {
+      label: t('dashboard.stats.revenueMtd'),
+      // Σ of the month's sale totals (server-side, minor units) for
+      // completed + partially_refunded sales — voided (no payment captured)
+      // and fully refunded sales never count. Note this is GROSS: a
+      // partially_refunded sale still contributes its full original total
+      // (refunds are separate records, same as the shift report).
+      value: formatMinorAmount(salesPage?.totalAmountMinor ?? '0', baseCurrency, { locale, exponent }),
+      icon: TrendingUp,
+      change: t('dashboard.stats.startSelling'),
+    },
+    {
+      label: t('dashboard.stats.netRevenueMtd'),
+      value: formatMinorAmount(netRevenueMinor, baseCurrency, { locale, exponent }),
+      icon: Wallet,
+      // Net = gross − refunds issued this month (server-side Σ). Shows the
+      // refunds figure when there are any; otherwise a neutral line.
+      change:
+        refundsMinor > 0n
+          ? t('dashboard.stats.netRevenueHint', {
+              refunds: formatMinorAmount(refundsMinor.toString(), baseCurrency, { locale, exponent }),
+            })
+          : t('dashboard.stats.netRevenueZeroHint'),
+    },
+    {
+      label: t('dashboard.stats.activeDeals'),
+      value: String(dealsPage?.total ?? 0),
+      icon: DollarSign,
+      change: t('dashboard.stats.dealsHint'),
+    },
   ];
 
   return (
@@ -275,7 +349,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

@@ -172,9 +172,35 @@ export class PosController {
   @Get('shifts')
   @ApiOkResponse({ type: PosShiftListEnvelopeResponse })
   @RequiresPermission('pos:report:view')
-  async listShiftsRoute(): Promise<{ data: { items: Record<string, unknown>[] } }> {
-    const rows = await this.listShifts.execute();
-    return { data: { items: rows.map(toShiftResponse) } };
+  async listShiftsRoute(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ): Promise<{ data: { items: Record<string, unknown>[] } }> {
+    // fromDate/toDate are interpolated into `::date` casts in the repository —
+    // a strict ISO date check is the injection boundary (mirrors the sales
+    // list route).
+    if (fromDate !== undefined && !ISO_DATE_RE.test(fromDate)) {
+      throw new BadRequestException('fromDate must be an ISO date (YYYY-MM-DD)');
+    }
+    if (toDate !== undefined && !ISO_DATE_RE.test(toDate)) {
+      throw new BadRequestException('toDate must be an ISO date (YYYY-MM-DD)');
+    }
+    const rows = await this.listShifts.execute({
+      ...(fromDate !== undefined ? { fromDate } : {}),
+      ...(toDate !== undefined ? { toDate } : {}),
+    });
+    // Per-shift sales/refund aggregates (POS-8 semantics) let the shifts list
+    // show filtered totals without N+1 report fetches.
+    return {
+      data: {
+        items: rows.map((row) => ({
+          ...toShiftResponse(row),
+          salesCount: row.salesCount,
+          salesAmountMinor: row.salesAmountMinor,
+          refundsAmountMinor: row.refundsAmountMinor,
+        })),
+      },
+    };
   }
 
   @Get('shifts/:id/report')
@@ -269,21 +295,43 @@ export class PosController {
   async listSalesRoute(
     @Query('status') status?: string,
     @Query('shiftId') shiftId?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-  ): Promise<{ data: { items: Record<string, unknown>[]; total: number; page: number; pageSize: number } }> {
-    // POS-13 status vocabulary — anything else is a 400, never an empty page.
-    if (status !== undefined && !SALE_STATUS_VALUES.includes(status)) {
-      throw new BadRequestException(`status must be one of: ${SALE_STATUS_VALUES.join(', ')}`);
-    }
+  ): Promise<{
+    data: {
+      items: Record<string, unknown>[];
+      total: number;
+      totalAmountMinor: string;
+      refundsAmountMinor: string;
+      page: number;
+      pageSize: number;
+    };
+  }> {
+    // POS-13 status vocabulary — a comma-separated list is allowed (e.g.
+    // "completed,partially_refunded" for revenue sums); every token is
+    // validated, anything else is a 400, never an empty page.
+    const statuses = parseSaleStatuses(status);
     if (shiftId !== undefined && !isUuid(shiftId)) {
       throw new BadRequestException('shiftId must be a UUID');
+    }
+    // fromDate/toDate are interpolated into `::date` casts in the repository —
+    // a strict ISO date check is the injection boundary (mirrors the inventory
+    // and CRM list routes).
+    if (fromDate !== undefined && !ISO_DATE_RE.test(fromDate)) {
+      throw new BadRequestException('fromDate must be an ISO date (YYYY-MM-DD)');
+    }
+    if (toDate !== undefined && !ISO_DATE_RE.test(toDate)) {
+      throw new BadRequestException('toDate must be an ISO date (YYYY-MM-DD)');
     }
     const pageNum = parsePage(page);
     const pageSizeNum = parsePage(pageSize);
     const result = await this.listSales.execute({
-      ...(status !== undefined ? { status } : {}),
+      ...(statuses !== undefined ? { statuses } : {}),
       ...(shiftId !== undefined ? { shiftId } : {}),
+      ...(fromDate !== undefined ? { fromDate } : {}),
+      ...(toDate !== undefined ? { toDate } : {}),
       ...(pageNum !== undefined ? { page: pageNum } : {}),
       ...(pageSizeNum !== undefined ? { pageSize: pageSizeNum } : {}),
     });
@@ -291,6 +339,12 @@ export class PosController {
       data: {
         items: result.items.map(toSaleResponse),
         total: result.total,
+        // Exact Σ of the matching sales (ignoring pagination) — the reports
+        // page shows filtered totals without summing the current page.
+        totalAmountMinor: result.totalAmountMinor,
+        // Σ refunds issued in the same window against matching sales — net
+        // revenue = totalAmountMinor − refundsAmountMinor (dashboard stat).
+        refundsAmountMinor: result.refundsAmountMinor,
         page: result.page,
         pageSize: result.pageSize,
       },
@@ -515,8 +569,28 @@ function parsePage(value: string | undefined): number | undefined {
   return n;
 }
 
+/**
+ * `status` query → allow-listed statuses (POS-13). Accepts a comma-separated
+ * list (`completed,partially_refunded`) and dedupes; any unknown token is a
+ * 400 so an invalid filter never silently returns an empty page.
+ */
+function parseSaleStatuses(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  const statuses = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (statuses.length === 0 || statuses.some((s) => !SALE_STATUS_VALUES.includes(s))) {
+    throw new BadRequestException(`status must be one of: ${SALE_STATUS_VALUES.join(', ')}`);
+  }
+  return [...new Set(statuses)];
+}
+
 /** The immutable sale status vocabulary (POS-13) — used to allow-list filters. */
 const SALE_STATUS_VALUES: readonly string[] = Object.values(SALE_STATUS);
+
+/** Strict ISO date (YYYY-MM-DD) for sold_at range filters. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * UUID check for header/query idempotency + id filters.
