@@ -224,7 +224,7 @@ export class InventoryController {
   @ApiOkResponse()
   @UsePipes(new ZodValidationPipe(updateProductSchema))
   @RequiresPermission('inventory:product:write')
-  @Audit({ action: 'UPDATE', entityType: 'product' })
+  @Audit({ action: 'UPDATE', entityType: 'product', captureAfter: true, captureBefore: true })
   async updateProductRoute(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
@@ -240,7 +240,7 @@ export class InventoryController {
   @Post('products/:id/archive')
   @ApiOkResponse()
   @RequiresPermission('inventory:product:write')
-  @Audit({ action: 'UPDATE', entityType: 'product' })
+  @Audit({ action: 'UPDATE', entityType: 'product', captureBefore: true })
   async archiveProductRoute(@Param('id') id: string): Promise<{ data: { archivedAt: string } }> {
     return { data: await this.archiveProduct.execute(id) };
   }
@@ -249,7 +249,7 @@ export class InventoryController {
   @ApiOkResponse()
   @UsePipes(new ZodValidationPipe(updateVariantSchema))
   @RequiresPermission('inventory:product:write')
-  @Audit({ action: 'UPDATE', entityType: 'product_variant' })
+  @Audit({ action: 'UPDATE', entityType: 'product_variant', captureAfter: true, captureBefore: true })
   async updateVariantRoute(
     @Param('id') id: string,
     @Body() dto: UpdateVariantDto,
@@ -271,7 +271,7 @@ export class InventoryController {
   @Post('variants/:id/archive')
   @ApiOkResponse()
   @RequiresPermission('inventory:product:write')
-  @Audit({ action: 'UPDATE', entityType: 'product_variant' })
+  @Audit({ action: 'UPDATE', entityType: 'product_variant', captureBefore: true })
   async archiveVariantRoute(@Param('id') id: string): Promise<{ data: { archivedAt: string } }> {
     return { data: await this.archiveVariant.execute(id) };
   }
@@ -279,7 +279,7 @@ export class InventoryController {
   @Post('products/:id/unarchive')
   @ApiOkResponse()
   @RequiresPermission('inventory:product:write')
-  @Audit({ action: 'RESTORE', entityType: 'product' })
+  @Audit({ action: 'RESTORE', entityType: 'product', captureBefore: true })
   async unarchiveProductRoute(@Param('id') id: string): Promise<{ data: { restoredAt: string } }> {
     return { data: await this.unarchiveProduct.execute(id) };
   }
@@ -287,7 +287,7 @@ export class InventoryController {
   @Post('variants/:id/unarchive')
   @ApiOkResponse()
   @RequiresPermission('inventory:product:write')
-  @Audit({ action: 'RESTORE', entityType: 'product_variant' })
+  @Audit({ action: 'RESTORE', entityType: 'product_variant', captureBefore: true })
   async unarchiveVariantRoute(@Param('id') id: string): Promise<{ data: { restoredAt: string } }> {
     return { data: await this.unarchiveVariant.execute(id) };
   }
@@ -407,7 +407,7 @@ export class InventoryController {
   @Post('reservations/:id/commit')
   @ApiOkResponse()
   @RequiresPermission('inventory:stock:adjust')
-  @Audit({ action: 'UPDATE', entityType: 'reservation' })
+  @Audit({ action: 'UPDATE', entityType: 'reservation', captureBefore: true })
   async commitReservationRoute(@Param('id') id: string): Promise<{ data: { movementId: string } }> {
     return { data: await this.commitReservation.execute(id) };
   }
@@ -415,7 +415,7 @@ export class InventoryController {
   @Post('reservations/:id/release')
   @ApiOkResponse()
   @RequiresPermission('inventory:stock:adjust')
-  @Audit({ action: 'UPDATE', entityType: 'reservation' })
+  @Audit({ action: 'UPDATE', entityType: 'reservation', captureBefore: true })
   async releaseReservationRoute(@Param('id') id: string): Promise<{ data: { released: boolean } }> {
     return { data: await this.releaseReservation.execute(id) };
   }
@@ -602,7 +602,7 @@ export class InventoryController {
   @Post('stock-counts/:id/apply')
   @ApiOkResponse()
   @RequiresPermission('inventory:stock:count')
-  @Audit({ action: 'UPDATE', entityType: 'stock_count' })
+  @Audit({ action: 'UPDATE', entityType: 'stock_count', captureBefore: true })
   async applyStockCountRoute(@Param('id') id: string): Promise<{ data: { correctionsApplied: number } }> {
     return { data: await this.applyStockCount.execute(id) };
   }

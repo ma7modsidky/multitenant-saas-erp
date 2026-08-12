@@ -1,6 +1,7 @@
 import { INVENTORY_STOCK_PORT } from '@modubiz/contracts';
 import { Module, type OnModuleInit } from '@nestjs/common';
 
+import { AuditBeforeStateRegistry, tableRowLoader } from '../../core/audit/__init__.js';
 import { PortRegistry } from '../../core/ports/port-registry.js';
 
 import { InventoryController } from './api/index.js';
@@ -96,9 +97,21 @@ export class InventoryModule implements OnModuleInit {
     // Concrete class here (not the contracts interface): Nest DI resolves
     // runtime providers, and TS interfaces are erased at compile time.
     private readonly stockPort: InventoryStockPortImpl,
+    private readonly auditBeforeState: AuditBeforeStateRegistry,
   ) {}
 
   onModuleInit(): void {
     this.portRegistry.register(INVENTORY_STOCK_PORT, this.stockPort);
+
+    // AUD-1: pre-mutation snapshots for @Audit({ captureBefore }) routes.
+    // Table-backed loaders read the row inside the tenant-bound transaction
+    // (RLS scopes the read); rows are normalized to the camelCase the request
+    // DTO snapshots use so before/after diff cleanly.
+    this.auditBeforeState.register('product', tableRowLoader('inv_products'));
+    this.auditBeforeState.register('product_variant', tableRowLoader('inv_product_variants'));
+    this.auditBeforeState.register('stock_movement', tableRowLoader('inv_stock_movements'));
+    this.auditBeforeState.register('stock_count', tableRowLoader('inv_stock_counts'));
+    this.auditBeforeState.register('warehouse', tableRowLoader('inv_warehouses'));
+    this.auditBeforeState.register('reservation', tableRowLoader('inv_stock_reservations'));
   }
 }

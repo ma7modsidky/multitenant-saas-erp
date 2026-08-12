@@ -196,7 +196,7 @@ export class ActivitiesController {
   @ApiOkResponse({ type: ActivityEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateActivitySchema))
   @RequiresPermission('crm:activity:write')
-  @Audit({ action: 'UPDATE', entityType: 'activity', captureAfter: true })
+  @Audit({ action: 'UPDATE', entityType: 'activity', captureAfter: true, captureBefore: true })
   async update(@Param('id') id: string, @Body() dto: UpdateActivityDto): Promise<{ data: Record<string, unknown> }> {
     const organizationId = TenantContext.requireOrganizationId();
 
@@ -225,7 +225,7 @@ export class ActivitiesController {
   @Post(':id/complete')
   @ApiOkResponse({ type: ActivityEnvelopeResponse })
   @RequiresPermission('crm:activity:write')
-  @Audit({ action: 'UPDATE', entityType: 'activity' })
+  @Audit({ action: 'UPDATE', entityType: 'activity', captureBefore: true })
   async complete(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
     const result = await this.completeActivityUseCase.execute({ activityId: id });
     return { data: toActivityResponse(result.activity.toJSON()) };

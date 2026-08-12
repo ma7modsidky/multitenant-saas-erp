@@ -155,7 +155,7 @@ export class PosController {
   @ApiOkResponse({ type: PosShiftEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(closeShiftSchema))
   @RequiresPermission('pos:shift:close')
-  @Audit({ action: 'UPDATE', entityType: 'shift' })
+  @Audit({ action: 'UPDATE', entityType: 'shift', captureAfter: true })
   async closeShiftRoute(
     @Param('id') registerId: string,
     @Body() dto: CloseShiftDto,
@@ -362,7 +362,7 @@ export class PosController {
   @Post('sales/:id/void')
   @ApiOkResponse({ type: PosSaleEnvelopeResponse })
   @RequiresPermission('pos:sale:create')
-  @Audit({ action: 'UPDATE', entityType: 'sale' })
+  @Audit({ action: 'UPDATE', entityType: 'sale', captureBefore: true })
   async voidSaleRoute(@Param('id') id: string): Promise<{ data: { saleId: string; status: string } }> {
     return { data: await this.voidSale.execute(id) };
   }

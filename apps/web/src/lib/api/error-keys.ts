@@ -136,6 +136,38 @@ export function updateRoleErrorKey(err: unknown): string {
 }
 
 /**
+ * Map a roles-platform error to a roles-page i18n key.
+ *
+ * - `ROLE_KEY_EXISTS` (create): a custom role with this key already exists
+ * - `CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED` (AUTHZ-4): custom roles may
+ *   never include owner/admin-reserved platform permissions
+ * - `PERMISSION_NOT_FOUND`: one of the submitted permission keys is not a
+ *   registered permission (stale catalog / race with a module change)
+ * - `SYSTEM_ROLE_IMMUTABLE`: a create/update/delete targeted a system role
+ * - 404 / `NOT_FOUND`: the role no longer exists (or belongs to another org)
+ *
+ * Anything else falls back to the generic action failure message.
+ */
+export function roleErrorKey(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 404 || err.code === 'NOT_FOUND') {
+      return 'roles.errors.roleNotFound';
+    }
+    switch (err.code) {
+      case 'ROLE_KEY_EXISTS':
+        return 'roles.errors.keyExists';
+      case 'CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED':
+        return 'roles.errors.platformPermissionDenied';
+      case 'PERMISSION_NOT_FOUND':
+        return 'roles.errors.permissionNotFound';
+      case 'SYSTEM_ROLE_IMMUTABLE':
+        return 'roles.errors.systemImmutable';
+    }
+  }
+  return err instanceof ApiError ? 'roles.errors.actionFailed' : 'auth.errors.unknown';
+}
+
+/**
  * Validate a `next` redirect target read from a query param.
  *
  * Only same-origin relative paths are allowed — absolute URLs, protocol-

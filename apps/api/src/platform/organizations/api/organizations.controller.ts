@@ -143,7 +143,7 @@ export class OrganizationsController {
   @ApiOkResponse({ type: OrganizationEnvelopeResponse })
   @RequiresPermission('platform:settings:manage')
   @UsePipes(new ZodValidationPipe(updateOrganizationSchema))
-  @Audit({ action: 'UPDATE', entityType: 'organization' })
+  @Audit({ action: 'UPDATE', entityType: 'organization', captureAfter: true, captureBefore: true })
   async update(@Param('id') id: string, @Body() dto: UpdateOrganizationDto): Promise<{ data: OrganizationResponse }> {
     // exactOptionalPropertyTypes: spreading the DTO would carry explicit
     // `undefined` for absent fields — spread each defined field conditionally.
@@ -169,7 +169,7 @@ export class OrganizationsController {
   @Delete(':id')
   @ApiOkResponse({ type: OrganizationDeleteResponse })
   @RequiresPermission('platform:organization:delete')
-  @Audit({ action: 'SOFT_DELETE', entityType: 'organization' })
+  @Audit({ action: 'SOFT_DELETE', entityType: 'organization', captureBefore: true })
   async delete(@Param('id') id: string): Promise<{
     data: { deletionScheduledAt: string; message: string };
   }> {
@@ -190,7 +190,7 @@ export class OrganizationsController {
   @Post(':id/cancel-deletion')
   @ApiCreatedResponse({ type: OrganizationEnvelopeResponse })
   @RequiresPermission('platform:organization:delete')
-  @Audit({ action: 'UPDATE', entityType: 'organization' })
+  @Audit({ action: 'UPDATE', entityType: 'organization', captureBefore: true })
   async cancelDeletion(@Param('id') id: string): Promise<{ data: OrganizationResponse }> {
     const organization = await this.cancelDeletionUseCase.execute({ organizationId: this.assertSessionOrg(id) });
 
@@ -221,7 +221,7 @@ export class OrganizationsController {
   @ApiOkResponse({ type: SettingsUpdateEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateOrganizationSettingsSchema))
   @RequiresPermission('platform:settings:manage')
-  @Audit({ action: 'UPDATE', entityType: 'organization_settings' })
+  @Audit({ action: 'UPDATE', entityType: 'organization_settings', captureAfter: true, captureBefore: true })
   async updateSettings(
     @Param('id') id: string,
     @Body() dto: UpdateOrganizationSettingsDto,

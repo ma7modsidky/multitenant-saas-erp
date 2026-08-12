@@ -97,7 +97,7 @@ export class RolesController {
   @ApiCreatedResponse({ type: RoleCreatedEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(createRoleSchema))
   @RequiresPermission('platform:roles:manage')
-  @Audit({ action: 'CREATE', entityType: 'role' })
+  @Audit({ action: 'CREATE', entityType: 'role', captureAfter: true })
   async createRole(@Param('orgId') orgId: string, @Body() dto: CreateRoleDto): Promise<{ data: { id: string } }> {
     const userId = TenantContext.requireUserId();
 
@@ -126,7 +126,7 @@ export class RolesController {
   @ApiOkResponse({ type: RoleMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateRoleSchema))
   @RequiresPermission('platform:roles:manage')
-  @Audit({ action: 'UPDATE', entityType: 'role' })
+  @Audit({ action: 'UPDATE', entityType: 'role', captureAfter: true, captureBefore: true })
   async updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
@@ -154,7 +154,7 @@ export class RolesController {
   @Delete('roles/:id')
   @ApiOkResponse({ type: RoleMessageEnvelopeResponse })
   @RequiresPermission('platform:roles:manage')
-  @Audit({ action: 'SOFT_DELETE', entityType: 'role' })
+  @Audit({ action: 'SOFT_DELETE', entityType: 'role', captureBefore: true })
   async deleteRole(@Param('id') id: string): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
@@ -172,7 +172,7 @@ export class RolesController {
   @ApiCreatedResponse({ type: RoleMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(assignRoleSchema))
   @RequiresPermission('platform:members:assign-role')
-  @Audit({ action: 'UPDATE', entityType: 'membership' })
+  @Audit({ action: 'UPDATE', entityType: 'membership', captureAfter: true, captureBefore: true })
   async assignRole(@Param('id') id: string, @Body() dto: AssignRoleDto): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
@@ -191,7 +191,7 @@ export class RolesController {
   @ApiCreatedResponse({ type: RoleMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(transferOwnershipSchema))
   @RequiresPermission('platform:ownership:transfer')
-  @Audit({ action: 'UPDATE', entityType: 'membership' })
+  @Audit({ action: 'UPDATE', entityType: 'membership', captureAfter: true })
   async transferOwnership(
     @Param('orgId') orgId: string,
     @Body() dto: TransferOwnershipDto,

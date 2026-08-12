@@ -157,7 +157,7 @@ export class MembershipsController {
   @ApiCreatedResponse({ type: InvitationCreatedEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(inviteUserSchema))
   @RequiresPermission('platform:members:invite')
-  @Audit({ action: 'CREATE', entityType: 'invitation' })
+  @Audit({ action: 'CREATE', entityType: 'invitation', captureAfter: true })
   async invite(@Param('orgId') orgId: string, @Body() dto: InviteUserDto): Promise<{ data: { invitationId: string } }> {
     const userId = TenantContext.requireUserId();
 
@@ -206,7 +206,7 @@ export class MembershipsController {
   @ApiOkResponse({ type: MembershipMessageEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateMemberRoleSchema))
   @RequiresPermission('platform:members:assign-role')
-  @Audit({ action: 'UPDATE', entityType: 'membership' })
+  @Audit({ action: 'UPDATE', entityType: 'membership', captureAfter: true, captureBefore: true })
   async updateRole(@Param('id') id: string, @Body() dto: UpdateMemberRoleDto): Promise<{ data: { message: string } }> {
     const userId = TenantContext.requireUserId();
     const organizationId = TenantContext.requireOrganizationId();
@@ -235,7 +235,7 @@ export class MembershipsController {
   @Delete('memberships/:id')
   @ApiOkResponse({ type: MembershipMessageEnvelopeResponse })
   @RequiresPermission('platform:members:remove')
-  @Audit({ action: 'SOFT_DELETE', entityType: 'membership' })
+  @Audit({ action: 'SOFT_DELETE', entityType: 'membership', captureBefore: true })
   async removeMember(@Param('id') id: string): Promise<{ data: { message: string } }> {
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.requireUserId();
@@ -260,7 +260,7 @@ export class MembershipsController {
   @Post('organizations/:orgId/invitations/:id/revoke')
   @ApiCreatedResponse({ type: MembershipMessageEnvelopeResponse })
   @RequiresPermission('platform:members:invite')
-  @Audit({ action: 'UPDATE', entityType: 'invitation' })
+  @Audit({ action: 'UPDATE', entityType: 'invitation', captureBefore: true })
   async revokeInvitation(@Param('id') id: string): Promise<{ data: { message: string } }> {
     // The caller's org comes from the session, never the path param (TEN-2);
     // the use case rejects an invitation that belongs to another org (404).

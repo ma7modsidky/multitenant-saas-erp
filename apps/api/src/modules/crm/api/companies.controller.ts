@@ -110,7 +110,7 @@ export class CompaniesController {
   @ApiOkResponse({ type: CompanyEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(companySchema.partial()))
   @RequiresPermission('crm:company:write')
-  @Audit({ action: 'UPDATE', entityType: 'company', captureAfter: true })
+  @Audit({ action: 'UPDATE', entityType: 'company', captureAfter: true, captureBefore: true })
   async update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) {
     const input: Record<string, unknown> = {};
     if (dto.name !== undefined) input.name = dto.name;

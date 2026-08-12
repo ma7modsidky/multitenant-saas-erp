@@ -1,4 +1,6 @@
 export { AuditModule } from './audit.module.js';
+export { AuditBeforeStateRegistry, tableRowLoader, rowToCamel } from './audit-before-state.js';
+export type { AuditBeforeStateLoader } from './audit-before-state.js';
 export { AuditLogger, redactSensitiveFields } from './audit-logger.js';
 export type { AuditEntry, AuditAction } from './audit-logger.js';
 export { AuditInterceptor, Audit, AUDIT_METADATA_KEY } from './audit.interceptor.js';

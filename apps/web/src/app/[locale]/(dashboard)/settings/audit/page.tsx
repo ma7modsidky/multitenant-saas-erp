@@ -1,8 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { FileSearch, Search } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { Download, Eye, FileSearch, Search } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/components/shell/access-denied';
@@ -17,12 +17,43 @@ import { useSession } from '@/lib/auth/session-context';
 import { useMemberName } from '@/lib/hooks/use-member-name';
 import { hasPermission } from '@/lib/permissions';
 
+import { ActionBadge, AuditEntryDialog, CopyIdButton } from './audit-entry-dialog';
+import {
+  auditEntryToRow,
+  buildAuditCsv,
+  columnHeaderKey,
+  CSV_COLUMNS,
+  downloadCsv,
+  fetchAllAuditEntries,
+  type AuditCsvContext,
+} from './export';
+import { changedFields, entityLabel as entityTypeLabel, formatValue, humanizeKey, shortId } from './format';
+
 const PAGE_SIZE = 15;
 
-// Filterable entity types and actions that appear in core_audit_log for the
-// platform-management endpoints (AUD-1). Iterated to render the dropdowns —
-// a readonly array type avoids an `as const` cast (no-restricted-syntax).
-const ENTITY_TYPES: readonly string[] = ['invitation', 'membership', 'organization', 'organization_settings', 'role'];
+// Every entity type that appears in core_audit_log (AUD-1) — iterated to
+// render the filter dropdown with human labels (audit.entities.*).
+const ENTITY_TYPES: readonly string[] = [
+  'invitation',
+  'membership',
+  'organization',
+  'organization_settings',
+  'role',
+  'register',
+  'shift',
+  'sale',
+  'refund',
+  'company',
+  'activity',
+  'contact',
+  'deal',
+  'product',
+  'product_variant',
+  'stock_movement',
+  'reservation',
+  'warehouse',
+  'stock_count',
+];
 const ACTIONS: readonly string[] = [
   'CREATE',
   'UPDATE',
@@ -36,58 +67,64 @@ const ACTIONS: readonly string[] = [
   'OTHER',
 ];
 
-const ACTION_COLORS: Record<string, string> = {
-  CREATE: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
-  UPDATE: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30',
-  DELETE: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30',
-  SOFT_DELETE: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30',
-  LOGIN: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  LOGOUT: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-};
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString();
-}
-
-/** Compact one-line rendering of a before/after JSON snapshot (diff preview). */
-function snapshotSummary(snapshot: Record<string, unknown> | null): string {
-  if (!snapshot) return '—';
-  const keys = Object.keys(snapshot);
-  if (keys.length === 0) return '{}';
-  return keys
-    .slice(0, 3)
-    .map((k) => {
-      const v = snapshot[k];
-      // String() on unknown may yield '[object Object]' for nested snapshots —
-      // stringify objects instead (no-base-to-string).
-      const rendered =
-        typeof v === 'string'
-          ? v
-          : typeof v === 'number' || typeof v === 'boolean'
-            ? String(v)
-            : (JSON.stringify(v) ?? 'null');
-      return `${k}: ${rendered}`;
-    })
-    .join(', ');
-}
-
-function ActionBadge({ action }: { action: string }) {
+/**
+ * Compact details-column summary: up to two changed fields with formatted
+ * values ("SKU: ABC-1 → ABC-2"), then "+N more". The full diff lives in the
+ * detail dialog — the table stays scannable.
+ */
+function DetailsSummary({ entry }: { entry: AuditLogEntry }) {
   const t = useTranslations();
+  const locale = useLocale();
+  const rows = changedFields(entry.before, entry.after);
+  if (rows.length === 0) return <span>—</span>;
+
+  const labels = { yes: t('audit.yes'), no: t('audit.no') };
+  const preview = rows.slice(0, 2).map((row) => {
+    const field = humanizeKey(row.key);
+    const hasBefore = row.before !== null && row.before !== undefined;
+    const hasAfter = row.after !== null && row.after !== undefined;
+    if (hasBefore && hasAfter) {
+      return `${field}: ${formatValue(row.before, locale, labels)} → ${formatValue(row.after, locale, labels)}`;
+    }
+    return `${field}: ${formatValue(hasAfter ? row.after : row.before, locale, labels)}`;
+  });
+
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-        ACTION_COLORS[action] ?? 'bg-secondary text-secondary-foreground border-transparent'
-      }`}
-    >
-      {t(`audit.actions.${action}`)}
-    </span>
+    <div className="space-y-0.5">
+      {preview.map((line) => (
+        <p key={line} className="truncate text-xs">
+          {line}
+        </p>
+      ))}
+      {rows.length > 2 && (
+        <p className="text-xs text-muted-foreground/70">{t('audit.moreFields', { count: String(rows.length - 2) })}</p>
+      )}
+    </div>
+  );
+}
+
+/** Entity cell: human label + truncated id with a copy button (id hidden when unrecorded). */
+function EntityCell({ entry }: { entry: AuditLogEntry }) {
+  const t = useTranslations();
+  const hasId = entry.entityId !== '' && entry.entityId !== 'unknown';
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-medium">{entityTypeLabel(t, entry.entityType)}</p>
+      {hasId && (
+        <p className="mt-0.5 inline-flex items-center gap-1">
+          <span className="font-mono text-xs text-muted-foreground" dir="ltr" title={entry.entityId}>
+            {shortId(entry.entityId)}
+          </span>
+          <CopyIdButton value={entry.entityId} compact />
+        </p>
+      )}
+    </div>
   );
 }
 
 export default function AuditLogSettingsPage() {
   const t = useTranslations();
+  const locale = useLocale();
   const { organizationId, permissions } = useSession();
   const memberName = useMemberName();
 
@@ -97,21 +134,27 @@ export default function AuditLogSettingsPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exported, setExported] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
-  // Memoized: the query object is the react-query key — a fresh object every
-  // render would re-run the query (and re-render) in a loop.
-  const query = useMemo(
+  // The filter half of the query — shared by the table query (which adds
+  // page/pageSize) and the CSV export (which walks ALL matching pages).
+  const filters = useMemo(
     () => ({
       ...(entityType !== '' ? { entityType } : {}),
       ...(action !== '' ? { action } : {}),
       ...(actorUserId !== '' ? { actorUserId } : {}),
       ...(fromDate !== '' ? { fromDate: new Date(fromDate).toISOString() } : {}),
       ...(toDate !== '' ? { toDate: new Date(`${toDate}T23:59:59.999`).toISOString() } : {}),
-      page,
-      pageSize: PAGE_SIZE,
     }),
-    [entityType, action, actorUserId, fromDate, toDate, page],
+    [entityType, action, actorUserId, fromDate, toDate],
   );
+
+  // Memoized: the query object is the react-query key — a fresh object every
+  // render would re-run the query (and re-render) in a loop.
+  const query = useMemo(() => ({ ...filters, page, pageSize: PAGE_SIZE }), [filters, page]);
 
   const { data, isFetching } = useQuery({
     queryKey: ['audit-log', organizationId, query],
@@ -142,6 +185,39 @@ export default function AuditLogSettingsPage() {
     setPage(1);
   };
 
+  const selectedActorName = selectedEntry
+    ? (memberName(selectedEntry.actorUserId) ?? selectedEntry.actorUserId ?? null)
+    : null;
+
+  // Export ALL entries matching the current filters as a CSV with the same
+  // humanized labels as the table (entity/action labels, formatted diffs).
+  const handleExport = async () => {
+    if (organizationId === null || isExporting) return;
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      const allEntries = await fetchAllAuditEntries(organizationId, filters);
+      const ctx: AuditCsvContext = {
+        locale,
+        labels: { yes: t('audit.yes'), no: t('audit.no') },
+        actionLabel: (a) => t(`audit.actions.${a}`),
+        entityLabel: (type) => entityTypeLabel(t, type),
+        actorName: (userId) => (userId ? (memberName(userId) ?? userId) : t('audit.system')),
+      };
+      const csv = buildAuditCsv(
+        CSV_COLUMNS.map((column) => t(columnHeaderKey(column))),
+        allEntries.map((entry) => auditEntryToRow(entry, ctx)),
+      );
+      downloadCsv(`audit-log-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+      setExported(true);
+      window.setTimeout(() => setExported(false), 2000);
+    } catch {
+      setExportError(t('audit.exportFailed'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -151,13 +227,32 @@ export default function AuditLogSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileSearch className="size-4 text-muted-foreground" aria-hidden="true" />
-            {t('audit.title')}
-          </CardTitle>
-          <CardDescription>{t('audit.subtitle')}</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileSearch className="size-4 text-muted-foreground" aria-hidden="true" />
+                {t('audit.title')}
+              </CardTitle>
+              <CardDescription>{t('audit.subtitle')}</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => void handleExport()}
+              disabled={isExporting || total === 0}
+            >
+              <Download className="size-4" aria-hidden="true" />
+              {isExporting ? t('audit.exporting') : exported ? t('audit.exported') : t('audit.exportCsv')}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
+          {exportError !== null && (
+            <p role="alert" className="mb-3 text-sm text-destructive">
+              {exportError}
+            </p>
+          )}
           {/* Filters */}
           <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <Select
@@ -172,7 +267,7 @@ export default function AuditLogSettingsPage() {
               <SelectItem value="">{t('audit.allEntityTypes')}</SelectItem>
               {ENTITY_TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
-                  {type}
+                  {entityTypeLabel(t, type)}
                 </SelectItem>
               ))}
             </Select>
@@ -246,13 +341,20 @@ export default function AuditLogSettingsPage() {
                     <th className="px-3 py-2 text-start font-medium">{t('audit.action')}</th>
                     <th className="px-3 py-2 text-start font-medium">{t('audit.entity')}</th>
                     <th className="px-3 py-2 text-start font-medium">{t('audit.details')}</th>
+                    <th className="px-3 py-2 text-start font-medium">
+                      <span className="sr-only">{t('audit.viewDetails')}</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {entries.map((entry: AuditLogEntry) => (
-                    <tr key={entry.id} className="align-top">
+                    <tr
+                      key={entry.id}
+                      className="align-top cursor-pointer transition-colors hover:bg-accent/30"
+                      onClick={() => setSelectedEntry(entry)}
+                    >
                       <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted-foreground">
-                        {formatDate(entry.occurredAt)}
+                        {new Date(entry.occurredAt).toLocaleString(locale)}
                       </td>
                       <td className="max-w-40 px-3 py-2.5">
                         {/* The audit record keeps the actor id (immutable —
@@ -268,25 +370,25 @@ export default function AuditLogSettingsPage() {
                         <ActionBadge action={entry.action} />
                       </td>
                       <td className="px-3 py-2.5">
-                        <p className="text-xs font-medium">{entry.entityType}</p>
-                        <p className="max-w-32 truncate font-mono text-xs text-muted-foreground">{entry.entityId}</p>
+                        <EntityCell entry={entry} />
                       </td>
                       <td className="max-w-72 px-3 py-2.5">
-                        <div className="space-y-0.5 text-xs">
-                          {entry.before !== null && (
-                            <p className="text-muted-foreground">
-                              <span className="text-muted-foreground/70">{t('audit.before')}: </span>
-                              {snapshotSummary(entry.before)}
-                            </p>
-                          )}
-                          {entry.after !== null && (
-                            <p className="text-muted-foreground">
-                              <span className="text-muted-foreground/70">{t('audit.after')}: </span>
-                              {snapshotSummary(entry.after)}
-                            </p>
-                          )}
-                          {entry.before === null && entry.after === null && <span>—</span>}
-                        </div>
+                        <DetailsSummary entry={entry} />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label={t('audit.viewDetails')}
+                          aria-haspopup="dialog"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEntry(entry);
+                          }}
+                        >
+                          <Eye className="size-4" aria-hidden="true" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -324,6 +426,8 @@ export default function AuditLogSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <AuditEntryDialog entry={selectedEntry} actorName={selectedActorName} onClose={() => setSelectedEntry(null)} />
     </div>
   );
 }

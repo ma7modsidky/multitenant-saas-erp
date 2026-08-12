@@ -186,7 +186,7 @@ export class DealsController {
   @ApiOkResponse({ type: DealEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(moveDealStageSchema))
   @RequiresPermission('crm:deal:write')
-  @Audit({ action: 'UPDATE', entityType: 'deal' })
+  @Audit({ action: 'UPDATE', entityType: 'deal', captureAfter: true, captureBefore: true })
   async moveStage(@Param('id') id: string, @Body() dto: MoveDealStageDto): Promise<{ data: Record<string, unknown> }> {
     const result = await this.moveDealStageUseCase.execute({
       dealId: id,
@@ -205,7 +205,7 @@ export class DealsController {
   @ApiOkResponse({ type: DealEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(closeDealSchema))
   @RequiresPermission('crm:deal:write')
-  @Audit({ action: 'UPDATE', entityType: 'deal' })
+  @Audit({ action: 'UPDATE', entityType: 'deal', captureAfter: true, captureBefore: true })
   async close(@Param('id') id: string, @Body() dto: CloseDealDto): Promise<{ data: Record<string, unknown> }> {
     const result = await this.closeDealUseCase.execute({
       dealId: id,
@@ -223,7 +223,7 @@ export class DealsController {
   @Post(':id/reopen')
   @ApiOkResponse({ type: DealEnvelopeResponse })
   @RequiresPermission('crm:deal:write')
-  @Audit({ action: 'UPDATE', entityType: 'deal' })
+  @Audit({ action: 'UPDATE', entityType: 'deal', captureBefore: true })
   async reopen(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
     const result = await this.reopenDealUseCase.execute({ dealId: id });
     return { data: toDealResponse(result.deal.toJSON()) };

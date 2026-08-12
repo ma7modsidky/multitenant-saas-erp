@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 
+import { AuditBeforeStateRegistry } from './audit-before-state.js';
 import { AuditDbWriter } from './audit-db-writer.js';
 import { AuditLogger } from './audit-logger.js';
 import { AuditInterceptor } from './audit.interceptor.js';
@@ -14,6 +15,8 @@ import { AuditInterceptor } from './audit.interceptor.js';
  *   - AuditDbWriter: best-effort persistence to `core_audit_log` (AUD-1/AUD-2)
  *   - AuditInterceptor (global): automatically records audit entries for
  *     handlers decorated with @Audit() — in-memory + DB persistence
+ *   - AuditBeforeStateRegistry: modules register per-entity before-state
+ *     loaders here; the interceptor uses them for @Audit({ captureBefore })
  *   - Redaction: sensitive fields (passwords, tokens, etc.) are redacted
  *     before persistence (AUD-3)
  *
@@ -29,11 +32,12 @@ import { AuditInterceptor } from './audit.interceptor.js';
   providers: [
     AuditLogger,
     AuditDbWriter,
+    AuditBeforeStateRegistry,
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
   ],
-  exports: [AuditLogger],
+  exports: [AuditLogger, AuditBeforeStateRegistry],
 })
 export class AuditModule {}

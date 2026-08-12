@@ -1,6 +1,7 @@
 import { ORGANIZATION_READ_PORT } from '@modubiz/contracts';
 import { Module, type OnModuleInit } from '@nestjs/common';
 
+import { AuditBeforeStateRegistry, tableRowLoader } from '../../core/audit/__init__.js';
 import { PortRegistry } from '../../core/ports/port-registry.js';
 import { MembershipsModule } from '../memberships/memberships.module.js';
 import { RolesModule } from '../roles/roles.module.js';
@@ -57,9 +58,14 @@ export class OrganizationsModule implements OnModuleInit {
     // Concrete class here (not the contracts interface): Nest DI resolves
     // runtime providers, and TS interfaces are erased at compile time.
     private readonly organizationReadPort: DrizzleOrganizationReadPort,
+    private readonly auditBeforeState: AuditBeforeStateRegistry,
   ) {}
 
   onModuleInit(): void {
     this.portRegistry.register(ORGANIZATION_READ_PORT, this.organizationReadPort);
+
+    // AUD-1: pre-mutation snapshots for @Audit({ captureBefore }) routes.
+    this.auditBeforeState.register('organization', tableRowLoader('core_organizations'));
+    this.auditBeforeState.register('organization_settings', tableRowLoader('core_organization_settings'));
   }
 }

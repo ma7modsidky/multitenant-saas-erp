@@ -1,4 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, type OnModuleInit } from '@nestjs/common';
+
+import { AuditBeforeStateRegistry, tableRowLoader } from '../../core/audit/__init__.js';
 
 import { PosController } from './api/index.js';
 import {
@@ -49,4 +51,14 @@ import { DrizzlePosRepository } from './infrastructure/index.js';
     GetShiftReportUseCase,
   ],
 })
-export class PosModule {}
+export class PosModule implements OnModuleInit {
+  constructor(private readonly auditBeforeState: AuditBeforeStateRegistry) {}
+
+  onModuleInit(): void {
+    // AUD-1: pre-mutation snapshots for @Audit({ captureBefore }) routes.
+    this.auditBeforeState.register('register', tableRowLoader('pos_registers'));
+    this.auditBeforeState.register('shift', tableRowLoader('pos_shifts'));
+    this.auditBeforeState.register('sale', tableRowLoader('pos_sales'));
+    this.auditBeforeState.register('refund', tableRowLoader('pos_refunds'));
+  }
+}

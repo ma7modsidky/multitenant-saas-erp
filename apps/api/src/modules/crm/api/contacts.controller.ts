@@ -136,7 +136,7 @@ export class ContactsController {
   @ApiOkResponse({ type: ContactEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(updateContactSchema))
   @RequiresPermission('crm:contact:write')
-  @Audit({ action: 'UPDATE', entityType: 'contact', captureAfter: true })
+  @Audit({ action: 'UPDATE', entityType: 'contact', captureAfter: true, captureBefore: true })
   async update(@Param('id') id: string, @Body() dto: UpdateContactDto): Promise<{ data: Record<string, unknown> }> {
     // exactOptionalPropertyTypes: optional props must be ABSENT, never
     // `undefined` — build the input object conditionally.

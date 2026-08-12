@@ -1,4 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, type OnModuleInit } from '@nestjs/common';
+
+import { AuditBeforeStateRegistry, tableRowLoader } from '../../core/audit/__init__.js';
 
 import {
   ActivitiesController,
@@ -102,4 +104,14 @@ import {
     GetActivityUseCase,
   ],
 })
-export class CrmModule {}
+export class CrmModule implements OnModuleInit {
+  constructor(private readonly auditBeforeState: AuditBeforeStateRegistry) {}
+
+  onModuleInit(): void {
+    // AUD-1: pre-mutation snapshots for @Audit({ captureBefore }) routes.
+    this.auditBeforeState.register('company', tableRowLoader('crm_companies'));
+    this.auditBeforeState.register('contact', tableRowLoader('crm_contacts'));
+    this.auditBeforeState.register('deal', tableRowLoader('crm_deals'));
+    this.auditBeforeState.register('activity', tableRowLoader('crm_activities'));
+  }
+}
