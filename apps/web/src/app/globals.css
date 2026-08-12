@@ -80,6 +80,68 @@
   }
 }
 
+/* Themed scrollbars — the OS-default scrollbar looks jarring in dark mode.
+   These rules ride the app's color tokens, so the scrollbar matches light and
+   dark automatically (the `.dark` class swaps the CSS variables). Applied
+   globally so the sidebar nav, dropdowns, tables, and dialogs stay consistent. */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Padding-box clip keeps the thumb visually slim with a hover-friendly hit
+     area; the rounded ends avoid a hard square against the track. */
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+}
+
+/* Mixed-direction content on BLOCK elements (dir="auto" table cells, titles)
+   flips the block's text alignment to match the CONTENT direction — so an
+   English product name renders left-aligned under a right-aligned RTL header
+   (and vice versa). Two-part fix:
+   - direction: inherit — text-align: start/end keeps resolving against the
+     column/container direction, so cells align with their headers.
+   - unicode-bidi: plaintext — the paragraph base direction is still detected
+     from the first strong character, so Arabic/English names and mixed
+     strings keep rendering in their natural order.
+   Inline elements (spans, links) and form controls (inputs) are intentionally
+   excluded: for them the content-driven direction is the desired behaviour. */
+@layer base {
+  td[dir='auto'],
+  th[dir='auto'],
+  p[dir='auto'],
+  h1[dir='auto'],
+  h2[dir='auto'],
+  h3[dir='auto'],
+  h4[dir='auto'],
+  h5[dir='auto'],
+  h6[dir='auto'],
+  div[dir='auto'],
+  dd[dir='auto'],
+  li[dir='auto'] {
+    direction: inherit;
+    unicode-bidi: plaintext;
+  }
+}
+
 /* POS receipt printing (receipt-print.tsx) — the receipt is hidden on screen
    and becomes the ONLY printed content: every other element is hidden in the
    print media, and the receipt flows at the top, centered, receipt-width. */
