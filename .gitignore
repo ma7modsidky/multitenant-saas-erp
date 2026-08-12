@@ -54,3 +54,6 @@ packages/api-client/openapi.json
 # Local tooling databases (desktop app local state, never committed)
 .freebuff/
 opencode.json
+
+# Demo
+demo.txt

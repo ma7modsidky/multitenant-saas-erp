@@ -1290,17 +1290,17 @@ limit (**OPS-6**). All mutating endpoints accept `Idempotency-Key` (**OPS-1**).
 
 ### Phase 6 — Definition of Done
 
-- [ ] Full MODULE_GUIDE DoD checklist complete
-- [ ] All **POS-1** through **POS-31** rules tested
-- [ ] `pos_payments` is append-only (trigger + test)
-- [ ] Level 3 port consumption proven: stock deduction is transactional with
+- [x] Full MODULE_GUIDE DoD checklist complete
+- [x] All **POS-1** through **POS-31** rules tested
+- [x] `pos_payments` is append-only (trigger + test)
+- [x] Level 3 port consumption proven: stock deduction is transactional with
       sale creation
-- [ ] Offline-first PWA: sell offline → sync idempotently; oversold → alert
-- [ ] Receipt numbers sequential and gap-free under concurrency
-- [ ] Tenant isolation test passing
-- [ ] E2E: POS online + offline journeys green
-- [ ] POS is keyboard- and scanner-driven (accessibility)
-- [ ] Zero `core/` changes
+- [x] Offline-first PWA: sell offline → sync idempotently; oversold → alert
+- [x] Receipt numbers sequential and gap-free under concurrency
+- [x] Tenant isolation test passing
+- [x] E2E: POS online + offline journeys green
+- [x] POS is keyboard- and scanner-driven (accessibility)
+- [x] Zero `core/` changes
 
 ---
 

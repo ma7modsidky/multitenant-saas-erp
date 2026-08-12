@@ -1,23 +1,48 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 69 — **Phase 6.7 installable PWA shell done**: service
-worker (`public/sw.js`, hand-rolled — no workbox per the locked stack), web app
-manifest (`app/manifest.ts` → `/manifest.webmanifest`), generated brand icons
-(`scripts/generate-pwa-icons.mjs` — dependency-free PNG encoder), a
-self-contained `/offline.html` fallback, SW registration in the root layout, a
-`beforeinstallprompt` install button on the POS, and an offline e2e journey
-(register SW → warm cache → `context.setOffline(true)` → reload → checkout still
-renders). Review fixes applied: navigation `cache.put` is now awaited (kills the
-offline-reload race), the e2e asserts locale-agnostic `[data-i18n="title"]`,
-loopback IPs register too, and logout wipes the SW page cache (shared-tablet
-privacy). Web 225/225 · i18n parity · build green.
+**Last updated:** Session 72 — **RTL table alignment + docs to Phase 6**: in
+Arabic (RTL), `dir="auto"` table cells were aligned by their CONTENT direction
+instead of the column — an English product name sat left-aligned under a
+right-aligned RTL header (and vice versa). Fixed globally in `globals.css` for
+block containers (`td`/`th`/`p`/`h1–h6`/`div`/`dd`/`li`): `direction: inherit`
+keeps `text-align: start/end` resolving against the column, while
+`unicode-bidi: plaintext` keeps Arabic/English names and mixed strings rendering
+in their natural order (spec-backed: plaintext affects content ordering only,
+never alignment). Inline spans/links and form inputs are deliberately excluded.
+README updated to **Phases 0–6 complete** (CRM, Inventory, POS built; POS
+offline-first PWA; committed e2e journeys in CI) with Inventory/POS now listed
+Beta; PLAN.md Phase 6 DoD all ticked. Everything accumulated since Session 70
+(audit UX overhaul, marketplace/billing/dashboard polish, themed scrollbars, RTL
+fix, docs) committed in four themed commits and pushed to `origin/main`.
 
-**Previous (Session 68):** E2E Journeys workflow verified end-to-end on a real
-GitHub runner via `workflow_dispatch`: **GREEN (all 16 steps)**, CRM/Inventory/
-POS journeys passing (3 passed in 31.3s); three fresh-checkout bugs fixed by the
-real runs (workspace build order, 401-tolerant readiness poll, Playwright
-browser install via `pnpm --filter web exec`). **Current phase:** Phase 6 — POS
-Module (full stack done except the offline PWA — now in progress)
+**Previous (Session 71):** Audit log UX overhaul — CREATE entries no longer log
+`entityId: 'unknown'` (the interceptor now derives the real id from the response
+envelope via a per-entityType key map), UPDATE entries finally carry a real
+**before → after** field diff (new `AuditBeforeStateRegistry` + table loaders
+per module; the pre-mutation row is read best-effort in a tenant-bound tx —
+audit never fails the request), and the settings audit page was rebuilt for
+operators: localized entity labels, full filter list, truncated ids with a copy
+button, human-formatted details ($1.80, localized dates, Yes/No), and a detail
+dialogwith the diff table + traceability metadata + raw-JSON toggle. ~30 new
+`audit.*` keys in en/ar/fr/es. Plus a CSV export of the filtered entries (all
+matching pages, Excel-safe, same humanized labels), and an editable role
+permission matrix (custom roles: tick permissions + Save, delete; system roles
+fixed; AUTHZ-4 reserved perms locked). API audit 102/102 · web 245/245 · lint 0
+errors.
+
+**Previous (Session 70):** Free demo deployment guide
+(`docs/DEMO_DEPLOYMENT.md`): Vercel (web) + Render (API) + Neon (Postgres) on
+the free tier, $0/mo. Verified from source that only Postgres is a real runtime
+dependency — Redis cache, BullMQ jobs, Stripe (FakeStripeAdapter), Resend, and
+R2 storage are validated-but-unused placeholders, so the guide uses dummy values
+for them. Covers the Neon `modubiz_app` role bootstrap (required BEFORE
+migrations — mirrors the docker init.sql grants), the exact Render build/start
+commands for the monorepo (`pnpm --filter "@modubiz/*" build && pnpm build` /
+`node dist/main`, same order as ci.yml), migrations + seed from the laptop
+against Neon, the Vercel Root Directory/build/env recipe, end-to-end
+verification (signup → org → trials → POS sale → reports), keep-alive, and a
+troubleshooting table. Prettier-clean. **Current phase:** Phase 6 — POS Module
+(6.7 offline + PWA shell done); audit UX overhaul (Session 71) ahead of Phase 7
 
 > This file tracks where we are in [PLAN.md](./PLAN.md). Update it at the end of
 > every work session.
@@ -638,6 +663,151 @@ errors · API/web typechecks clean.
 ---
 
 ## Session log
+
+### Session 72 — RTL-safe mixed-direction table cells, docs to Phase 6, first push
+
+- **RTL table alignment fixed (web).** In Arabic (RTL) the table headers render
+  right-aligned via logical `text-start`, but data cells with `dir="auto"` were
+  aligned by their CONTENT's direction instead — an English product name sat
+  left-aligned under a right-aligned header (and an Arabic name misaligned in an
+  LTR UI). Root cause: on a block element `dir="auto"` overrides the computed
+  `direction`, and `text-align: start` resolves against it. New rule in
+  `globals.css` targeting only block containers (`td`, `th`, `p`, `h1–h6`,
+  `div`, `dd`, `li`): `direction: inherit` makes alignment follow the
+  column/container, while `unicode-bidi: plaintext` keeps the paragraph base
+  direction detected from the first strong character — Arabic and English names
+  and mixed strings still render in natural order, just aligned with their
+  header. Spec-backed (CSS Writing Modes: `plaintext` affects content ordering
+  only, never `text-align`). Inline spans/links and form inputs are deliberately
+  excluded — content-driven direction is the desired behaviour there. Verified
+  all `dir="auto"` usages across CRM, Inventory, POS, and audit (block vs inline
+  vs input) before writing the selector list.
+- **Docs to Phase 6.** README status updated to **Phases 0–6 complete**
+  (CRM/Inventory/POS built, POS offline-first PWA, committed e2e journeys in CI)
+  and the modules table now lists Inventory + POS as Beta. PLAN.md Phase 6 DoD
+  checkboxes all ticked (evidence verified: `pos.isolation.spec.ts`, the
+  `pos-journey` + `pwa-offline-journey` e2e specs, append-only payments, and the
+  POS-* rule tests from the session log).
+- **First push to GitHub.** All uncommitted work accumulated since Session 70
+  committed in four themed commits and pushed to `origin/main`:
+  1. `feat(core): audit log — real entity ids, before→after diffs, operator UX`
+     (Session 71)
+  2. `feat(web): marketplace dependency UX, localized state badges, dashboard revenue hints`
+     (marketplace rework, shared ModuleStateBadge, billing badges, dashboard
+     stat hints)
+  3. `fix(web): themed scrollbars and RTL-aligned mixed-direction table cells`
+  4. `docs: mark Phases 0–6 complete`
+
+### Session 71 — Audit log UX overhaul (real entity ids, before-state, field diffs, detail dialog)
+
+- **Root causes fixed (backend).** (1) CREATE entries logged
+  `entityId: 'unknown'` — the interceptor only read the `:id` path param, which
+  POST routes don't have. It now derives the id from the response envelope via a
+  per-entityType key map (`RESPONSE_ID_KEYS`: `productId`, `saleId`,
+  `invitationId`, … with `id` tried first for register/warehouse/contact/…) so
+  creates record their real id. (2) UPDATE details were empty — `after` was
+  captured only when a route opted into `captureAfter`, and there was no
+  `before` at all. New `AuditBeforeStateRegistry` (core/audit) +
+  `tableRowLoader`/`rowToCamel`; modules register table-backed loaders
+  (`inv_products`, `pos_sales`, `crm_deals`, `core_memberships`, …) at
+  bootstrap. The interceptor reads the pre-mutation row in a tenant-bound
+  transaction (`TenantContext.run` + `TransactionManager.run`) BEFORE the
+  handler, best-effort — any failure logs and degrades to `before: null`; audit
+  never fails the request. Table names ride as their own `sql.identifier` chunk
+  (no injection surface; asserted in the spec).
+- **Decorators.** `@Audit` gained `captureBefore`/`captureAfter` options, wired
+  across inventory, POS, CRM, memberships, organizations, and roles controllers
+  (~30 routes) — updates now show a real before → after diff.
+- **Frontend overhaul (`settings/audit`).** Entity types render as localized
+  labels (unknown types humanized — never raw `stock_count`); the filter lists
+  every logged type; long ids truncate to `3a2f9c1e…` with a copy button (full
+  id in `title`); the details column shows formatted summaries
+  (`Role ID: role-admin`) instead of raw JSON. New `AuditEntryDialog` detail
+  view (per Stripe/GitHub practice): field-level Before/After diff table,
+  traceability metadata (IP, correlation id, full entity id + copy), and a
+  raw-JSON toggle for admins. Accessible modal (role/aria-modal, Escape,
+  backdrop + close button, focus moves to the panel). Money envelopes render as
+  `$1.80` (exponent-aware, never `toFixed`), ISO dates localized, booleans as
+  Yes/No.- **i18n.** ~30 new `audit.*` keys (entity catalog, actions, dialog,
+  copy, yes/no) added to en/ar/fr/es; parity spec green.
+- **CSV export.** New `export.ts` — the header button downloads ALL entries
+  matching the current filters (walks pages at the API max pageSize 200, not the
+  visible 15) as Excel-safe CSV: UTF-8 BOM, CRLF, RFC-4180 quoting, and an OWASP
+  formula guard (`= + @ tab CR -`). Same humanized labels as the table —
+  localized entity/action labels (raw codes alongside for filtering), `$1.80`
+  money, Yes/No, resolved actor names, full formatted diffs (all changed fields,
+  not the table's 2 + "N more"), ISO time, full entity ids (unknown → empty).
+  Transient "Exported" state + inline error on failure; button disabled when no
+  entries. 6 new `audit.*` keys × 4 locales. Reviewer fix: formula guard also
+  covers leading tab/CR.
+- **Tests.** `audit-before-state.spec.ts` (registry/rowToCamel/loader +
+  injection-shape assertion), `audit.interceptor.spec.ts` (entity-id extraction
+  incl. ambiguous responses, fail-soft before-load), audit page spec rewritten
+  for labels/diff/copy/dialog + an isolated `copy-id-button` spec; `export.spec`
+  (8 units: escaping, formula guard, row mapping, paging) + page export test
+  (download anchor/filename, pageSize 200, blob type + content, "Exported").
+  Reviewer fixes applied: copy button never shows a false "Copied" when the
+  Clipboard API is absent; `entityLabel` falls back to a humanized form.
+- **Editable role permission matrix (settings/roles).** Custom roles were
+  created but their permissions could never be edited — the matrix was
+  read-only. Now custom-role columns render toggleable checkboxes (native
+  inputs, aria-labelled), with a per-role **Save** + **Revert** that appears
+  when the draft differs from the saved set, calling `PATCH /v1/roles/:id` with
+  `permissionKeys`. System roles stay fixed (✓ read-only). AUTHZ-4:
+  `platformPermissions` rows are locked for custom roles (muted "—" with a hint)
+  — the UI can never propose a reserved grant; server errors map via the new
+  `roleErrorKey` (CUSTOM_ROLE_PLATFORM_PERMISSION_DENIED, PERMISSION_NOT_FOUND,
+  SYSTEM_ROLE_IMMUTABLE, ROLE_KEY_EXISTS, 404). Delete custom roles through
+  ConfirmDialog (`DELETE /v1/roles/:id`). Area `:manage` grants show a coverage
+  hint on the checkbox (unchecking removes the whole area grant). Draft logic is
+  Set-based and dedupe-robust; matrix feedback renders in the matrix card
+  (create-card feedback stays separate). ~14 new `roles.*` keys × 4 locales. 5
+  page tests (system read-only, toggle→save payload, AUTHZ-4 lock, revert,
+  delete flow).
+- **Validation.** API typecheck + audit 102/102 · web typecheck + audit 21/21 +
+  roles 5/5 + full web **245/245** · i18n parity · lint 0 errors · prettier
+  clean.
+
+### Session 70 — Free demo deployment guide (Vercel + Render + Neon, $0/mo)
+
+- **New doc: [`docs/DEMO_DEPLOYMENT.md`](./docs/DEMO_DEPLOYMENT.md).** A
+  beginner-friendly, step-by-step guide for showing ModuBiz online BEFORE Phase
+  7 (Production Hardening), using only free tiers. Written after verifying the
+  deployment facts against the source, not from memory.
+- **Only Postgres is real.** Confirmed from
+  `packages/config/src/config.schema.ts`
+  - adapters that Redis (in-memory cache), BullMQ (in-memory job queue), Stripe
+    (`FakeStripeAdapter`), Resend (placeholder), and R2 (placeholder) are all
+    validated-but-unused in this build — the guide gives dummy values for each
+    and explains why no Redis instance is needed. This is the answer to the "how
+    do I deploy Redis online free" question: you don't.
+- **Neon role bootstrap.** The core migrations `GRANT ... TO modubiz_app` (e.g.
+  0003_rls.sql), so the `modubiz_app` role must exist BEFORE `pnpm db:migrate` —
+  same lesson the e2e-journeys workflow proved on a fresh DB (Session 67). The
+  guide includes the exact SQL (mirroring `docker/postgres/init/init.sql`),
+  warns against Console-role creation with `neon_superuser` membership (would
+  silently bypass RLS), and confirms migrations never reference `modubiz_owner`
+  in SQL, so Neon's default console role works as the migration owner.
+- **Build/start recipe (proven by ci.yml).** Render: Root Directory `apps/api`,
+  install
+  `corepack enable && corepack prepare pnpm@11.17.0 --activate && pnpm install --frozen-lockfile`,
+  build `pnpm --filter "@modubiz/*" build && pnpm build` (workspace `dist/` is
+  git-ignored, so packages must compile first), start `node dist/main`. Vercel:
+  Root Directory `apps/web`, same install, build
+  `pnpm --filter "@modubiz/*" build && pnpm build` (web's build is
+  `scripts/next-build.cjs`, forcing `NODE_ENV=production`), env
+  `NEXT_PUBLIC_API_BASE_URL` + `NEXT_PUBLIC_APP_URL`.
+- **Migrations + seed from the laptop.**
+  `DATABASE_MIGRATION_URL=… pnpm db:migrate` (owner role, inline vars win over
+  `--env-file`) and `DATABASE_URL=… pnpm db:seed` (currencies + mock FX the
+  checkout needs); verification queries included.
+- **Free-tier honesty.** Render free spins down after 15 idle min (~30–60 s cold
+  start) and Neon scales to zero after 5 min; a cron-job.org ping every 10 min
+  keeps the API warm. Troubleshooting table covers the Zod boot validation, CORS
+  `WEB_BASE_URL` mismatch, RLS permission errors, and cold-start 502s.
+- **Validation.** Prettier clean
+  (`pnpm exec prettier --check docs/DEMO_DEPLOYMENT.md` passes). Docs-only
+  change — no code touched, no suites affected.
 
 ### Session 69 — Phase 6.7 installable PWA shell (service worker + manifest + offline-first routing)
 
