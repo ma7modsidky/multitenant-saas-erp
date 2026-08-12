@@ -10,6 +10,7 @@ import { useState, useRef, useEffect } from 'react';
 import { getMyOrganizations } from '@/lib/api/resources';
 import type { MembershipOrg } from '@/lib/api/types';
 import { useSession } from '@/lib/auth/session-context';
+import { applyTheme, getStoredTheme, storeTheme, type Theme } from '@/lib/theme';
 
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
@@ -39,7 +40,20 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+  // NOTE: the initial state MUST match what SSR renders ('light') — reading
+  // localStorage in the initializer would make the client's first render
+  // differ from the server HTML and break hydration. The persisted selection
+  // is restored in the effect below (the root layout's inline script already
+  // applied it pre-paint, so there is no flash of the wrong theme).
+  const [theme, setTheme] = useState<Theme>('light');
+
+  // Restore the persisted selection after hydration (idempotent), and follow
+  // the OS whenever the stored selection is 'system'.
+  useEffect(() => {
+    const stored = getStoredTheme();
+    setTheme(stored);
+    applyTheme(stored);
+  }, []);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const orgMenuRef = useRef<HTMLDivElement>(null);
 
@@ -68,20 +82,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   }, []);
 
   const cycleTheme = () => {
-    const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
+    const themes: Theme[] = ['light', 'dark', 'system'];
     const nextIndex = (themes.indexOf(theme) + 1) % themes.length;
     const next = themes[nextIndex];
     if (!next) return;
     setTheme(next);
-    if (next === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else if (next === 'light') {
-      document.documentElement.classList.remove('dark');
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    storeTheme(next);
+    applyTheme(next);
   };
 
   const themeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;

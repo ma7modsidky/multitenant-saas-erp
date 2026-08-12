@@ -56,6 +56,17 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={dir} className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Apply the persisted theme (light/dark/system) BEFORE first paint so
+            a dark-mode user never sees a flash of light mode on reload. The
+            topbar toggle writes `modubiz.theme` to localStorage — keep this
+            script in sync with src/lib/theme.ts. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=window.localStorage.getItem('modubiz.theme');var d=t==='dark'||(t==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-screen antialiased">
         {children}
         {/* Registers the offline shell (public/sw.js) — silent progressive enhancement. */}
