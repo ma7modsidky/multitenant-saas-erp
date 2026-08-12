@@ -295,6 +295,10 @@ export default function DashboardPage() {
     return <p className="text-xs text-muted-foreground">{t('dashboard.widgetPlaceholder')}</p>;
   };
 
+  // Module stat cards render only when the module is active — an org with no
+  // modules sees just the Active Modules card. The same entitlement source
+  // drives this and the widget grid below, so the two never drift apart (an
+  // unentitled module's queries stay disabled and its card is hidden).
   const stats = [
     {
       label: t('dashboard.stats.activeModules'),
@@ -302,48 +306,73 @@ export default function DashboardPage() {
       icon: Puzzle,
       change: t('dashboard.stats.modulesHint'),
     },
-    {
-      label: t('dashboard.stats.products'),
-      value: String(productsPage?.total ?? 0),
-      icon: Package,
-      change: t('dashboard.stats.startInventory'),
-    },
-    {
-      label: t('dashboard.stats.revenueMtd'),
-      // Σ of the month's sale totals (server-side, minor units) for
-      // completed + partially_refunded sales — voided (no payment captured)
-      // and fully refunded sales never count. Note this is GROSS: a
-      // partially_refunded sale still contributes its full original total
-      // (refunds are separate records, same as the shift report).
-      value: formatMinorAmount(salesPage?.totalAmountMinor ?? '0', baseCurrency, { locale, exponent }),
-      icon: TrendingUp,
-      // With sales, the hint says so explicitly — the gross figure is what
-      // makes this card different from Net Revenue below.
-      change: revenueMinor > 0n ? t('dashboard.stats.revenueGrossHint') : t('dashboard.stats.startSelling'),
-    },
-    {
-      label: t('dashboard.stats.netRevenueMtd'),
-      value: formatMinorAmount(netRevenueMinor, baseCurrency, { locale, exponent }),
-      icon: Wallet,
-      // Net = gross − refunds issued this month (server-side Σ). With
-      // refunds, show them; with none but sales, say the number equals
-      // Revenue (explains the duplicate-looking card); otherwise neutral.
-      change:
-        refundsMinor > 0n
-          ? t('dashboard.stats.netRevenueHint', {
-              refunds: formatMinorAmount(refundsMinor.toString(), baseCurrency, { locale, exponent }),
-            })
-          : revenueMinor > 0n
-            ? t('dashboard.stats.netRevenueNoRefundsHint')
-            : t('dashboard.stats.netRevenueZeroHint'),
-    },
-    {
-      label: t('dashboard.stats.activeDeals'),
-      value: String(dealsPage?.total ?? 0),
-      icon: DollarSign,
-      change: t('dashboard.stats.dealsHint'),
-    },
+    ...(hasModule('inventory')
+      ? [
+          {
+            label: t('dashboard.stats.products'),
+            value: String(productsPage?.total ?? 0),
+            icon: Package,
+            change: t('dashboard.stats.startInventory'),
+          },
+        ]
+      : []),
+    ...(hasModule('pos')
+      ? [
+          {
+            label: t('dashboard.stats.revenueMtd'),
+            // Σ of the month's sale totals (server-side, minor units) for
+            // completed + partially_refunded sales — voided (no payment
+            // captured) and fully refunded sales never count. Note this is
+            // GROSS: a partially_refunded sale still contributes its full
+            // original total (refunds are separate records, same as the
+            // shift report).
+            value: formatMinorAmount(salesPage?.totalAmountMinor ?? '0', baseCurrency, { locale, exponent }),
+            icon: TrendingUp,
+            // With sales, the hint says so explicitly — the gross figure is
+            // what makes this card different from Net Revenue below.
+            change: revenueMinor > 0n ? t('dashboard.stats.revenueGrossHint') : t('dashboard.stats.startSelling'),
+          },
+          {
+            label: t('dashboard.stats.netRevenueMtd'),
+            value: formatMinorAmount(netRevenueMinor, baseCurrency, { locale, exponent }),
+            icon: Wallet,
+            // Net = gross − refunds issued this month (server-side Σ). With
+            // refunds, show them; with none but sales, say the number equals
+            // Revenue (explains the duplicate-looking card); otherwise
+            // neutral.
+            change:
+              refundsMinor > 0n
+                ? t('dashboard.stats.netRevenueHint', {
+                    refunds: formatMinorAmount(refundsMinor.toString(), baseCurrency, { locale, exponent }),
+                  })
+                : revenueMinor > 0n
+                  ? t('dashboard.stats.netRevenueNoRefundsHint')
+                  : t('dashboard.stats.netRevenueZeroHint'),
+          },
+        ]
+      : []),
+    ...(hasModule('crm')
+      ? [
+          {
+            label: t('dashboard.stats.activeDeals'),
+            value: String(dealsPage?.total ?? 0),
+            icon: DollarSign,
+            change: t('dashboard.stats.dealsHint'),
+          },
+        ]
+      : []),
   ];
+
+  // Module gating makes the card count vary (1–5); size the lg grid to the
+  // count so a lone Active Modules card doesn't sit in an empty 5-column row.
+  const statsGridCols =
+    stats.length >= 5
+      ? 'lg:grid-cols-5'
+      : stats.length === 4
+        ? 'lg:grid-cols-4'
+        : stats.length === 3
+          ? 'lg:grid-cols-3'
+          : 'lg:grid-cols-2';
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -354,7 +383,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className={`grid gap-4 sm:grid-cols-2 ${statsGridCols}`}>
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
