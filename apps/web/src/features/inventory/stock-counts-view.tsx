@@ -189,7 +189,9 @@ export function StockCountsView() {
                             })}
                           </Link>
                         </td>
-                        <td className="px-4 py-3">{warehouseName(count.warehouseId)}</td>
+                        <td className="px-4 py-3" dir="auto">
+                          {warehouseName(count.warehouseId)}
+                        </td>
                         <td className="px-4 py-3 text-end font-mono text-xs tabular-nums">{count.lines.length}</td>
                         <td className="px-4 py-3">
                           <Badge variant={count.status === 'applied' ? 'secondary' : 'default'}>

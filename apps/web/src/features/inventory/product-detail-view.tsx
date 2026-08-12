@@ -511,6 +511,7 @@ export function ProductDetailView({ id }: { id: string }) {
                                     <Link
                                       href={`/${locale}/m/inventory/warehouses/${row.warehouseId}`}
                                       className="text-primary underline-offset-4 hover:underline"
+                                      dir="auto"
                                     >
                                       {row.warehouseName}
                                     </Link>
@@ -556,7 +557,9 @@ export function ProductDetailView({ id }: { id: string }) {
                           {formatDate(movement.occurredAt, locale)}
                         </td>
                         <td className="px-3 py-2">{t(`movements.types.${movement.type}`)}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{movement.warehouseName ?? '—'}</td>
+                        <td className="px-3 py-2 text-muted-foreground" dir="auto">
+                          {movement.warehouseName ?? '—'}
+                        </td>
                         <td
                           className={`px-3 py-2 text-end font-mono text-xs tabular-nums ${
                             incoming ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'

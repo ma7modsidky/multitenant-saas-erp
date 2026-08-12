@@ -153,7 +153,7 @@ export function ShiftsView() {
                           <td className="px-4 py-3 font-medium" dir="auto">
                             {register?.name ?? shift.registerId}
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground">
+                          <td className="px-4 py-3 text-muted-foreground" dir="auto">
                             {memberName(shift.openedBy) ?? shift.openedBy}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">

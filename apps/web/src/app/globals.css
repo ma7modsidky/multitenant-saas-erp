@@ -113,17 +113,25 @@
   }
 }
 
-/* Mixed-direction content on BLOCK elements (dir="auto" table cells, titles)
-   flips the block's text alignment to match the CONTENT direction — so an
-   English product name renders left-aligned under a right-aligned RTL header
-   (and vice versa). Two-part fix:
-   - direction: inherit — text-align: start/end keeps resolving against the
-     column/container direction, so cells align with their headers.
-   - unicode-bidi: plaintext — the paragraph base direction is still detected
-     from the first strong character, so Arabic/English names and mixed
-     strings keep rendering in their natural order.
-   Inline elements (spans, links) and form controls (inputs) are intentionally
-   excluded: for them the content-driven direction is the desired behaviour. */
+/* Mixed-direction content on dir="auto" block elements (table cells, name
+   links, card titles) flips the block's alignment to match the CONTENT
+   direction — so Arabic names render right-aligned and English names
+   left-aligned within the same column. Verified empirically in Chromium that
+   the obvious logical fixes do NOT work here:
+   - `unicode-bidi: plaintext` makes `text-align: start/end` resolve against
+     the CONTENT's base direction, so it cannot give column-consistent
+     alignment.
+   - `text-align: match-parent` still ends up content-directional for the
+     same reason.
+   The reliable fix is explicit document-direction alignment: under
+   `html[dir='ltr']` every dir="auto" block is left-aligned, under
+   `html[dir='rtl']` right-aligned — so a column of mixed Arabic/English
+   names always starts at the same edge as its header, in any locale.
+   `direction: inherit` + `unicode-bidi: plaintext` stay on the content: they
+   keep Arabic/Latin names and mixed strings rendering in their natural
+   order within the aligned cell.
+   Form controls (inputs, textareas, selects, buttons) are excluded so the
+   typing cursor keeps following the typed text's own direction. */
 @layer base {
   td[dir='auto'],
   th[dir='auto'],
@@ -136,9 +144,19 @@
   h6[dir='auto'],
   div[dir='auto'],
   dd[dir='auto'],
-  li[dir='auto'] {
+  li[dir='auto'],
+  a[dir='auto'],
+  span[dir='auto'] {
     direction: inherit;
     unicode-bidi: plaintext;
+  }
+
+  html[dir='ltr'] [dir='auto']:not(input):not(textarea):not(select):not(button) {
+    text-align: left;
+  }
+
+  html[dir='rtl'] [dir='auto']:not(input):not(textarea):not(select):not(button) {
+    text-align: right;
   }
 }
 

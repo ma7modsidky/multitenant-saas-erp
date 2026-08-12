@@ -205,9 +205,14 @@ export function StageMenu({ options, onSelect, disabled, ariaLabel }: StageMenuP
                     className={cn('size-4 shrink-0 text-primary', isCurrent ? 'opacity-100' : 'opacity-0')}
                     aria-hidden="true"
                   />
+                  {/* No text-align utility here: the global dir="auto" block
+                      rule aligns menu labels to the document direction (start
+                      edge, next to the check icon) in both LTR and RTL — a
+                      text-start utility would re-resolve against the label's
+                      own content direction and break that alignment. */}
                   <span
                     className={cn(
-                      'min-w-0 flex-1 truncate text-start',
+                      'min-w-0 flex-1 truncate',
                       isCurrent && 'font-medium',
                       option.isLost && 'text-destructive',
                     )}

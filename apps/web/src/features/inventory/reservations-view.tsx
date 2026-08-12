@@ -109,7 +109,9 @@ export function ReservationsView() {
                         <td className="px-4 py-3 font-medium" dir="auto">
                           {localizedLabel(reservation.nameI18n, locale, reservation.sku)}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{reservation.warehouseName}</td>
+                        <td className="px-4 py-3 text-muted-foreground" dir="auto">
+                          {reservation.warehouseName}
+                        </td>
                         <td className="px-4 py-3 text-end font-mono text-xs tabular-nums">{reservation.quantity}</td>
                         <td className="px-4 py-3">
                           <Badge variant={STATE_VARIANT[reservation.state] ?? 'secondary'}>

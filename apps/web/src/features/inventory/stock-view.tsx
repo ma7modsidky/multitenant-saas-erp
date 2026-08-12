@@ -364,7 +364,7 @@ export function StockView() {
                               className="transition-colors hover:bg-accent/30"
                             >
                               <td className="px-4 py-3 font-mono text-xs">{row.sku}</td>
-                              <td className="px-4 py-3">
+                              <td className="px-4 py-3" dir="auto">
                                 {/* A never-received variant with no warehouse yet
                                 targets the org's default warehouse. */}
                                 {row.warehouseName ?? t('receive.defaultWarehouse')}

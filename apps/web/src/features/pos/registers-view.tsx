@@ -186,7 +186,9 @@ export function RegistersView() {
                             {register.name}
                           </td>
                           <td className="px-4 py-3 font-mono text-xs">{register.code}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{warehouse?.name ?? '—'}</td>
+                          <td className="px-4 py-3 text-muted-foreground" dir="auto">
+                            {warehouse?.name ?? '—'}
+                          </td>
                           <td className="px-4 py-3">
                             {hasOpenShift ? (
                               <Badge variant="secondary">{t('register.statusOpen')}</Badge>

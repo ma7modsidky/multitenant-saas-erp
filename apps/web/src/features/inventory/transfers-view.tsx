@@ -212,8 +212,12 @@ export function TransfersView() {
                         <td className="px-4 py-3 font-medium" dir="auto">
                           {localizedLabel(transfer.nameI18n, locale, transfer.sku)}
                         </td>
-                        <td className="px-4 py-3">{warehouseName(transfer.fromWarehouseId)}</td>
-                        <td className="px-4 py-3">{warehouseName(transfer.toWarehouseId)}</td>
+                        <td className="px-4 py-3" dir="auto">
+                          {warehouseName(transfer.fromWarehouseId)}
+                        </td>
+                        <td className="px-4 py-3" dir="auto">
+                          {warehouseName(transfer.toWarehouseId)}
+                        </td>
                         <td className="px-4 py-3 text-end font-mono text-xs tabular-nums">{transfer.quantity}</td>
                         <td className="px-4 py-3 text-end">
                           {canRepeat(transfer) && (

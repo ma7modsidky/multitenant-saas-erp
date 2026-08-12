@@ -190,7 +190,9 @@ export function MovementsView() {
                             {localizedLabel(movement.nameI18n, locale, movement.sku)}
                           </td>
                           <td className="px-4 py-3">{t(`movements.types.${movement.type}`)}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{movement.warehouseName ?? '—'}</td>
+                          <td className="px-4 py-3 text-muted-foreground" dir="auto">
+                            {movement.warehouseName ?? '—'}
+                          </td>
                           <td
                             className={`px-4 py-3 text-end font-mono text-xs tabular-nums ${
                               incoming ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'
