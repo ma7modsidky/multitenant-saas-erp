@@ -9,6 +9,10 @@ import type { BillingResponse, EntitlementState, NavigationGroup } from '../api/
 import { getDashboardWidgets } from '../api/resources';
 import { useSession } from '../auth/session-context';
 
+import { ModuleStateBadge } from './module-state-badge';
+
+export { ModuleStateBadge };
+
 const ACTIVE_STATES: EntitlementState[] = ['active', 'trialing', 'past_due'];
 
 export function useNavigation(enabled = true) {

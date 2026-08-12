@@ -71,7 +71,10 @@ export interface RoleMatrix {
   permissionCatalog: string[];
 }
 
-export type EntitlementState = 'active' | 'trialing' | 'past_due' | 'none';
+// Backend entitlement vocabulary (core/entitlements) plus `none` for the
+// frontend's absent-entitlement fallback.
+export type EntitlementState =
+  'active' | 'trialing' | 'past_due' | 'expired' | 'suspended' | 'disabled' | 'available' | 'none';
 
 export interface Entitlement {
   moduleKey: string;

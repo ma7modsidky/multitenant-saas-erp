@@ -317,20 +317,25 @@ export default function DashboardPage() {
       // (refunds are separate records, same as the shift report).
       value: formatMinorAmount(salesPage?.totalAmountMinor ?? '0', baseCurrency, { locale, exponent }),
       icon: TrendingUp,
-      change: t('dashboard.stats.startSelling'),
+      // With sales, the hint says so explicitly — the gross figure is what
+      // makes this card different from Net Revenue below.
+      change: revenueMinor > 0n ? t('dashboard.stats.revenueGrossHint') : t('dashboard.stats.startSelling'),
     },
     {
       label: t('dashboard.stats.netRevenueMtd'),
       value: formatMinorAmount(netRevenueMinor, baseCurrency, { locale, exponent }),
       icon: Wallet,
-      // Net = gross − refunds issued this month (server-side Σ). Shows the
-      // refunds figure when there are any; otherwise a neutral line.
+      // Net = gross − refunds issued this month (server-side Σ). With
+      // refunds, show them; with none but sales, say the number equals
+      // Revenue (explains the duplicate-looking card); otherwise neutral.
       change:
         refundsMinor > 0n
           ? t('dashboard.stats.netRevenueHint', {
               refunds: formatMinorAmount(refundsMinor.toString(), baseCurrency, { locale, exponent }),
             })
-          : t('dashboard.stats.netRevenueZeroHint'),
+          : revenueMinor > 0n
+            ? t('dashboard.stats.netRevenueNoRefundsHint')
+            : t('dashboard.stats.netRevenueZeroHint'),
     },
     {
       label: t('dashboard.stats.activeDeals'),
