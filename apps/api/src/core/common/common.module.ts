@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
 import { AppExceptionFilter } from './app-exception.filter.js';
+import { HealthController } from './health.controller.js';
 import { ResponseInterceptor } from './response.interceptor.js';
 
 /**
@@ -11,6 +12,9 @@ import { ResponseInterceptor } from './response.interceptor.js';
  *   1. AppExceptionFilter — catches all exceptions and maps to `{ error }` format
  *   2. ResponseInterceptor — wraps successful responses in `{ data, meta }` format
  *
+ * Also hosts infrastructure controllers that belong to no business module:
+ *   - HealthController — unauthenticated GET /health liveness probe
+ *
  * This module MUST be imported FIRST in AppModule so that the exception
  * filter and response interceptor wrap all other module handlers.
  *
@@ -18,6 +22,7 @@ import { ResponseInterceptor } from './response.interceptor.js';
  * @see ARCHITECTURE.md §3 — core/common
  */
 @Module({
+  controllers: [HealthController],
   providers: [
     // Global exception filter — runs for every request
     {
