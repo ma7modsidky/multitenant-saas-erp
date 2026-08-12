@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+  '/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['HealthController_health'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/organizations': {
     parameters: {
       query?: never;
@@ -964,6 +980,550 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/inventory/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_status'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/products': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_listProductsRoute'];
+    put?: never;
+    post: operations['InventoryController_createProductRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/products/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_getProductRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['InventoryController_updateProductRoute'];
+    trace?: never;
+  };
+  '/v1/inventory/products/{id}/variants': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_addVariantRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/products/{id}/archive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_archiveProductRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/variants/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['InventoryController_updateVariantRoute'];
+    trace?: never;
+  };
+  '/v1/inventory/variants/{id}/archive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_archiveVariantRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/products/{id}/unarchive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_unarchiveProductRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/variants/{id}/unarchive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_unarchiveVariantRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/variants': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_listVariantsRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock/receive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_receiveStockRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock/adjust': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_adjustStockRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock/transfer': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_transferStockRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock/reserve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_reserveStockRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/reservations/{id}/commit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_commitReservationRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/reservations/{id}/release': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_releaseReservationRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_listStockRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock/movements': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_listMovementsRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/warehouses': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_listWarehousesRoute'];
+    put?: never;
+    post: operations['InventoryController_createWarehouseRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/reservations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_listReservationsRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock-counts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_listStockCountsRoute'];
+    put?: never;
+    post: operations['InventoryController_createStockCountRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock-counts/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['InventoryController_getStockCountRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/inventory/stock-counts/{id}/apply': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['InventoryController_applyStockCountRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PosController_status'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/registers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PosController_listRegistersRoute'];
+    put?: never;
+    post: operations['PosController_createRegisterRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/registers/{id}/shifts/open': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PosController_openShiftRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/registers/{id}/shifts/close': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PosController_closeShiftRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/shifts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PosController_listShiftsRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/shifts/{id}/report': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PosController_shiftReportRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/sales': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PosController_listSalesRoute'];
+    put?: never;
+    post: operations['PosController_checkoutRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/sales/sync': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PosController_syncSaleRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/sales/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PosController_getSaleRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/sales/{id}/void': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PosController_voidSaleRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pos/refunds': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PosController_processRefundRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1811,6 +2371,574 @@ export interface components {
         }[];
       };
     };
+    ProductListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          isActive: boolean;
+          variantId: string | null;
+          sku: string | null;
+          price: {
+            amountMinor: string;
+            currency: string;
+          } | null;
+          reorderPoint: string | null;
+          createdAt: string | null;
+          updatedAt: string | null;
+          variantCount: number;
+          variants: {
+            id: string;
+            sku: string;
+            price: {
+              amountMinor: string;
+              currency: string;
+            };
+            reorderPoint: string;
+            isActive: boolean;
+          }[];
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    CreateProductDto: {
+      nameI18n: {
+        [key: string]: string;
+      };
+      sku: string;
+      barcode?: string | null;
+      /**
+       * @default {
+       *       "amountMinor": "0",
+       *       "currency": "USD"
+       *     }
+       */
+      price: {
+        amountMinor: string;
+        currency: string;
+      };
+      /**
+       * @default {
+       *       "amountMinor": "0",
+       *       "currency": "USD"
+       *     }
+       */
+      cost: {
+        amountMinor: string;
+        currency: string;
+      };
+      /** @default 0 */
+      reorderPoint: string;
+      /** @default 0 */
+      reorderQuantity: string;
+    };
+    ProductEnvelopeResponse: {
+      data: {
+        id: string;
+        nameI18n: {
+          [key: string]: string;
+        };
+        isActive: boolean;
+        variantId: string | null;
+        sku: string | null;
+        price: {
+          amountMinor: string;
+          currency: string;
+        } | null;
+        reorderPoint: string | null;
+        createdAt: string | null;
+        updatedAt: string | null;
+        variantCount: number;
+        variants: {
+          id: string;
+          sku: string;
+          price: {
+            amountMinor: string;
+            currency: string;
+          };
+          reorderPoint: string;
+          isActive: boolean;
+        }[];
+      };
+    };
+    ProductDetailEnvelopeResponse: {
+      data: {
+        product: {
+          id: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          descriptionI18n: {
+            [key: string]: string;
+          };
+          isActive: boolean;
+          createdAt: string;
+          updatedAt: string;
+          createdByUserId: string | null;
+          updatedByUserId: string | null;
+        };
+        variants: {
+          id: string;
+          productId: string;
+          sku: string;
+          barcode: string | null;
+          price: {
+            amountMinor: string;
+            currency: string;
+          };
+          cost: {
+            amountMinor: string;
+            currency: string;
+          };
+          reorderPoint: string;
+          reorderQuantity: string;
+          isActive: boolean;
+          createdByUserId: string | null;
+          updatedByUserId: string | null;
+          stock: {
+            variantId: string;
+            sku: string;
+            productId: string;
+            nameI18n: {
+              [key: string]: string;
+            };
+            warehouseId: string | null;
+            warehouseName: string | null;
+            quantityOnHand: string;
+            quantityReserved: string;
+            quantityAvailable: string;
+            reorderPoint: string;
+            lastMovementId: string | null;
+            unitCost: {
+              amountMinor: string;
+              currency: string;
+            } | null;
+          }[];
+        }[];
+        movements: {
+          id: string;
+          type: string;
+          variantId: string;
+          sku: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          warehouseId: string | null;
+          warehouseName: string | null;
+          quantity: string;
+          unitCost: {
+            amountMinor: string;
+            currency: string;
+          } | null;
+          referenceType: string;
+          referenceId: string;
+          reasonCode: string | null;
+          occurredAt: string;
+          createdBy: string | null;
+        }[];
+      };
+    };
+    AddVariantDto: {
+      sku: string;
+      barcode?: string | null;
+      /**
+       * @default {
+       *       "amountMinor": "0",
+       *       "currency": "USD"
+       *     }
+       */
+      price: {
+        amountMinor: string;
+        currency: string;
+      };
+      /**
+       * @default {
+       *       "amountMinor": "0",
+       *       "currency": "USD"
+       *     }
+       */
+      cost: {
+        amountMinor: string;
+        currency: string;
+      };
+      /** @default 0 */
+      reorderPoint: string;
+      /** @default 0 */
+      reorderQuantity: string;
+    };
+    AddVariantResultEnvelopeResponse: {
+      data: {
+        variantId: string;
+      };
+    };
+    UpdateProductDto: {
+      nameI18n?: {
+        [key: string]: string;
+      };
+      descriptionI18n?: {
+        [key: string]: string;
+      };
+    };
+    UpdateVariantDto: {
+      sku?: string;
+      barcode?: string | null;
+      price?: {
+        amountMinor: string;
+        currency: string;
+      };
+      cost?: {
+        amountMinor: string;
+        currency: string;
+      };
+      reorderPoint?: string;
+      reorderQuantity?: string;
+    };
+    VariantListEnvelopeResponse: {
+      data: {
+        items: {
+          variantId: string;
+          productId: string;
+          sku: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    ReceiveStockDto: {
+      /** Format: uuid */
+      variantId: string;
+      /** Format: uuid */
+      warehouseId?: string | null;
+      quantity: string;
+      /**
+       * @default {
+       *       "amountMinor": "0",
+       *       "currency": "USD"
+       *     }
+       */
+      unitCost: {
+        amountMinor: string;
+        currency: string;
+      };
+      referenceType: string;
+      /** Format: uuid */
+      referenceId: string;
+      /** Format: uuid */
+      idempotencyKey?: string;
+    };
+    MovementResultEnvelopeResponse: {
+      data: {
+        movementId: string;
+      };
+    };
+    AdjustStockDto: {
+      /** Format: uuid */
+      variantId: string;
+      /** Format: uuid */
+      warehouseId?: string | null;
+      quantity: string;
+      reasonCode: string;
+      referenceType: string;
+      /** Format: uuid */
+      referenceId: string;
+    };
+    TransferStockDto: {
+      /** Format: uuid */
+      variantId: string;
+      /** Format: uuid */
+      fromWarehouseId: string;
+      /** Format: uuid */
+      toWarehouseId: string;
+      quantity: string;
+      referenceType: string;
+      /** Format: uuid */
+      referenceId: string;
+    };
+    ReserveStockDto: {
+      /** Format: uuid */
+      variantId: string;
+      /** Format: uuid */
+      warehouseId: string;
+      quantity: string;
+      holdForSeconds?: number;
+      referenceType: string;
+      /** Format: uuid */
+      referenceId: string;
+      /** Format: uuid */
+      idempotencyKey?: string;
+    };
+    ReservationResultEnvelopeResponse: {
+      data: {
+        reservationId: string;
+        expiresAt: string;
+      };
+    };
+    StockLevelListEnvelopeResponse: {
+      data: {
+        items: {
+          variantId: string;
+          sku: string;
+          productId: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          warehouseId: string | null;
+          warehouseName: string | null;
+          quantityOnHand: string;
+          quantityReserved: string;
+          quantityAvailable: string;
+          reorderPoint: string;
+          lastMovementId: string | null;
+          unitCost: {
+            amountMinor: string;
+            currency: string;
+          } | null;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    MovementListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          type: string;
+          variantId: string;
+          sku: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          warehouseId: string | null;
+          warehouseName: string | null;
+          quantity: string;
+          unitCost: {
+            amountMinor: string;
+            currency: string;
+          } | null;
+          referenceType: string;
+          referenceId: string;
+          reasonCode: string | null;
+          occurredAt: string;
+          createdBy: string | null;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    WarehouseListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          name: string;
+          code: string;
+          isDefault: boolean;
+          isActive: boolean;
+        }[];
+      };
+    };
+    CreateWarehouseDto: {
+      name: string;
+      code: string;
+      /** @default false */
+      isDefault: boolean;
+    };
+    WarehouseEnvelopeResponse: {
+      data: {
+        id: string;
+        name: string;
+        code: string;
+        isDefault: boolean;
+        isActive: boolean;
+      };
+    };
+    ReservationListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          variantId: string;
+          sku: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          warehouseId: string;
+          warehouseName: string;
+          quantity: string;
+          /** @enum {string} */
+          state: 'held' | 'committed' | 'released' | 'expired';
+          expiresAt: string;
+          referenceType: string;
+          referenceId: string;
+          createdAt: string;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    StockCountListEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          warehouseId: string;
+          /** @enum {string} */
+          status: 'draft' | 'applied';
+          countedAt: string | null;
+          countedBy: string | null;
+          notes: string | null;
+          lines: {
+            id: string;
+            variantId: string;
+            expectedQuantity: string;
+            countedQuantity: string;
+            variance: string;
+          }[];
+          createdAt: string;
+          updatedAt: string;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    StockCountDetailEnvelopeResponse: {
+      data: {
+        id: string;
+        warehouseId: string;
+        warehouseName: string;
+        /** @enum {string} */
+        status: 'draft' | 'applied';
+        countedAt: string | null;
+        countedBy: string | null;
+        notes: string | null;
+        lines: {
+          id: string;
+          variantId: string;
+          sku: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          expectedQuantity: string;
+          countedQuantity: string;
+          variance: string;
+        }[];
+        createdAt: string;
+        updatedAt: string;
+      };
+    };
+    CreateStockCountDto: {
+      /** Format: uuid */
+      warehouseId: string;
+      notes?: string | null;
+      lines: {
+        /** Format: uuid */
+        variantId: string;
+        countedQuantity: string;
+      }[];
+    };
+    StockCountEnvelopeResponse: {
+      data: {
+        id: string;
+        warehouseId: string;
+        /** @enum {string} */
+        status: 'draft' | 'applied';
+        countedAt: string | null;
+        countedBy: string | null;
+        notes: string | null;
+        lines: {
+          id: string;
+          variantId: string;
+          expectedQuantity: string;
+          countedQuantity: string;
+          variance: string;
+        }[];
+        createdAt: string;
+        updatedAt: string;
+      };
+    };
+    PosRegisterResponse: {
+      id: string;
+      name: string;
+      code: string;
+      warehouseId: string;
+      receiptPrefix: string;
+      isActive: boolean;
+      openShiftId?: Record<string, never> | null;
+      createdAt: string;
+    };
+    PosRegisterListEnvelopeResponse: {
+      data: components['schemas']['PosRegisterResponse'][];
+    };
+    PosRegisterEnvelopeResponse: {
+      data: components['schemas']['PosRegisterResponse'];
+    };
+    PosShiftResponse: {
+      id: string;
+      registerId: string;
+      openedBy: string;
+      openedAt: string;
+      openingFloatAmountMinor: string;
+      closedBy?: Record<string, never> | null;
+      closedAt?: Record<string, never> | null;
+      countedCashAmountMinor?: Record<string, never> | null;
+      expectedCashAmountMinor?: Record<string, never> | null;
+      varianceAmountMinor?: Record<string, never> | null;
+      currency: string;
+      status: string;
+      forcedClose: boolean;
+    };
+    PosShiftEnvelopeResponse: {
+      data: components['schemas']['PosShiftResponse'];
+    };
+    PosShiftListEnvelopeResponse: {
+      data: components['schemas']['PosShiftResponse'][];
+    };
+    PosCheckoutResponse: {
+      saleId: string;
+      receiptNumber: string;
+    };
+    PosCheckoutEnvelopeResponse: {
+      data: components['schemas']['PosCheckoutResponse'];
+    };
+    PosSaleResponse: {
+      id: string;
+      shiftId: string;
+      registerId: string;
+      receiptNumber: string;
+      status: string;
+      subtotalAmountMinor: string;
+      discountAmountMinor: string;
+      taxAmountMinor: string;
+      totalAmountMinor: string;
+      currency: string;
+      locale: string;
+      soldAt: string;
+      lines: string[];
+      payments: string[];
+    };
+    PosSaleListEnvelopeResponse: {
+      data: components['schemas']['PosSaleResponse'][];
+    };
+    PosSaleEnvelopeResponse: {
+      data: components['schemas']['PosSaleResponse'];
+    };
+    PosRefundResponse: {
+      refundId: string;
+      amountMinor: string;
+      refundedAt: string;
+    };
+    PosRefundEnvelopeResponse: {
+      data: components['schemas']['PosRefundResponse'];
+    };
   };
   responses: never;
   parameters: never;
@@ -1820,6 +2948,24 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  HealthController_health: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description API is up and routing requests */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   OrganizationsController_create: {
     parameters: {
       query?: never;
@@ -2963,6 +4109,8 @@ export interface operations {
       query: {
         search: string;
         companyId: string;
+        sortBy: string;
+        sortDir: string;
         page: string;
         pageSize: string;
       };
@@ -3078,6 +4226,8 @@ export interface operations {
     parameters: {
       query: {
         search: string;
+        sortBy: string;
+        sortDir: string;
         page: string;
         pageSize: string;
       };
@@ -3319,6 +4469,8 @@ export interface operations {
         assigneeUserId: string;
         unassigned: string;
         completed: string;
+        sortBy: string;
+        sortDir: string;
         page: string;
         pageSize: string;
       };
@@ -3486,6 +4638,858 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['NoteListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_listProductsRoute: {
+    parameters: {
+      query: {
+        search: string;
+        status: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProductListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_createProductRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateProductDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProductEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_getProductRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProductDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_updateProductRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateProductDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_addVariantRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddVariantDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AddVariantResultEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_archiveProductRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_updateVariantRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateVariantDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_archiveVariantRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_unarchiveProductRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_unarchiveVariantRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_listVariantsRoute: {
+    parameters: {
+      query: {
+        search: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VariantListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_receiveStockRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReceiveStockDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MovementResultEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_adjustStockRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdjustStockDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MovementResultEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_transferStockRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TransferStockDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_reserveStockRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReserveStockDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReservationResultEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_commitReservationRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_releaseReservationRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  InventoryController_listStockRoute: {
+    parameters: {
+      query: {
+        search: string;
+        warehouseId: string;
+        lowStock: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockLevelListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_listMovementsRoute: {
+    parameters: {
+      query: {
+        search: string;
+        type: string;
+        fromDate: string;
+        toDate: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MovementListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_listWarehousesRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WarehouseListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_createWarehouseRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateWarehouseDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WarehouseEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_listReservationsRoute: {
+    parameters: {
+      query: {
+        status: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReservationListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_listStockCountsRoute: {
+    parameters: {
+      query: {
+        status: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockCountListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_createStockCountRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateStockCountDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockCountEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_getStockCountRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockCountDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  InventoryController_applyStockCountRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PosController_status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PosController_listRegistersRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosRegisterListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_createRegisterRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosRegisterEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_openShiftRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosShiftEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_closeShiftRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosShiftEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_listShiftsRoute: {
+    parameters: {
+      query: {
+        fromDate: string;
+        toDate: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosShiftListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_shiftReportRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosShiftEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_listSalesRoute: {
+    parameters: {
+      query: {
+        status: string;
+        shiftId: string;
+        fromDate: string;
+        toDate: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosSaleListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_checkoutRoute: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosCheckoutEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_syncSaleRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosCheckoutEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_getSaleRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosSaleEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_voidSaleRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosSaleEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PosController_processRefundRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PosRefundEnvelopeResponse'];
         };
       };
     };
