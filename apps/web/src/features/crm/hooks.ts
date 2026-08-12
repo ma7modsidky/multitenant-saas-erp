@@ -123,24 +123,37 @@ export function useDealsList(params: CrmListParams = {}, enabled = true) {
 export type DealColumnDateFilter = 'today' | 'week' | 'month' | 'all';
 
 /**
- * Local-date day range (YYYY-MM-DD) for a board column preset, on `updated_at`
+ * UTC-day range (YYYY-MM-DD) for a board column preset, on `updated_at`
  * (deals touched in the period). `all` means no date bounds at all.
  * - today → [today, today]
  * - week  → [today − 6 days, today] (rolling week)
  * - month → [1st of this month, today]
+ *
+ * Dates are computed in UTC to match the API: deals store `updated_at` as a
+ * UTC instant and the read repository casts these dates in the database
+ * session timezone (UTC). Using local-time dates shifted the window by the
+ * browser's UTC offset, so a deal created in the early hours (local) landed
+ * on "yesterday" in UTC and vanished from the default "today" column — the
+ * board then showed "Nothing here yet" while the table listed it (see the
+ * crm-journey e2e note). Computing in UTC guarantees a deal created now is
+ * always inside its column's today window, in any browser timezone.
  */
-export function dealColumnDateRange(filter: DealColumnDateFilter): { fromDate?: string; toDate?: string } {
-  const now = new Date();
+export function dealColumnDateRange(
+  filter: DealColumnDateFilter,
+  now: Date = new Date(),
+): { fromDate?: string; toDate?: string } {
+  // The optional `now` argument is for deterministic tests; callers rely on
+  // the default (the current instant).
   const iso = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
   const today = iso(now);
   if (filter === 'all') return {};
   if (filter === 'today') return { fromDate: today, toDate: today };
   if (filter === 'week') {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6));
     return { fromDate: iso(start), toDate: today };
   }
-  return { fromDate: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, toDate: today };
+  return { fromDate: `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`, toDate: today };
 }
 
 /**

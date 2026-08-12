@@ -283,6 +283,10 @@ export function ContactDetailView({ id }: { id: string }) {
         id,
         input: {
           ...values,
+          // An unset company select submits '' (the form's "None" value); the
+          // PATCH schema requires a UUID or null, so normalize like the create
+          // flow — otherwise editing a company-less contact 400s on companyId.
+          companyId: values.companyId || null,
           email: values.email || null,
           phone: values.phone || null,
           secondaryPhone: values.secondaryPhone || null,

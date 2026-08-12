@@ -18,6 +18,18 @@ test.describe('CRM journey', () => {
     await page.getByRole('button', { name: 'Add contact' }).last().click();
     await expect(page.getByText(contactName)).toBeVisible();
 
+    // Editing a company-less contact must not 400: the form submits an empty
+    // company select as '' while the PATCH schema requires a UUID or null, so
+    // the client normalizes it to null. Success closes the edit form, which
+    // re-renders the Edit button.
+    await page
+      .getByRole('link', { name: new RegExp(contactName) })
+      .first()
+      .click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+
     // Two "Deals" links (sidebar + in-page CRM subnav) — use the subnav.
     await page.getByLabel('CRM').getByRole('link', { name: 'Deals' }).click();
     await page.getByRole('button', { name: 'Add deal' }).click();
@@ -28,9 +40,11 @@ test.describe('CRM journey', () => {
     await page.getByRole('option', { name: contactName }).click();
     await page.getByLabel('Amount in minor units').fill('250000');
     await page.getByRole('button', { name: 'Add deal' }).last().click();
-    // The board columns default to a "today" date filter — a deal created near
-    // the UTC midnight boundary can land on "yesterday" and be hidden there.
-    // The table view has no date filter, so assert the deal there instead.
+    // The board columns default to a "today" date filter, now computed in UTC
+    // (the API stores updated_at as UTC instants). A deal created here is
+    // always inside today's window, so it must appear on its stage column
+    // immediately — the table view also lists it.
+    await expect(page.getByRole('link', { name: dealTitle })).toBeVisible();
     await page.goto('/en/m/crm/deals/table');
     await expect(page.getByRole('link', { name: dealTitle })).toBeVisible();
   });
