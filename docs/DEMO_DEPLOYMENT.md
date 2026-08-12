@@ -157,7 +157,7 @@ Keep these two URLs — you'll paste them into Render (§6) and use them locally
 | **Install Command** | `corepack enable && corepack prepare pnpm@11.17.0 --activate && pnpm install --frozen-lockfile` |
 | **Build Command**   | `pnpm --filter "@modubiz/*" build && pnpm build`                                                |
 | **Start Command**   | `node dist/main`                                                                                |
-| Health Check Path   | _(leave blank — this build has no public `/health` route)_                                      |
+| Health Check Path   | `/health` (unauthenticated liveness probe — answers 200 OK)                                     |
 
 > **Why these commands?** The API imports workspace packages (`@modubiz/config`,
 > `@modubiz/db`, …) whose `dist/` output is git-ignored. The build command
@@ -328,9 +328,10 @@ Render free services sleep after 15 idle minutes, and the first request after a
 nap takes ~30–60 s. A free monitor that pings the API every 10 minutes fixes it:
 
 1. Create a free account at [cron-job.org](https://cron-job.org).
-2. Add a job: URL `https://modubiz-api.onrender.com/v1/modules`, **every 10
-   minutes**, save. The 401 response still counts as traffic and wakes the
-   service.
+2. Add a job: URL `https://modubiz-api.onrender.com/health`, **every 10
+   minutes**, save. The API answers **HTTP 200 OK** (the `@PublicRoute()`
+   `/health` liveness probe — no auth, no database), so cron-job.org shows a
+   green monitor instead of a 401.
 
 ### 10.2 Pre-seeded demo account (optional)
 
