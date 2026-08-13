@@ -21,7 +21,13 @@ export interface StoredUser {
 
 const TOKENS_KEY = 'modubiz.tokens';
 const USER_KEY = 'modubiz.user';
+// Org-scoped billing/entitlements snapshot (offline-first shell, POS-31 pattern).
+const BILLING_PREFIX = 'modubiz.billing.';
 export const AUTH_COOKIE = 'modubiz_authed';
+
+function billingKey(organizationId: string): string {
+  return `${BILLING_PREFIX}${organizationId}`;
+}
 
 function canUseLocalStorage(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -126,9 +132,39 @@ export const sessionStore = {
     return Array.isArray(perms) ? perms.filter((p): p is string => typeof p === 'string') : [];
   },
 
+  /**
+   * Last-known billing/entitlements snapshot for an org — read synchronously
+   * on mount so ModuleGate opens without a network round-trip (the PWA shell
+   * serves cached pages; the checkout must not blank out offline).
+   */
+  getCachedBilling<T>(organizationId: string): T | null {
+    return readJson<T>(billingKey(organizationId));
+  },
+
+  /** Write-through the freshly fetched billing snapshot (offline-first). */
+  setCachedBilling(organizationId: string, value: unknown): void {
+    writeJson(billingKey(organizationId), value);
+  },
+
+  /** Drop every org-scoped billing snapshot (logout / org switch). */
+  clearBillingCache(): void {
+    if (!canUseLocalStorage()) return;
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key && key.startsWith(BILLING_PREFIX)) keys.push(key);
+      }
+      for (const key of keys) window.localStorage.removeItem(key);
+    } catch {
+      // Storage unavailable — nothing to clear.
+    }
+  },
+
   clear(): void {
     removeKey(TOKENS_KEY);
     removeKey(USER_KEY);
+    this.clearBillingCache();
   },
 };
 

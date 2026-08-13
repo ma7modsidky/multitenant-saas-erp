@@ -77,6 +77,43 @@ describe('sessionStore', () => {
     expect(sessionStore.getUser()).toBeNull();
   });
 
+  it('stores and reads the org-scoped billing snapshot', () => {
+    const billing = {
+      subscription: null,
+      entitlements: [{ moduleKey: 'pos', state: 'trialing', trialEndsAt: null, activatedAt: null }],
+    };
+    sessionStore.setCachedBilling('org-1', billing);
+    expect(sessionStore.getCachedBilling('org-1')).toEqual(billing);
+  });
+
+  it('keeps billing snapshots scoped per organization', () => {
+    sessionStore.setCachedBilling('org-1', { subscription: null, entitlements: [] });
+    sessionStore.setCachedBilling('org-2', {
+      subscription: null,
+      entitlements: [{ moduleKey: 'crm', state: 'active', trialEndsAt: null, activatedAt: null }],
+    });
+    expect(sessionStore.getCachedBilling('org-2')).toEqual({
+      subscription: null,
+      entitlements: [{ moduleKey: 'crm', state: 'active', trialEndsAt: null, activatedAt: null }],
+    });
+    expect(sessionStore.getCachedBilling('org-3')).toBeNull();
+  });
+
+  it('clears billing snapshots for every org on logout', () => {
+    sessionStore.setCachedBilling('org-1', { subscription: null, entitlements: [] });
+    sessionStore.setCachedBilling('org-2', { subscription: null, entitlements: [] });
+    sessionStore.clear();
+    expect(sessionStore.getCachedBilling('org-1')).toBeNull();
+    expect(sessionStore.getCachedBilling('org-2')).toBeNull();
+  });
+
+  it('clears billing snapshots independently on org switch', () => {
+    sessionStore.setCachedBilling('org-1', { subscription: null, entitlements: [] });
+    sessionStore.clearBillingCache();
+    expect(sessionStore.getCachedBilling('org-1')).toBeNull();
+    expect(sessionStore.getTokens()).toBeNull();
+  });
+
   it('is a no-op without localStorage access (node)', () => {
     const store = sessionStore;
     // Simulate absence of window.localStorage

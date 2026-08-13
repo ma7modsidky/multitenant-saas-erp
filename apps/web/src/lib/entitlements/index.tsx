@@ -5,8 +5,9 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from '../api';
-import type { BillingResponse, EntitlementState, NavigationGroup } from '../api/types';
 import { getDashboardWidgets } from '../api/resources';
+import type { BillingResponse, EntitlementState, NavigationGroup } from '../api/types';
+import { sessionStore } from '../auth/session';
 import { useSession } from '../auth/session-context';
 
 import { ModuleStateBadge } from './module-state-badge';
@@ -37,7 +38,19 @@ export function useEntitlements() {
   const { organizationId } = useSession();
   return useQuery({
     queryKey: ['entitlements', organizationId],
-    queryFn: () => apiFetch<BillingResponse>(`/v1/organizations/${organizationId}/billing`, {}, { auth: true }),
+    queryFn: async () => {
+      const data = await apiFetch<BillingResponse>(`/v1/organizations/${organizationId}/billing`, {}, { auth: true });
+      // Offline-first shell (POS-31 pattern): write through the last-known
+      // snapshot so ModuleGate still opens when the network is gone — the SW
+      // serves the cached page, and the checkout must not blank out offline.
+      if (organizationId) sessionStore.setCachedBilling(organizationId, data);
+      return data;
+    },
+    // Seed from the cached snapshot synchronously: on an offline reload there
+    // is no network round-trip, so the gate opens on the very first render.
+    initialData: organizationId
+      ? (sessionStore.getCachedBilling<BillingResponse>(organizationId) ?? undefined)
+      : undefined,
     enabled: organizationId !== null,
   });
 }

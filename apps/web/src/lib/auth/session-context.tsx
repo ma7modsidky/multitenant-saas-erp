@@ -169,7 +169,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // POS-31: cached tenant data (catalog/registers) is org-scoped — drop it
       // on switch so the next org can never read the previous one's cache. The
       // outbox is kept (its items are org-keyed and only flush while active).
+      // The billing/entitlements snapshot is org-scoped too, so it is cleared
+      // the same way.
       void clearPosOfflineCaches();
+      sessionStore.clearBillingCache();
       refreshOrgId();
     },
     [refreshOrgId],
