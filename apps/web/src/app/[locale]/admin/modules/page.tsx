@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/lib/api';
 import { getAdminModules, updateAdminModulePricing, type AdminModulePricingRow } from '@/lib/api/resources';
+import { resolveEnModuleLabel } from '@/lib/module-labels';
 
 const CURRENCY_EXPONENTS: Record<string, number> = {
   USD: 2,
@@ -169,13 +170,16 @@ export default function AdminModulesPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {(data ?? []).map((mod) => {
             const row = rowOf(mod);
+            // The catalog stores i18n name keys; the admin console is
+            // English-only, so labels are resolved from the en catalog.
+            const moduleName = resolveEnModuleLabel(mod.name);
             const dependsOn = mod.dependsOn.length > 0 ? mod.dependsOn.join(', ') : '—';
             return (
               <Card key={mod.moduleKey}>
                 <CardContent className="space-y-4 p-5">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="font-semibold">{mod.name}</h2>
+                      <h2 className="font-semibold">{moduleName}</h2>
                       <Badge variant="secondary">{mod.moduleKey}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -207,7 +211,7 @@ export default function AdminModulesPage() {
                         inputMode="decimal"
                         value={row.monthly}
                         onChange={(e) => setRow(mod.moduleKey, { monthly: e.target.value })}
-                        aria-label={`${mod.name} ${t('admin.pricing.tableMonthly')}`}
+                        aria-label={`${moduleName} ${t('admin.pricing.tableMonthly')}`}
                       />
                     </div>
                     <div>
@@ -222,7 +226,7 @@ export default function AdminModulesPage() {
                         inputMode="decimal"
                         value={row.yearly}
                         onChange={(e) => setRow(mod.moduleKey, { yearly: e.target.value })}
-                        aria-label={`${mod.name} ${t('admin.pricing.tableYearly')}`}
+                        aria-label={`${moduleName} ${t('admin.pricing.tableYearly')}`}
                       />
                     </div>
                     <div>
@@ -237,7 +241,7 @@ export default function AdminModulesPage() {
                         value={row.currency}
                         onChange={(e) => setRow(mod.moduleKey, { currency: e.target.value })}
                         className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={`${mod.name} ${t('admin.pricing.tableCurrency')}`}
+                        aria-label={`${moduleName} ${t('admin.pricing.tableCurrency')}`}
                       >
                         {CURRENCIES.map((code) => (
                           <option key={code} value={code}>

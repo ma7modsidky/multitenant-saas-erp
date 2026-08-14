@@ -1425,6 +1425,8 @@ export interface AdminOrgDetail {
     moduleKey: string;
     moduleName: string;
     state: string;
+    /** Permanent BILL-2 stamp — non-null means the trial was already used. */
+    trialStartedAt: string | null;
     trialEndsAt: string | null;
     activatedAt: string | null;
     disabledAt: string | null;
@@ -1437,6 +1439,8 @@ export interface AdminModulePricingRow {
   description: string | null;
   icon: string | null;
   dependsOn: string[];
+  /** Free-trial length in days (0 = no trial). */
+  trialDays: number;
   /** Integer minor units, string (CUR-9). */
   priceMonthlyMinor: string;
   priceYearlyMinor: string;
@@ -1487,6 +1491,38 @@ export function adminEnableModule(orgId: string, moduleKey: string, skipTrial = 
 
 export function adminDisableModule(orgId: string, moduleKey: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/disable`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** Push a running (or lapsed) trial forward by `days` days (PLT-8). */
+export function adminExtendTrial(orgId: string, moduleKey: string, days: number): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/trial/extend`, {
+    method: 'POST',
+    body: JSON.stringify({ days }),
+  });
+}
+
+/** End a running trial now — moves to expired (read-only grace, BILL-3). */
+export function adminStopTrial(orgId: string, moduleKey: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/trial/stop`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** Revoke a paid module immediately (active → suspended). */
+export function adminSuspendModule(orgId: string, moduleKey: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/suspend`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** Restore full access (suspended / past_due / expired → active). */
+export function adminActivateModule(orgId: string, moduleKey: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/activate`, {
     method: 'POST',
     body: JSON.stringify({}),
   });

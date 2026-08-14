@@ -214,6 +214,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.83.0(react@19.2.8))
+      '@modubiz/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@tanstack/react-query':
         specifier: ^5.62.8
         version: 5.101.4(react@19.2.8)
@@ -242,9 +245,6 @@ importers:
       '@modubiz/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@modubiz/i18n':
-        specifier: workspace:*
-        version: link:../../packages/i18n
       '@modubiz/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig

@@ -9,6 +9,7 @@ import { UsersModule } from '../users/users.module.js';
 
 import { AdminController } from './api/index.js';
 import {
+  AdjustEntitlementUseCase,
   AdminBootstrapService,
   AdminOverviewUseCase,
   GetModulePricingUseCase,
@@ -57,6 +58,7 @@ import {
     ListOrganizationsUseCase,
     GetOrganizationDetailUseCase,
     SetOrganizationModuleUseCase,
+    AdjustEntitlementUseCase,
     GetModulePricingUseCase,
     UpdateModulePricingUseCase,
     GetSaasSettingsUseCase,

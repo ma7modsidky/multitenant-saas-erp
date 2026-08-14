@@ -89,6 +89,17 @@ export class SetOrganizationModuleUseCase {
       );
     }
 
+    // BILL-2 (PLT-5): trials are one per organization — `trialStartedAt` is a
+    // permanent stamp, so a lapsed/stopped/disabled trial can never be
+    // restarted even by an admin. Admin overrides are dedicated actions
+    // (extend-trial / stop-trial / enable-now), never a fresh trial.
+    if (!input.skipTrial && moduleCatalog.trialDays > 0 && entitlement?.trialStartedAt) {
+      throw new ConflictError(
+        TRIAL_ALREADY_USED,
+        `Module '${input.moduleKey}' trial has already been used by this organization`,
+      );
+    }
+
     // BILL-8: all dependencies must be entitled before enabling.
     for (const dep of moduleCatalog.dependsOn) {
       const depEntitlement = await this.txManager.runWithOrg(input.targetOrgId, (tx) =>

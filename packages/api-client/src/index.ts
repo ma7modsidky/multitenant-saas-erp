@@ -724,6 +724,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/admin/organizations/{orgId}/modules/{moduleKey}/trial/extend': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AdminController_extendTrial'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations/{orgId}/modules/{moduleKey}/trial/stop': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AdminController_stopTrial'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations/{orgId}/modules/{moduleKey}/suspend': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AdminController_suspendModule'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations/{orgId}/modules/{moduleKey}/activate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AdminController_activateModule'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/admin/modules': {
     parameters: {
       query?: never;
@@ -2174,6 +2238,7 @@ export interface components {
           moduleKey: string;
           moduleName: string;
           state: string;
+          trialStartedAt: string | null;
           trialEndsAt: string | null;
           activatedAt: string | null;
           disabledAt: string | null;
@@ -2190,6 +2255,10 @@ export interface components {
       };
     };
     AdminDisableModuleDto: Record<string, never>;
+    AdminExtendTrialDto: {
+      days: number;
+    };
+    AdminEmptyActionDto: Record<string, never>;
     AdminModulesEnvelopeResponse: {
       data: {
         moduleKey: string;
@@ -2197,6 +2266,7 @@ export interface components {
         description: string | null;
         icon: string | null;
         dependsOn: string[];
+        trialDays: number;
         priceMonthlyMinor: string;
         priceYearlyMinor: string;
         currency: string;
@@ -4330,6 +4400,110 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['AdminDisableModuleDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMessageEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_extendTrial: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminExtendTrialDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMessageEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_stopTrial: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminEmptyActionDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMessageEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_suspendModule: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminEmptyActionDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMessageEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_activateModule: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminEmptyActionDto'];
       };
     };
     responses: {

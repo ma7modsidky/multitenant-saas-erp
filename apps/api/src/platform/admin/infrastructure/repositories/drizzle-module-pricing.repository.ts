@@ -26,7 +26,7 @@ export class DrizzleModulePricingRepository implements ModulePricingRepository {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`
-        SELECT c.key, c.name, c.description, c.icon, c.depends_on,
+        SELECT c.key, c.name, c.description, c.icon, c.depends_on, c.trial_days,
                COALESCE(p.price_monthly_minor, 0) AS price_monthly_minor,
                COALESCE(p.price_yearly_minor, 0) AS price_yearly_minor,
                COALESCE(p.currency, 'USD')        AS currency
@@ -41,6 +41,7 @@ export class DrizzleModulePricingRepository implements ModulePricingRepository {
       description: (r.description as string | null) ?? null,
       icon: (r.icon as string | null) ?? null,
       dependsOn: (r.depends_on as string[]) ?? [],
+      trialDays: (r.trial_days as number) ?? 0,
       priceMonthlyMinor: String((r.price_monthly_minor as number | null) ?? 0),
       priceYearlyMinor: String((r.price_yearly_minor as number | null) ?? 0),
       currency: (r.currency as string) ?? 'USD',

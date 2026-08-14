@@ -99,8 +99,11 @@ describe('EnableModuleTrialUseCase', () => {
   });
 
   it('BILL-8: a read-only dependency (expired) still satisfies the dependency gate', async () => {
-    // expired → read-only but still entitled (ENTITLED_STATES includes 'expired').
-    billingRepo.findEntitlement.mockResolvedValue({ ...inventoryEntitled, state: 'expired' });
+    // Only the DEPENDENCY is expired (read-only but entitled); the target
+    // module itself never used a trial, so the fresh trial proceeds (BILL-2).
+    billingRepo.findEntitlement.mockImplementation(async (_orgId: string, moduleKey: string) =>
+      moduleKey === 'inventory' ? { ...inventoryEntitled, state: 'expired' } : undefined,
+    );
 
     await expect(execute()).resolves.toBeUndefined();
     expect(billingRepo.upsertEntitlement).toHaveBeenCalled();
@@ -115,6 +118,34 @@ describe('EnableModuleTrialUseCase', () => {
 
   it('BILL-2: rejects enabling a module that is already actively subscribed', async () => {
     billingRepo.findEntitlement.mockResolvedValue({ ...inventoryEntitled, state: 'active' });
+
+    await expect(execute()).rejects.toMatchObject({ code: TRIAL_ALREADY_USED });
+  });
+
+  it('BILL-2: rejects a fresh trial after a trial was already used — even from disabled', async () => {
+    // The org disabled the module after its trial — the state is now 'disabled'
+    // but trialStartedAt is permanent, so the trial can never be restarted
+    // (no disable → re-enable reset loop).
+    billingRepo.findEntitlement.mockImplementation(async (_orgId: string, moduleKey: string) => {
+      if (moduleKey === 'inventory') return inventoryEntitled;
+      if (moduleKey === 'pos') {
+        return { ...inventoryEntitled, moduleKey: 'pos', state: 'disabled', trialStartedAt: new Date() };
+      }
+      return undefined;
+    });
+
+    await expect(execute()).rejects.toMatchObject({ code: TRIAL_ALREADY_USED });
+    expect(billingRepo.upsertEntitlement).not.toHaveBeenCalled();
+  });
+
+  it('BILL-2: rejects a fresh trial when the trial already expired', async () => {
+    billingRepo.findEntitlement.mockImplementation(async (_orgId: string, moduleKey: string) => {
+      if (moduleKey === 'inventory') return inventoryEntitled;
+      if (moduleKey === 'pos') {
+        return { ...inventoryEntitled, moduleKey: 'pos', state: 'expired', trialStartedAt: new Date() };
+      }
+      return undefined;
+    });
 
     await expect(execute()).rejects.toMatchObject({ code: TRIAL_ALREADY_USED });
   });

@@ -19,6 +19,12 @@ export const TRIAL_ALREADY_USED = 'TRIAL_ALREADY_USED';
 /** No entitlement found for enabling/disabling. */
 export const ENTITLEMENT_NOT_FOUND = 'ENTITLEMENT_NOT_FOUND';
 
+/** Admin action (extend/stop trial) requires a trialing (or expired) entitlement. */
+export const ENTITLEMENT_NOT_TRIALING = 'ENTITLEMENT_NOT_TRIALING';
+
+/** Admin action (suspend) requires an active entitlement. */
+export const ENTITLEMENT_NOT_ACTIVE = 'ENTITLEMENT_NOT_ACTIVE';
+
 /** Invalid webhook signature. */
 export const WEBHOOK_SIGNATURE_INVALID = 'WEBHOOK_SIGNATURE_INVALID';
 

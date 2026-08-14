@@ -20,6 +20,7 @@ export class GetModulePricingUseCase {
       description: string | null;
       icon: string | null;
       dependsOn: string[];
+      trialDays: number;
       priceMonthlyMinor: string;
       priceYearlyMinor: string;
       currency: string;

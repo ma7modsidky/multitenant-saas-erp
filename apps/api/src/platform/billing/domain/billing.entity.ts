@@ -28,7 +28,7 @@ export interface SubscriptionData {
 const VALID_TRANSITIONS: Record<string, string[]> = {
   available: ['trialing', 'active'],
   trialing: ['active', 'expired', 'disabled'],
-  active: ['past_due', 'disabled', 'expired'],
+  active: ['past_due', 'disabled', 'expired', 'suspended'],
   past_due: ['active', 'suspended'],
   expired: ['active', 'disabled'],
   suspended: ['active'],

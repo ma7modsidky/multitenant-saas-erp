@@ -78,6 +78,43 @@ describe('SetOrganizationModuleUseCase (PLT-3/4/5, BILL-8/9)', () => {
     ).rejects.toMatchObject({ code: 'MODULE_DEPENDENCY_CONFLICT', httpStatus: 409 });
   });
 
+  it('PLT-5/BILL-2: admin cannot restart a trial once it was used (even from disabled)', async () => {
+    // The org used its trial, then the module was disabled — the permanent
+    // trialStartedAt stamp blocks a fresh trial, exactly like the tenant path.
+    billingRepo.findEntitlement.mockResolvedValue({
+      state: 'disabled',
+      trialStartedAt: new Date(),
+      stripeSubscriptionItemId: null,
+    });
+
+    await expect(
+      useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'enable', ...actor }),
+    ).rejects.toMatchObject({ code: 'TRIAL_ALREADY_USED', httpStatus: 409 });
+    expect(billingRepo.upsertEntitlement).not.toHaveBeenCalled();
+  });
+
+  it('PLT-5/BILL-2: admin can still grant the module directly (skipTrial) after a used trial', async () => {
+    billingRepo.findEntitlement.mockResolvedValue({
+      state: 'disabled',
+      trialStartedAt: new Date(),
+      stripeSubscriptionItemId: null,
+    });
+
+    const result = await useCase.execute({
+      targetOrgId: orgId,
+      moduleKey: 'crm',
+      action: 'enable',
+      skipTrial: true,
+      ...actor,
+    });
+
+    expect(result.message).toContain('enabled');
+    expect(billingRepo.upsertEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: orgId, moduleKey: 'crm', state: 'active' }),
+      'tx',
+    );
+  });
+
   it('PLT-3/PLT-4: enable grants access via runWithOrg (target org) and audits', async () => {
     const result = await useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'enable', ...actor });
 

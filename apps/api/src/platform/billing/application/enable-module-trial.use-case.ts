@@ -49,6 +49,18 @@ export class EnableModuleTrialUseCase {
       );
     }
 
+    // BILL-2: a module may be trialled ONCE per organization. `trialStartedAt`
+    // is a permanent stamp — a trial that expired, was stopped, or was disabled
+    // can never be started again, so an org cannot reset its trial days by
+    // disabling and re-enabling. Admin overrides use extend-trial / enable-now,
+    // never a fresh trial.
+    if (!input.skipTrial && moduleCatalog.trialDays > 0 && entitlement?.trialStartedAt) {
+      throw new ConflictError(
+        TRIAL_ALREADY_USED,
+        `Module '${input.moduleKey}' trial has already been used by this organization`,
+      );
+    }
+
     // BILL-8: All dependencies must be entitled before enabling this module
     for (const dep of moduleCatalog.dependsOn) {
       const depEntitlement = await this.txManager.run((tx) =>

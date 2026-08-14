@@ -17,6 +17,20 @@ export const adminDisableModuleSchema = z.object({}).strict();
 
 export class AdminDisableModuleDto extends createZodDto(adminDisableModuleSchema) {}
 
+/** Empty body for action-only endpoints (stop trial / suspend / activate). */
+export const adminEmptyActionSchema = z.object({}).strict();
+
+export class AdminEmptyActionDto extends createZodDto(adminEmptyActionSchema) {}
+
+/** Extend a module's trial by N days (PLT-8). */
+export const adminExtendTrialSchema = z
+  .object({
+    days: z.number().int().min(1).max(365),
+  })
+  .strict();
+
+export class AdminExtendTrialDto extends createZodDto(adminExtendTrialSchema) {}
+
 /** Update a module's list prices (integer minor units + ISO currency, PLT-6). */
 export const adminUpdatePricingSchema = z
   .object({
@@ -88,6 +102,7 @@ const orgDetailSchema = z.object({
       moduleKey: z.string(),
       moduleName: z.string(),
       state: z.string(),
+      trialStartedAt: z.string().nullable(),
       trialEndsAt: z.string().nullable(),
       activatedAt: z.string().nullable(),
       disabledAt: z.string().nullable(),
@@ -118,6 +133,7 @@ const pricingRowSchema = z.object({
   description: z.string().nullable(),
   icon: z.string().nullable(),
   dependsOn: z.array(z.string()),
+  trialDays: z.number(),
   priceMonthlyMinor: z.string(),
   priceYearlyMinor: z.string(),
   currency: z.string(),

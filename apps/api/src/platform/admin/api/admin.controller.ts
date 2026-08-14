@@ -7,6 +7,7 @@ import { ApiOkResponse } from '@nestjs/swagger';
 import { RequiresPlatformAdmin } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
 import {
+  AdjustEntitlementUseCase,
   AdminOverviewUseCase,
   GetModulePricingUseCase,
   GetOrganizationDetailUseCase,
@@ -19,11 +20,15 @@ import {
 
 import {
   adminDisableModuleSchema,
+  adminEmptyActionSchema,
   adminEnableModuleSchema,
+  adminExtendTrialSchema,
   adminUpdatePricingSchema,
   adminUpdateSettingsSchema,
   AdminDisableModuleDto,
+  AdminEmptyActionDto,
   AdminEnableModuleDto,
+  AdminExtendTrialDto,
   AdminMessageEnvelopeResponse,
   AdminModulesEnvelopeResponse,
   AdminOrgDetailEnvelopeResponse,
@@ -53,6 +58,7 @@ export class AdminController {
     private readonly listOrganizationsUseCase: ListOrganizationsUseCase,
     private readonly getOrganizationDetailUseCase: GetOrganizationDetailUseCase,
     private readonly setOrganizationModuleUseCase: SetOrganizationModuleUseCase,
+    private readonly adjustEntitlementUseCase: AdjustEntitlementUseCase,
     private readonly getModulePricingUseCase: GetModulePricingUseCase,
     private readonly updateModulePricingUseCase: UpdateModulePricingUseCase,
     private readonly getSaasSettingsUseCase: GetSaasSettingsUseCase,
@@ -133,6 +139,95 @@ export class AdminController {
         targetOrgId: orgId,
         moduleKey,
         action: 'disable',
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+      }),
+    };
+  }
+
+  @Post('organizations/:orgId/modules/:moduleKey/trial/extend')
+  @RequiresPlatformAdmin()
+  @UsePipes(new ZodValidationPipe(adminExtendTrialSchema))
+  @ApiOkResponse({ type: AdminMessageEnvelopeResponse })
+  async extendTrial(
+    @Param('orgId') orgId: string,
+    @Param('moduleKey') moduleKey: string,
+    @Body() dto: AdminExtendTrialDto,
+    @Req() req: IncomingMessage,
+  ): Promise<{ data: { message: string } }> {
+    const actor = this.actor(req);
+    return {
+      data: await this.adjustEntitlementUseCase.execute({
+        targetOrgId: orgId,
+        moduleKey,
+        action: 'extendTrial',
+        days: dto.days,
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+      }),
+    };
+  }
+
+  @Post('organizations/:orgId/modules/:moduleKey/trial/stop')
+  @RequiresPlatformAdmin()
+  @UsePipes(new ZodValidationPipe(adminEmptyActionSchema))
+  @ApiOkResponse({ type: AdminMessageEnvelopeResponse })
+  async stopTrial(
+    @Param('orgId') orgId: string,
+    @Param('moduleKey') moduleKey: string,
+    @Body() _dto: AdminEmptyActionDto,
+    @Req() req: IncomingMessage,
+  ): Promise<{ data: { message: string } }> {
+    const actor = this.actor(req);
+    return {
+      data: await this.adjustEntitlementUseCase.execute({
+        targetOrgId: orgId,
+        moduleKey,
+        action: 'stopTrial',
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+      }),
+    };
+  }
+
+  @Post('organizations/:orgId/modules/:moduleKey/suspend')
+  @RequiresPlatformAdmin()
+  @UsePipes(new ZodValidationPipe(adminEmptyActionSchema))
+  @ApiOkResponse({ type: AdminMessageEnvelopeResponse })
+  async suspendModule(
+    @Param('orgId') orgId: string,
+    @Param('moduleKey') moduleKey: string,
+    @Body() _dto: AdminEmptyActionDto,
+    @Req() req: IncomingMessage,
+  ): Promise<{ data: { message: string } }> {
+    const actor = this.actor(req);
+    return {
+      data: await this.adjustEntitlementUseCase.execute({
+        targetOrgId: orgId,
+        moduleKey,
+        action: 'suspend',
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+      }),
+    };
+  }
+
+  @Post('organizations/:orgId/modules/:moduleKey/activate')
+  @RequiresPlatformAdmin()
+  @UsePipes(new ZodValidationPipe(adminEmptyActionSchema))
+  @ApiOkResponse({ type: AdminMessageEnvelopeResponse })
+  async activateModule(
+    @Param('orgId') orgId: string,
+    @Param('moduleKey') moduleKey: string,
+    @Body() _dto: AdminEmptyActionDto,
+    @Req() req: IncomingMessage,
+  ): Promise<{ data: { message: string } }> {
+    const actor = this.actor(req);
+    return {
+      data: await this.adjustEntitlementUseCase.execute({
+        targetOrgId: orgId,
+        moduleKey,
+        action: 'activate',
         actorUserId: actor.userId,
         actorEmail: actor.email,
       }),

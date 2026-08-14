@@ -554,6 +554,40 @@ machine (BILL-7/8/9) as tenant self-service — the admin console overrides
 `core_module_pricing`, `core_saas_settings`, `core_platform_audit_log`
 (DATA_MODEL.md §4.1).
 
+### Per-org entitlement management (PLT-8)
+
+Beyond enable/disable, the console exposes lifecycle controls per module via
+`AdjustEntitlementUseCase`:
+
+| Endpoint                                                                   | Effect                                                                                     |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `POST /v1/admin/organizations/:orgId/modules/:key/trial/extend` `{ days }` | Push `trial_ends_at` forward by `days` (1–365). Works on `trialing` and revives `expired`. |
+| `POST /v1/admin/organizations/:orgId/modules/:key/trial/stop`              | End a running trial now: `trialing → expired` (BILL-3 read-only grace).                    |
+| `POST /v1/admin/organizations/:orgId/modules/:key/suspend`                 | Revoke a paid module: `active → suspended` (subscription item kept).                       |
+| `POST /v1/admin/organizations/:orgId/modules/:key/activate`                | Restore full access: `suspended/past_due/expired → active`.                                |
+
+Every action runs inside `runWithOrg` (PLT-3) and appends to
+`core_platform_audit_log` (PLT-4, BILL-13). A trial can **never** be restarted:
+`trial_started_at` is a permanent stamp and the tenant and admin enable paths
+reject a fresh trial with `TRIAL_ALREADY_USED` once it is set (BILL-2). The org
+detail endpoint returns `trialStartedAt`/`trialEndsAt` so the console can show
+the trial timeline (days left, "trial used").
+
+**Reconciliation caveat.** `suspend`/`activate` are local runtime overrides —
+they do not touch the Stripe subscription item (billing continues). The nightly
+BILL-4 reconciliation treats Stripe as the commercial authority, so a locally
+`suspended` module whose Stripe item is still `active` can be reconciled back to
+`active` on the next run. For a durable suspension, pair the console action with
+the corresponding Stripe-side change (the console is a back-office override, not
+a billing engine). `activate` likewise restores local access without re-adding a
+Stripe item — the UI only offers it for `suspended`/ `past_due`/`expired`
+entitlements that already have a Stripe item.
+
+The admin console is intentionally **English-only** for module names: the
+catalog stores i18n keys (`modules.crm.name`), and the web admin pages resolve
+them against the `en` catalog via `resolveEnModuleLabel()` instead of the active
+locale.
+
 ---
 
 ## 9. Cross-cutting concerns

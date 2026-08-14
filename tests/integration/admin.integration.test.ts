@@ -28,6 +28,7 @@ import { PlatformAdminGuard } from '../../apps/api/src/core/authorization/platfo
 import { TransactionManager } from '../../apps/api/src/core/database/transaction-manager.js';
 import { TenantContext, type TenantContextData } from '../../apps/api/src/core/tenancy/tenant-context.js';
 import { applyAllMigrations } from './helpers/migrations.js';
+import { AdjustEntitlementUseCase } from '../../apps/api/src/platform/admin/application/adjust-entitlement.use-case.js';
 import { AdminOverviewUseCase } from '../../apps/api/src/platform/admin/application/admin-overview.use-case.js';
 import { GetOrganizationDetailUseCase } from '../../apps/api/src/platform/admin/application/get-organization-detail.use-case.js';
 import { SetOrganizationModuleUseCase } from '../../apps/api/src/platform/admin/application/set-organization-module.use-case.js';
@@ -347,6 +348,121 @@ describe('Admin directory + overview (integration, real Postgres + RLS)', () => 
         }),
       ),
     ).rejects.toMatchObject({ code: 'MODULE_DEPENDENCY_CONFLICT', httpStatus: 409 });
+  });
+
+  it('PLT-8/BILL-2: trial lifecycle — extend, stop, no reset, suspend/activate (real Postgres)', async () => {
+    const { orgId } = await createOrg();
+    const billingRepo = new DrizzleBillingRepository(db);
+    const auditRepo = new DrizzlePlatformAuditRepository(db);
+    const txManager = new TransactionManager(db);
+    const setModule = new SetOrganizationModuleUseCase(billingRepo, new FakeStripeAdapter(), auditRepo, txManager);
+    const adjust = new AdjustEntitlementUseCase(billingRepo, auditRepo, txManager);
+
+    const run = (fn: () => Promise<unknown>) => TenantContext.run({ ...ownerContext, userId: ownerUserId }, fn);
+    const entitlementOf = async () =>
+      run(() => txManager.runWithOrg(orgId, (tx) => billingRepo.findEntitlement(orgId, 'crm', tx)));
+    const enable = (skipTrial: boolean) =>
+      run(() =>
+        setModule.execute({
+          targetOrgId: orgId,
+          moduleKey: 'crm',
+          action: 'enable',
+          skipTrial,
+          actorUserId: ownerUserId,
+          actorEmail: 'owner@example.com',
+        }),
+      );
+
+    // 1. Enable with a trial — state trialing with a visible trial window.
+    await enable(false);
+    let ent = await entitlementOf();
+    expect(ent?.state).toBe('trialing');
+    expect(ent?.trialStartedAt).not.toBeNull();
+    const originalEnd = ent?.trialEndsAt as Date;
+
+    // The org-detail endpoint surfaces the trial timeline (admin UX requirement).
+    const directoryRepo = new DrizzleAdminDirectoryRepository(db);
+    const membershipRepo = new DrizzleMembershipRepository(db);
+    const registryRepo = new DrizzleModuleRegistryRepository(db);
+    const detail = await run(() =>
+      new GetOrganizationDetailUseCase(directoryRepo, membershipRepo, billingRepo, registryRepo, txManager).execute({
+        organizationId: orgId,
+      }),
+    );
+    const crmDetail = detail.entitlements.find((e) => e.moduleKey === 'crm');
+    expect(crmDetail?.state).toBe('trialing');
+    expect(crmDetail?.trialStartedAt).not.toBeNull();
+    expect(crmDetail?.trialEndsAt).not.toBeNull();
+
+    // 2. Extend the trial by 7 days — the end date moves forward.
+    await run(() =>
+      adjust.execute({
+        targetOrgId: orgId,
+        moduleKey: 'crm',
+        action: 'extendTrial',
+        days: 7,
+        actorUserId: ownerUserId,
+        actorEmail: 'owner@example.com',
+      }),
+    );
+    ent = await entitlementOf();
+    expect(ent?.state).toBe('trialing');
+    expect((ent?.trialEndsAt as Date).getTime()).toBeGreaterThan(originalEnd.getTime());
+
+    // 3. Stop the trial — state expires, the BILL-2 stamp is preserved.
+    await run(() =>
+      adjust.execute({
+        targetOrgId: orgId,
+        moduleKey: 'crm',
+        action: 'stopTrial',
+        actorUserId: ownerUserId,
+        actorEmail: 'owner@example.com',
+      }),
+    );
+    ent = await entitlementOf();
+    expect(ent?.state).toBe('expired');
+    expect(ent?.trialStartedAt).not.toBeNull();
+
+    // 4. The trial can never be restarted — even by an admin (BILL-2).
+    await expect(enable(false)).rejects.toMatchObject({ code: 'TRIAL_ALREADY_USED', httpStatus: 409 });
+
+    // 5. Enable-now (paid) still works, and the admin can suspend/activate it.
+    await enable(true);
+    ent = await entitlementOf();
+    expect(ent?.state).toBe('active');
+
+    await run(() =>
+      adjust.execute({
+        targetOrgId: orgId,
+        moduleKey: 'crm',
+        action: 'suspend',
+        actorUserId: ownerUserId,
+        actorEmail: 'owner@example.com',
+      }),
+    );
+    ent = await entitlementOf();
+    expect(ent?.state).toBe('suspended');
+
+    await run(() =>
+      adjust.execute({
+        targetOrgId: orgId,
+        moduleKey: 'crm',
+        action: 'activate',
+        actorUserId: ownerUserId,
+        actorEmail: 'owner@example.com',
+      }),
+    );
+    ent = await entitlementOf();
+    expect(ent?.state).toBe('active');
+
+    // PLT-4/BILL-13: every admin adjustment is audited with the actor.
+    const actions = (
+      await ownerSql`SELECT action FROM core_platform_audit_log WHERE entity_id = ${orgId} ORDER BY occurred_at`
+    ).map((r) => r.action as string);
+    expect(actions).toContain('module.trial.extended');
+    expect(actions).toContain('module.trial.stopped');
+    expect(actions).toContain('module.suspended');
+    expect(actions).toContain('module.activated');
   });
 
   it('PLT-3: organization detail returns members, subscription, and entitlements', async () => {

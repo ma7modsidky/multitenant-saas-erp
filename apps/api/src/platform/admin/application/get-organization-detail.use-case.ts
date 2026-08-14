@@ -45,6 +45,7 @@ export class GetOrganizationDetailUseCase {
       moduleKey: string;
       moduleName: string;
       state: string;
+      trialStartedAt: string | null;
       trialEndsAt: string | null;
       activatedAt: string | null;
       disabledAt: string | null;
@@ -79,6 +80,9 @@ export class GetOrganizationDetailUseCase {
           moduleKey: e.moduleKey,
           moduleName: nameByKey.get(e.moduleKey) ?? e.moduleKey,
           state: e.state,
+          // trialStartedAt is the permanent BILL-2 stamp — the web console uses
+          // it to show "trial used" and to gate re-enable-with-trial actions.
+          trialStartedAt: detail?.trialStartedAt?.toISOString() ?? null,
           trialEndsAt: detail?.trialEndsAt?.toISOString() ?? null,
           activatedAt: detail?.activatedAt?.toISOString() ?? null,
           disabledAt: detail?.disabledAt?.toISOString() ?? null,

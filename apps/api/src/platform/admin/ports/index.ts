@@ -39,6 +39,8 @@ export interface ModulePricingRow {
   description: string | null;
   icon: string | null;
   dependsOn: string[];
+  /** Free-trial length in days from the catalog (0 = no trial). */
+  trialDays: number;
   /** Integer minor units, serialized as string (CUR-9). */
   priceMonthlyMinor: string;
   priceYearlyMinor: string;

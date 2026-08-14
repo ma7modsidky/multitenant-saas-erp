@@ -40,6 +40,8 @@ describe('BILL-3/6/7: Entitlement state machine - VALID transitions', () => {
     ['active', 'past_due'],
     ['active', 'disabled'],
     ['active', 'expired'],
+    // PLT-8: an admin may suspend a paid module (reactivate via suspended → active).
+    ['active', 'suspended'],
     ['past_due', 'active'],
     ['past_due', 'suspended'],
     ['expired', 'active'],
