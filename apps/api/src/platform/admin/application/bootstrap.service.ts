@@ -48,7 +48,16 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     const emails = this.config.platformAdminEmails;
     if (emails.length === 0) return;
 
-    await this.db.execute(sql`UPDATE core_users SET is_platform_admin = true WHERE lower(email) = ANY(${emails})`);
+    // Same array-binding pattern as the module-registry mirror: postgres-js
+    // serializes a JS array parameter as a bare CSV string, which breaks
+    // `ANY($1)` (22P02 malformed array literal) — so each element is bound
+    // individually inside an explicit ARRAY[...]::text[] constructor.
+    await this.db.execute(
+      sql`UPDATE core_users SET is_platform_admin = true WHERE lower(email) = ANY(ARRAY[${sql.join(
+        emails.map((email) => sql`${email}`),
+        sql.raw(','),
+      )}]::text[])`,
+    );
   }
 
   private async seedDefaultPricing(): Promise<void> {
