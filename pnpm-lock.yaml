@@ -10,7 +10,7 @@ overrides:
   vite: ^6.3.5
   picomatch@4.0.2: ^4.0.4
 
-pnpmfileChecksum: sha256-x6ZAKy857pr6jv1f6354aNMdxDaUpTbwYC0UPBlZk2g=
+pnpmfileChecksum: sha256-o7yNbPwph+Lr0fE781tZIwo2ldYvu75l6LNALPuQv6k=
 
 importers:
   .:
