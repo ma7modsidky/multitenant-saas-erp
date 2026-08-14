@@ -15,6 +15,7 @@ describe('SwitchOrgUseCase', () => {
     generateAccessToken: ReturnType<typeof vi.fn>;
     revokeSession: ReturnType<typeof vi.fn>;
   };
+  let userRepo: { findById: ReturnType<typeof vi.fn> };
   let txManager: { run: ReturnType<typeof vi.fn>; runWithOrg: ReturnType<typeof vi.fn> };
   let useCase: SwitchOrgUseCase;
 
@@ -47,6 +48,9 @@ describe('SwitchOrgUseCase', () => {
       generateAccessToken: vi.fn().mockImplementation(async (payload: unknown) => `token.${JSON.stringify(payload)}`),
       revokeSession: vi.fn().mockResolvedValue(undefined),
     };
+    userRepo = {
+      findById: vi.fn().mockResolvedValue({ id: 'user-1', email: 'user@example.com', isPlatformAdmin: false }),
+    };
     txManager = {
       // Run the callback with a fake tx, like the real TransactionManager.
       run: vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn('tx')),
@@ -55,7 +59,12 @@ describe('SwitchOrgUseCase', () => {
       runWithOrg: vi.fn().mockImplementation(async (_orgId: string, fn: (tx: unknown) => Promise<unknown>) => fn('tx')),
     };
 
-    useCase = new SwitchOrgUseCase(membershipRepo as never, jwtTokenService as never, txManager as never);
+    useCase = new SwitchOrgUseCase(
+      membershipRepo as never,
+      userRepo as never,
+      jwtTokenService as never,
+      txManager as never,
+    );
   });
 
   const runInContext = <T>(fn: () => Promise<T>) =>

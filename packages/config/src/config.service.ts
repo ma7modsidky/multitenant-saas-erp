@@ -174,6 +174,13 @@ export class ConfigService {
     return this.backend.TRIAL_DURATION_DAYS;
   }
 
+  // Platform administration
+  get platformAdminEmails(): string[] {
+    return this.backend.PLATFORM_ADMIN_EMAILS.split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
   // ─── Frontend config getters ─────────────────────────────────────────────
 
   get nextPublicApiBaseUrl(): string | undefined {

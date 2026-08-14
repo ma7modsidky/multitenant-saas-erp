@@ -133,6 +133,18 @@ export const sessionStore = {
   },
 
   /**
+   * Whether the signed-in user is a platform admin (superuser, PLT-1).
+   * Read from the access-token claim — like permissions, it is snapshot
+   * semantics (refreshes on the next token issuance).
+   */
+  getIsPlatformAdmin(): boolean {
+    const token = this.getAccessToken();
+    if (!token) return false;
+    const payload = decodeJwtPayload(token);
+    return payload?.isPlatformAdmin === true;
+  },
+
+  /**
    * Last-known billing/entitlements snapshot for an org — read synchronously
    * on mount so ModuleGate opens without a network round-trip (the PWA shell
    * serves cached pages; the checkout must not blank out offline).

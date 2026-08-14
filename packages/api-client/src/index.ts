@@ -644,6 +644,134 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/admin/overview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AdminController_overview'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AdminController_listOrganizations'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations/{orgId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AdminController_organizationDetail'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations/{orgId}/modules/{moduleKey}/enable': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AdminController_enableModule'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations/{orgId}/modules/{moduleKey}/disable': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AdminController_disableModule'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/modules': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AdminController_modules'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/modules/{moduleKey}/pricing': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: operations['AdminController_updatePricing'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AdminController_getSettings'];
+    put: operations['AdminController_updateSettings'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/search': {
     parameters: {
       query?: never;
@@ -1986,6 +2114,106 @@ export interface components {
         page: number;
         pageSize: number;
       };
+    };
+    AdminOverviewEnvelopeResponse: {
+      data: {
+        organizations: {
+          total: number;
+          active: number;
+          pendingDeletion: number;
+        };
+        totalUsers: number;
+        subscriptions: {
+          active: number;
+          other: number;
+        };
+        modulesEnabledByKey: {
+          [key: string]: number;
+        };
+      };
+    };
+    AdminOrganizationsEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          name: string;
+          slug: string;
+          status: string;
+          createdAt: string;
+          memberCount: number;
+          subscriptionStatus: string | null;
+          activeModuleCount: number;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+    };
+    AdminOrgDetailEnvelopeResponse: {
+      data: {
+        organization: {
+          id: string;
+          name: string;
+          slug: string;
+          status: string;
+          createdAt: string;
+        };
+        members: {
+          id: string;
+          name: string;
+          email: string;
+          roleId: string;
+        }[];
+        subscription: {
+          id: string;
+          status: string;
+          billingCurrency: string;
+          currentPeriodEnd: string | null;
+        } | null;
+        entitlements: {
+          moduleKey: string;
+          moduleName: string;
+          state: string;
+          trialEndsAt: string | null;
+          activatedAt: string | null;
+          disabledAt: string | null;
+        }[];
+      };
+    };
+    AdminEnableModuleDto: {
+      /** @default false */
+      skipTrial: boolean;
+    };
+    AdminMessageEnvelopeResponse: {
+      data: {
+        message: string;
+      };
+    };
+    AdminDisableModuleDto: Record<string, never>;
+    AdminModulesEnvelopeResponse: {
+      data: {
+        moduleKey: string;
+        name: string;
+        description: string | null;
+        icon: string | null;
+        dependsOn: string[];
+        priceMonthlyMinor: string;
+        priceYearlyMinor: string;
+        currency: string;
+      }[];
+    };
+    AdminUpdatePricingDto: {
+      priceMonthlyMinor: string;
+      priceYearlyMinor: string;
+      currency: string;
+    };
+    AdminSettingsEnvelopeResponse: {
+      data: {
+        [key: string]: unknown;
+      };
+    };
+    AdminUpdateSettingsDto: {
+      [key: string]: unknown;
     };
     SearchEnvelopeResponse: {
       data: {
@@ -3996,6 +4224,207 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['AuditLogQueryEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_overview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminOverviewEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_listOrganizations: {
+    parameters: {
+      query: {
+        search: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminOrganizationsEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_organizationDetail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminOrgDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_enableModule: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminEnableModuleDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMessageEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_disableModule: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminDisableModuleDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMessageEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_modules: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminModulesEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_updatePricing: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminUpdatePricingDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminModulesEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_getSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminSettingsEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_updateSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminUpdateSettingsDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminSettingsEnvelopeResponse'];
         };
       };
     };

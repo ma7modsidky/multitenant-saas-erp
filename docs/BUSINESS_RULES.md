@@ -260,7 +260,21 @@ unenforced. Both must be true.
 
 ---
 
-## 12. Rule-to-test traceability
+## 12. Platform administration rules
+
+| ID    | Rule                                                                                                                                                                                                                                                                | Enforced by                          |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| PLT-1 | Platform admins are identified by `core_users.is_platform_admin = true`, seeded from `PLATFORM_ADMIN_EMAILS` at boot. Every `/v1/admin/*` route carries `@RequiresPlatformAdmin`; the flag is minted into access tokens and sessions (snapshot semantics, AUTHZ-5). | `PlatformAdminGuard` + boot sync     |
+| PLT-2 | Admin routes are ordinary authenticated routes: unauthenticated callers get `401`, authenticated non-admins get `403 PLATFORM_ADMIN_REQUIRED`. They are never `@PublicRoute`/`@SystemContext`.                                                                      | Guard ordering (JWT → PlatformAdmin) |
+| PLT-3 | Tenant data is touched only inside `TransactionManager.runWithOrg(targetOrgId)`. No admin endpoint performs an unscoped cross-tenant query; RLS fail-closed still applies to admin code (TEN-3).                                                                    | Repo design + isolation tests        |
+| PLT-4 | Every admin mutation (org module change, pricing, SaaS settings) appends an entry to `core_platform_audit_log` (global, append-only) with the acting admin.                                                                                                         | Audit repo (AUD-2 pattern)           |
+| PLT-5 | Admin subscription changes reuse the billing domain state machine: BILL-7 (disable/purge), BILL-8 (dependencies), BILL-9 (dependent conflict) still apply; `core_module_entitlements` remains the runtime authority.                                                | Shared billing domain + ports        |
+| PLT-6 | Module pricing lives in `core_module_pricing` and is display/planning data. The boot-time catalog mirror never overwrites admin-set pricing; Stripe remains the commercial authority (BILL-10).                                                                     | `AdminBootstrapService` upsert-only  |
+| PLT-7 | SaaS settings are limited to an allow-listed key set in `core_saas_settings`; unknown keys are rejected with `400 UNKNOWN_SAAS_SETTING`.                                                                                                                            | DTO validation                       |
+
+---
+
+## 13. Rule-to-test traceability
 
 Every rule in this document must be traceable to a test.
 
@@ -275,7 +289,7 @@ Every rule in this document must be traceable to a test.
 
 ---
 
-## 13. Related documents
+## 14. Related documents
 
 [PRD.md](./PRD.md) · [TECH_STACK.md](./TECH_STACK.md) ·
 [ARCHITECTURE.md](./ARCHITECTURE.md) · [MODULE_GUIDE.md](./MODULE_GUIDE.md) ·

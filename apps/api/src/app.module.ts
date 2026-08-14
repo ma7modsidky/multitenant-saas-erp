@@ -19,6 +19,7 @@ import { TenancyModule } from './core/tenancy/tenancy.module.js';
 import { CrmModule, CrmSearchContributor } from './modules/crm/public/index.js';
 import { InventoryModule, InventorySearchContributor } from './modules/inventory/public/index.js';
 import { PosModule } from './modules/pos/public/index.js';
+import { AdminModule } from './platform/admin/admin.module.js';
 import { AuditLogModule } from './platform/audit-log/audit-log.module.js';
 import { BillingModule } from './platform/billing/billing.module.js';
 import { FxRatesModule } from './platform/fx-rates/fx-rates.module.js';
@@ -66,6 +67,7 @@ import { UsersModule } from './platform/users/users.module.js';
     BillingModule,
     ModuleRegistryModule,
     AuditLogModule,
+    AdminModule,
     // Federated search contributors: the class of every module that declares
     // `searchContributor: true`. register() places the collection in the
     // SearchModule context so FederatedSearchUseCase can resolve it.

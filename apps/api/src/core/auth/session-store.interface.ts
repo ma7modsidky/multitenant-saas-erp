@@ -40,6 +40,12 @@ export interface Session {
    */
   roles?: string[];
   permissions?: string[];
+  /**
+   * Platform-admin (superuser) flag (PLT-1). Stored so a token refresh
+   * re-mints the SAME claim instead of dropping it (mirrors the roles/
+   * permissions snapshot semantics, AUTHZ-5).
+   */
+  isPlatformAdmin?: boolean;
 }
 
 /**

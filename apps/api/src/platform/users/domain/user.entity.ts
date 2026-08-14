@@ -19,6 +19,11 @@ export interface UserData {
   failedLoginAttempts: number;
   /** Timestamp when failed attempts counter was last reset or lock started */
   lockedUntil: Date | null;
+  /**
+   * Platform-admin (superuser) flag (PLT-1). Seeded from PLATFORM_ADMIN_EMAILS
+   * at boot; minted into access tokens and sessions.
+   */
+  isPlatformAdmin: boolean;
 }
 
 /**
@@ -87,6 +92,11 @@ export class User {
   get isLocked(): boolean {
     if (!this.data.lockedUntil) return false;
     return new Date() < this.data.lockedUntil;
+  }
+
+  /** Whether the user is a platform admin (superuser, PLT-1). */
+  get isPlatformAdmin(): boolean {
+    return this.data.isPlatformAdmin;
   }
 
   /** Get all data as a plain object. */

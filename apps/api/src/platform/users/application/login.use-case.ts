@@ -87,8 +87,12 @@ export class LoginUseCase {
     await this.userRepo.update(user.id, { failedLoginAttempts: 0, lockedUntil: null });
 
     // Generate refresh token first so the session exists and its ID can be
-    // embedded in the access token (AUTH-5 current-session marking).
-    const { refreshToken, session } = await this.jwtTokenService.generateRefreshToken(user.id, input.device, input.ip);
+    // embedded in the access token (AUTH-5 current-session marking). The
+    // session records the platform-admin flag (PLT-1) so a refresh re-mints
+    // the same claim.
+    const { refreshToken, session } = await this.jwtTokenService.generateRefreshToken(user.id, input.device, input.ip, {
+      isPlatformAdmin: userData.isPlatformAdmin,
+    });
 
     // Generate tokens (AUTH-4)
     const accessToken = await this.jwtTokenService.generateAccessToken({
@@ -98,6 +102,7 @@ export class LoginUseCase {
       organizationId: undefined,
       roles: [],
       permissions: [],
+      isPlatformAdmin: userData.isPlatformAdmin,
     });
 
     return { accessToken, refreshToken, user };

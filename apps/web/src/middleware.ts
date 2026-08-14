@@ -19,7 +19,16 @@ const AUTH_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password']
 const INVITATION_ROUTE_PREFIX = '/invitations/';
 
 function isProtected(route: string): boolean {
-  return route === '' || route === '/dashboard' || route.startsWith('/settings') || route.startsWith('/m/');
+  return (
+    route === '' ||
+    route === '/dashboard' ||
+    route.startsWith('/settings') ||
+    route.startsWith('/m/') ||
+    // Platform Admin Console — auth-required; the isPlatformAdmin claim is
+    // enforced client-side + by the API guard (PLT-2), the cookie only gates
+    // unauthenticated traffic at the edge.
+    route.startsWith('/admin')
+  );
 }
 
 function resolveLocale(request: NextRequest): string {

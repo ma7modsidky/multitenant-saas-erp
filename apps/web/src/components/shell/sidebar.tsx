@@ -13,6 +13,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  ShieldCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -70,7 +71,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) {
   const t = useTranslations();
   const pathname = usePathname();
-  const { organizationId, permissions } = useSession();
+  const { organizationId, permissions, isPlatformAdmin } = useSession();
   const { data: navigation, isLoading: navigationLoading } = useNavigation();
 
   // Extract locale from pathname
@@ -110,6 +111,9 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     ...(canManageBilling ? [{ icon: CreditCard, label: t('nav.billing'), href: `/${locale}/settings/billing` }] : []),
     ...(canViewAudit ? [{ icon: ScrollText, label: t('nav.audit'), href: `/${locale}/settings/audit` }] : []),
     { icon: Settings, label: t('nav.settings'), href: `/${locale}/settings`, exact: true },
+    // Platform Admin Console — visible only to superusers (PLT-1). The
+    // backend + client gate remain authoritative; this is UX only (OPS-8).
+    ...(isPlatformAdmin ? [{ icon: ShieldCheck, label: t('nav.admin'), href: `/${locale}/admin`, exact: true }] : []),
   ];
 
   // Group each entitled module's links under its own parent instead of one

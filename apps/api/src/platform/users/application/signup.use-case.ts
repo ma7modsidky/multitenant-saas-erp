@@ -63,6 +63,7 @@ export class SignupUseCase {
       emailVerifiedAt: null,
       failedLoginAttempts: 0,
       lockedUntil: null,
+      isPlatformAdmin: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

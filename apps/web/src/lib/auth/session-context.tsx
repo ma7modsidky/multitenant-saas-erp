@@ -25,6 +25,8 @@ export interface SessionContextValue {
   user: AuthUser | null;
   organizationId: string | null;
   permissions: string[];
+  /** Platform admin (superuser) flag from the token claim (PLT-1). */
+  isPlatformAdmin: boolean;
   login: (input: { email: string; password: string }) => Promise<void>;
   switchOrg: (organizationId: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -194,6 +196,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       user,
       organizationId,
       permissions: sessionStore.getPermissions(),
+      isPlatformAdmin: sessionStore.getIsPlatformAdmin(),
       login,
       switchOrg,
       logout,

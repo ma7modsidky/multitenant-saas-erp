@@ -17,6 +17,7 @@ function makeUser(overrides: Partial<UserData> = {}): UserData {
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     failedLoginAttempts: 0,
     lockedUntil: null,
+    isPlatformAdmin: false,
     ...overrides,
   };
 }

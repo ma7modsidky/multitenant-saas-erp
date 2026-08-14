@@ -68,11 +68,11 @@ export class DrizzleUserRepository implements UserRepository {
         INSERT INTO ${this.table}
           (id, email, password_hash, name, preferred_locale,
            email_verified_at, failed_login_attempts, locked_until,
-           created_at, updated_at)
+           is_platform_admin, created_at, updated_at)
         VALUES
           (${data.id}, ${data.email}, ${data.passwordHash}, ${data.name}, ${data.preferredLocale},
            ${toDbDate(data.emailVerifiedAt)}, ${data.failedLoginAttempts}, ${toDbDate(data.lockedUntil)},
-           ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)})
+           ${data.isPlatformAdmin}, ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)})
         RETURNING *
       `,
     );
@@ -93,6 +93,7 @@ export class DrizzleUserRepository implements UserRepository {
     if (data.failedLoginAttempts !== undefined)
       setFragments.push(sql`failed_login_attempts = ${data.failedLoginAttempts}`);
     if (data.lockedUntil !== undefined) setFragments.push(sql`locked_until = ${toDbDate(data.lockedUntil)}`);
+    if (data.isPlatformAdmin !== undefined) setFragments.push(sql`is_platform_admin = ${data.isPlatformAdmin}`);
 
     const setClause = sql.join(setFragments, sql.raw(', '));
     const rows = await db.execute<Record<string, unknown>>(
@@ -115,6 +116,7 @@ export class DrizzleUserRepository implements UserRepository {
       emailVerifiedAt: fromDbDate(row.email_verified_at),
       failedLoginAttempts: Number(row.failed_login_attempts ?? 0),
       lockedUntil: fromDbDate(row.locked_until),
+      isPlatformAdmin: row.is_platform_admin === true,
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,
     };

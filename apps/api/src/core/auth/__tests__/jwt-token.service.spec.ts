@@ -69,6 +69,7 @@ describe('JwtTokenService', () => {
         organizationId: 'org-1',
         roles: ['ADMIN'],
         permissions: ['inventory:product:read'],
+        isPlatformAdmin: false,
       });
 
       expect(token).toBeDefined();
@@ -87,6 +88,7 @@ describe('JwtTokenService', () => {
         organizationId: 'org-1',
         roles: ['ADMIN'],
         permissions: [],
+        isPlatformAdmin: false,
       });
 
       const decoded = await jwtService.verifyAsync(token, {
@@ -108,6 +110,7 @@ describe('JwtTokenService', () => {
         organizationId: 'org-1',
         roles: [],
         permissions: [],
+        isPlatformAdmin: false,
       });
 
       const decoded = await jwtService.verifyAsync(token, {
@@ -127,6 +130,7 @@ describe('JwtTokenService', () => {
         roles: ['ADMIN', 'MANAGER'],
         permissions: ['inventory:product:read', 'inventory:stock:adjust'],
         organizationId: undefined,
+        isPlatformAdmin: false,
       });
 
       const decoded = await jwtService.verifyAsync(token, {

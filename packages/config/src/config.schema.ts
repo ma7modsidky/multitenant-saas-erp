@@ -60,6 +60,12 @@ export const backendEnvSchema = z.object({
   DEFAULT_LOCALE: localeSchema.default('en'),
   SUPPORTED_LOCALES: z.string().default('en,ar,fr,es'),
   TRIAL_DURATION_DAYS: z.coerce.number().int().positive().default(14),
+
+  // Platform administration
+  // Comma-separated emails of accounts granted platform-admin access
+  // (core_users.is_platform_admin is synced from this at boot). Empty by
+  // default — the admin console is disabled until an admin is configured.
+  PLATFORM_ADMIN_EMAILS: z.string().default(''),
 });
 
 export type BackendEnv = z.infer<typeof backendEnvSchema>;

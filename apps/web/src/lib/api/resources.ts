@@ -1390,3 +1390,129 @@ function posQueryString(params: PosSaleParams): string {
     query.set('pageSize', String(params.pageSize));
   return query.toString();
 }
+
+// ─── Platform Admin Console ────────────────────────────────────────────────
+// Superuser back-office (PLT-*). Every endpoint requires the isPlatformAdmin
+// claim; the API returns 403 PLATFORM_ADMIN_REQUIRED otherwise.
+
+export interface AdminOrgSummary {
+  id: string;
+  name: string;
+  slug: string;
+  status: 'active' | 'suspended' | 'pending_deletion';
+  createdAt: string;
+  memberCount: number;
+  subscriptionStatus: string | null;
+  activeModuleCount: number;
+}
+
+export interface AdminOrgDetail {
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    createdAt: string;
+  };
+  members: Array<{ id: string; name: string; email: string; roleId: string }>;
+  subscription: {
+    id: string;
+    status: string;
+    billingCurrency: string;
+    currentPeriodEnd: string | null;
+  } | null;
+  entitlements: Array<{
+    moduleKey: string;
+    moduleName: string;
+    state: string;
+    trialEndsAt: string | null;
+    activatedAt: string | null;
+    disabledAt: string | null;
+  }>;
+}
+
+export interface AdminModulePricingRow {
+  moduleKey: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  dependsOn: string[];
+  /** Integer minor units, string (CUR-9). */
+  priceMonthlyMinor: string;
+  priceYearlyMinor: string;
+  currency: string;
+}
+
+export interface AdminSaasSettings {
+  platformName: string;
+  supportEmail: string;
+  trialDurationDays: number;
+  allowSelfSignup: boolean;
+}
+
+export interface AdminOverview {
+  organizations: { total: number; active: number; pendingDeletion: number };
+  totalUsers: number;
+  subscriptions: { active: number; other: number };
+  modulesEnabledByKey: Record<string, number>;
+}
+
+export function getAdminOverview(): Promise<AdminOverview> {
+  return apiFetch<AdminOverview>('/v1/admin/overview');
+}
+
+export function getAdminOrganizations(
+  params: { search?: string; page?: number; pageSize?: number } = {},
+): Promise<{ items: AdminOrgSummary[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.search) query.set('search', params.search);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: AdminOrgSummary[]; total: number; page: number; pageSize: number }>(
+    `/v1/admin/organizations${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getAdminOrganization(orgId: string): Promise<AdminOrgDetail> {
+  return apiFetch<AdminOrgDetail>(`/v1/admin/organizations/${orgId}`);
+}
+
+export function adminEnableModule(orgId: string, moduleKey: string, skipTrial = false): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/enable`, {
+    method: 'POST',
+    body: JSON.stringify({ skipTrial }),
+  });
+}
+
+export function adminDisableModule(orgId: string, moduleKey: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/disable`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function getAdminModules(): Promise<AdminModulePricingRow[]> {
+  return apiFetch<AdminModulePricingRow[]>('/v1/admin/modules');
+}
+
+export function updateAdminModulePricing(
+  moduleKey: string,
+  input: { priceMonthlyMinor: string; priceYearlyMinor: string; currency: string },
+): Promise<AdminModulePricingRow> {
+  return apiFetch<AdminModulePricingRow>(`/v1/admin/modules/${moduleKey}/pricing`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getAdminSettings(): Promise<AdminSaasSettings> {
+  return apiFetch<AdminSaasSettings>('/v1/admin/settings');
+}
+
+export function updateAdminSettings(settings: Partial<AdminSaasSettings>): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>('/v1/admin/settings', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  });
+}

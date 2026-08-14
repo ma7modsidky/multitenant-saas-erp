@@ -123,7 +123,8 @@ apps/api/src/
 │   ├── module-registry/          # descriptor collection, enable/disable, trial orchestration
 │   ├── audit-log/                # read API over core/audit storage
 │   ├── search/                   # federated search aggregator
-│   └── fx-rates/                 # daily rate snapshots
+│   ├── fx-rates/                 # daily rate snapshots
+│   └── admin/                    # Platform Admin Console — superuser back-office (§8)
 │
 └── modules/                      # BUSINESS MODULES. Bounded contexts. May import core/ and @modubiz/contracts.
     ├── crm/
@@ -287,6 +288,11 @@ A small, explicitly annotated set of routes runs without a tenant: signup,
 login, refresh, password reset, Stripe webhooks, health checks, and the module
 catalog. They are marked `@PublicRoute()` or `@SystemContext()`, are listed in a
 single allowlist file, and adding one requires a security review note in the PR.
+
+Platform-admin routes are intentionally **not** system-context — see §8. They
+run as ordinary authenticated routes so `JwtAuthGuard` and `TenantInterceptor`
+behave normally, and a dedicated `PlatformAdminGuard` enforces the
+`isPlatformAdmin` claim.
 
 ---
 
@@ -502,7 +508,55 @@ graph TD
 
 ---
 
-## 8. Cross-cutting concerns
+## 8. Platform Admin Console (back-office)
+
+The superuser back-office for operating the SaaS: organization directory,
+per-org subscription overrides, module pricing, and SaaS settings. Internal only
+— routes live under `/v1/admin/*` (API) and `/<locale>/admin/*` (web), and only
+users flagged `core_users.is_platform_admin = true` may use them.
+
+### Identification and guard
+
+- The flag is seeded from `PLATFORM_ADMIN_EMAILS` (comma-separated) at boot by
+  `AdminBootstrapService`, then minted into every access token
+  (`isPlatformAdmin` claim) and session record — the same snapshot semantics as
+  roles/permissions (AUTHZ-5).
+- `@RequiresPlatformAdmin()` + the global `PlatformAdminGuard` enforce it. Admin
+  routes are ordinary authenticated routes (never `@PublicRoute`/
+  `@SystemContext`), so `JwtAuthGuard` still 401s unauthenticated callers,
+  `TenantInterceptor` still binds `TenantContext`, and the platform-admin guard
+  403s authenticated non-admins (`PLATFORM_ADMIN_REQUIRED`).
+
+### Cross-tenant access, safely
+
+TEN-5 mandates that cross-tenant access exist only for internal platform
+administration, through a separately audited code path. Two properties make the
+admin console conform:
+
+1. **Org-scoped queries only.** Every tenant-table access runs inside
+   `TransactionManager.runWithOrg(targetOrgId)` — the same fail-closed RLS that
+   protects tenants protects admin code. No admin endpoint performs an unscoped
+   cross-tenant scan; the directory/overview endpoints read global tables
+   (`core_organizations`, `core_users`) and then per-org state one org at a
+   time. (`modubiz_app` keeps `NOBYPASSRLS`; a dedicated `modubiz_admin` DB role
+   is tracked hardening, not a prerequisite.)
+2. **A separate audit trail.** Admin mutations write `core_platform_audit_log`
+   (global, append-only: actor, action, entity, before/after), never the
+   tenant-scoped `core_audit_log`, so platform actions are reviewable without
+   cross-tenant queries.
+
+### Composition
+
+`AdminModule` imports `BillingModule` and reuses `BILLING_REPOSITORY` +
+`STRIPE_PORT`, so admin entitlement changes go through the same domain state
+machine (BILL-7/8/9) as tenant self-service — the admin console overrides
+**who** acts, never **what** the rules are. New global tables:
+`core_module_pricing`, `core_saas_settings`, `core_platform_audit_log`
+(DATA_MODEL.md §4.1).
+
+---
+
+## 9. Cross-cutting concerns
 
 | Concern         | Where it lives                       | Rule for feature code                                                                                       |
 | --------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
@@ -520,7 +574,7 @@ graph TD
 
 ---
 
-## 9. Frontend architecture
+## 10. Frontend architecture
 
 ```
 apps/web/src/
@@ -568,7 +622,7 @@ Frontend rules:
 
 ---
 
-## 10. Path to extraction
+## 11. Path to extraction
 
 A module can become its own service when it needs independent scaling or
 isolation. Because of the rules above, the work is bounded:
@@ -593,7 +647,7 @@ different scaling profile (e.g. Food Delivery real-time fan-out).
 
 ---
 
-## 11. Related documents
+## 12. Related documents
 
 [PRD.md](./PRD.md) · [TECH_STACK.md](./TECH_STACK.md) ·
 [MODULE_GUIDE.md](./MODULE_GUIDE.md) · [DATA_MODEL.md](./DATA_MODEL.md) ·

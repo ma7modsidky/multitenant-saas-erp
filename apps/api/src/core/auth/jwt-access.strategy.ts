@@ -17,6 +17,7 @@ interface JwtAccessPayload {
   organizationId: string | undefined;
   roles: string[];
   permissions: string[];
+  isPlatformAdmin: boolean;
 }
 
 /**
@@ -30,6 +31,7 @@ export interface AuthenticatedUser {
   organizationId: string | undefined;
   roles: string[];
   permissions: string[];
+  isPlatformAdmin: boolean;
   locale: string;
 }
 
@@ -80,6 +82,7 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt') {
       organizationId: payload.organizationId ?? undefined,
       roles: payload.roles ?? [],
       permissions: payload.permissions ?? [],
+      isPlatformAdmin: payload.isPlatformAdmin ?? false,
       locale: 'en', // Resolved by TenantInterceptor from headers
     };
   }

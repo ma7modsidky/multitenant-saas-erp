@@ -18,6 +18,8 @@ export interface JwtAccessPayload {
   organizationId: string | undefined;
   roles: string[];
   permissions: string[];
+  /** Platform-admin (superuser) flag (PLT-1). */
+  isPlatformAdmin: boolean;
 }
 
 /**
@@ -104,7 +106,7 @@ export class JwtTokenService {
     userId: string,
     device?: string,
     ip?: string,
-    claims?: { organizationId?: string; roles?: string[]; permissions?: string[] },
+    claims?: { organizationId?: string; roles?: string[]; permissions?: string[]; isPlatformAdmin?: boolean },
   ): Promise<{ refreshToken: string; session: Session }> {
     const sessionId = randomUUID();
     const tokenFamily = randomUUID();
@@ -218,6 +220,7 @@ export class JwtTokenService {
       organizationId: session.organizationId,
       roles: session.roles ?? [],
       permissions: session.permissions ?? [],
+      isPlatformAdmin: session.isPlatformAdmin ?? false,
     });
 
     return {

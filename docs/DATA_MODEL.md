@@ -157,9 +157,10 @@ casting `::uuid` on the next org-less query served by that pooled connection
    `UNIQUE (organization_id, sku)`, never `UNIQUE (sku)`.
 4. Enumerations that the tenant can extend are tables, not Postgres enums. Fixed
    technical enumerations are Postgres enums.
-5. Append-only ledgers (`inv_stock_movements`, `core_audit_log`, `pos_payments`)
-   have **no** `UPDATE`/`DELETE` path. Corrections are new compensating rows.
-   Enforced by a rule/trigger plus repository design.
+5. Append-only ledgers (`inv_stock_movements`, `core_audit_log`,
+   `core_platform_audit_log`, `pos_payments`) have **no** `UPDATE`/`DELETE`
+   path. Corrections are new compensating rows. Enforced by a rule/trigger plus
+   repository design.
 6. `jsonb` is allowed for translations, flexible metadata, and event payloads —
    never for data that must be queried relationally or constrained.
 7. Timestamps are always `timestamptz` stored in UTC. Display timezone comes
@@ -178,15 +179,25 @@ casting `::uuid` on the next org-less query served by that pooled connection
 
 ### 4.1 Global (non-tenant) tables
 
-| Table                 | Purpose                                                                                                                             | RLS                                                |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `core_users`          | Identity: email, password hash, name, preferred locale, verification state, login lockout (`failed_login_attempts`, `locked_until`) | No (row visibility governed by membership queries) |
-| `core_sessions`       | Refresh-token sessions: hash, device, ip, expiry, revocation                                                                        | No                                                 |
-| `core_organizations`  | Tenants                                                                                                                             | No (visibility via membership)                     |
-| `core_currencies`     | ISO 4217 reference: code, exponent, symbol                                                                                          | No (read-only reference)                           |
-| `core_fx_rates`       | Daily rate snapshots: base, quote, rate, valid_on, source                                                                           | No (read-only reference)                           |
-| `core_module_catalog` | Registered modules, mirrored from descriptors at boot                                                                               | No (read-only reference)                           |
-| `core_permissions`    | Permission catalog, mirrored from descriptors at boot                                                                               | No (read-only reference)                           |
+| Table                     | Purpose                                                                                                                                                                                        | RLS                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `core_users`              | Identity: email, password hash, name, preferred locale, verification state, login lockout (`failed_login_attempts`, `locked_until`), platform-admin flag (`is_platform_admin`, migration 0013) | No (row visibility governed by membership queries) |
+| `core_sessions`           | Refresh-token sessions: hash, device, ip, expiry, revocation                                                                                                                                   | No                                                 |
+| `core_organizations`      | Tenants                                                                                                                                                                                        | No (visibility via membership)                     |
+| `core_currencies`         | ISO 4217 reference: code, exponent, symbol                                                                                                                                                     | No (read-only reference)                           |
+| `core_fx_rates`           | Daily rate snapshots: base, quote, rate, valid_on, source                                                                                                                                      | No (read-only reference)                           |
+| `core_module_catalog`     | Registered modules, mirrored from descriptors at boot                                                                                                                                          | No (read-only reference)                           |
+| `core_permissions`        | Permission catalog, mirrored from descriptors at boot                                                                                                                                          | No (read-only reference)                           |
+| `core_module_pricing`     | Admin-editable module list prices (monthly/yearly minor units + currency) — display/planning data, never the commercial authority                                                              | No (admin-managed reference)                       |
+| `core_saas_settings`      | Platform-level settings (key → jsonb value), allow-listed keys only                                                                                                                            | No (admin-managed reference)                       |
+| `core_platform_audit_log` | Append-only trail of platform-admin actions (actor, action, entity, before/after) — the separately audited code path TEN-5 requires                                                            | No (global; written by admin use cases)            |
+
+The last three are **platform-admin tables** (migration 0013): global, no RLS,
+managed exclusively by the `/v1/admin/*` back-office. They never hold tenant
+rows, so RLS is not applicable; the admin code path still binds every
+tenant-table query to one organization via `runWithOrg` (PLT-3).
+`core_platform_audit_log` follows the append-only discipline of `core_audit_log`
+(AUD-2) but is platform-scoped.
 
 The mirror is two-way at boot (`BootValidationService.validateAndSync`):
 registered descriptors are upserted, and catalog rows for keys **no longer

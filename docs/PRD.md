@@ -198,6 +198,37 @@ E-commerce storefront · Food Ordering & Delivery (real-time) · HR & Payroll-li
 Each must be addable per [MODULE_GUIDE.md](./MODULE_GUIDE.md) with **no core
 changes**.
 
+### 5.5 Platform Admin Console (back-office)
+
+An internal back-office for ModuBiz staff (the **Platform Admin** persona) to
+operate the SaaS itself — separate from tenant-facing dashboards and reached at
+`/<locale>/admin`:
+
+| Capability            | What it does                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Organizations**     | Directory of every tenant (search, status, member counts, subscription state, enabled modules); detail |
+| **Subscription mgmt** | Per-org module enable/trial/disable (entitlement overrides for support), dependency-aware (BILL-8/9)   |
+| **Module pricing**    | Monthly/yearly list prices per module + currency, stored in `core_module_pricing` (display/planning)   |
+| **SaaS settings**     | Platform-level settings (platform name, support email, default trial days, self-signup flag)           |
+
+Rules that bound it:
+
+- Platform admins are flagged on `core_users.is_platform_admin`, seeded from
+  `PLATFORM_ADMIN_EMAILS` at boot. Every `/v1/admin/*` route is guarded by
+  `@RequiresPlatformAdmin` (PLT-1/2).
+- Admin access is **org-scoped per query**: operations against a tenant's data
+  bind that tenant via `runWithOrg` — RLS stays the isolation backstop, and no
+  admin endpoint returns an unscoped cross-tenant scan (PLT-3).
+- Every admin mutation lands in `core_platform_audit_log` (append-only) — the
+  separately audited code path TEN-5 requires (PLT-4).
+- Admin subscription changes reuse the billing domain state machine; they never
+  bypass BILL-7/8/9 or the `core_module_entitlements` authority (PLT-5).
+- Module pricing is display/planning data; the commercial authority stays Stripe
+  (BILL-10). Boot-time catalog mirroring never overwrites admin-set pricing
+  (PLT-6).
+- Out of scope for the MVP console: refunds/payouts, custom report builder,
+  white-labelling, and a public developer SDK.
+
 ---
 
 ## 6. Module lifecycle

@@ -4,6 +4,7 @@ import { JwtTokenService } from '../../../core/auth/jwt-token.service.js';
 import { ForbiddenError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { SYSTEM_ROLE_PERMISSIONS } from '../../roles/domain/index.js';
+import { USER_REPOSITORY, type UserRepository } from '../../users/ports/index.js';
 import { NOT_A_MEMBER } from '../domain/errors.js';
 import { MEMBERSHIP_REPOSITORY, type MembershipRepository } from '../ports/index.js';
 
@@ -24,6 +25,8 @@ export class SwitchOrgUseCase {
   constructor(
     @Inject(MEMBERSHIP_REPOSITORY)
     private readonly membershipRepo: MembershipRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepo: UserRepository,
     private readonly jwtTokenService: JwtTokenService,
     private readonly txManager: TransactionManager,
   ) {}
@@ -73,6 +76,12 @@ export class SwitchOrgUseCase {
       : [];
     const roles = role && role.roleKey ? [role.roleKey] : [];
 
+    // The platform-admin flag (PLT-1) is user-level, not org-scoped: it must
+    // survive an org switch, so it is resolved from core_users (global, no
+    // RLS) and carried into the new session + access token.
+    const userData = await this.userRepo.findById(input.userId);
+    const isPlatformAdmin = userData?.isPlatformAdmin ?? false;
+
     // Generate a new session first so its ID can be embedded in the access
     // token (AUTH-5 current-session marking). The session records the org +
     // authz claims so a token refresh can re-issue the same org/roles/
@@ -90,6 +99,7 @@ export class SwitchOrgUseCase {
         organizationId: input.newOrganizationId,
         roles,
         permissions,
+        isPlatformAdmin,
       },
     );
 
@@ -101,6 +111,7 @@ export class SwitchOrgUseCase {
       organizationId: input.newOrganizationId,
       roles,
       permissions,
+      isPlatformAdmin,
     });
 
     // TEN-4/AUTH-5: the session that issued this switch is now stale — it
