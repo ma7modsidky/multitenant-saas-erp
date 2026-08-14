@@ -8,26 +8,36 @@ import {
   ENTITLEMENT_NOT_TRIALING,
   validateStateTransition,
 } from '../../billing/domain/index.js';
-import { BILLING_REPOSITORY, type BillingRepository } from '../../billing/ports/index.js';
+import { BILLING_REPOSITORY, STRIPE_PORT, type BillingRepository, type StripePort } from '../../billing/ports/index.js';
 import { PLATFORM_AUDIT_REPOSITORY, type PlatformAuditRepository } from '../ports/index.js';
 
 export type EntitlementAdjustment =
-  { action: 'extendTrial'; days: number } | { action: 'stopTrial' } | { action: 'suspend' } | { action: 'activate' };
+  | { action: 'extendTrial'; days: number }
+  | { action: 'stopTrial' }
+  | { action: 'suspend' }
+  | { action: 'activate' }
+  | { action: 'block' };
 
 /**
  * AdjustEntitlementUseCase — platform-admin control over one organization's
  * module entitlement lifecycle (PRD §5.5, PLT-8):
  *
- * - `extendTrial`  — push `trial_ends_at` forward by N days for a trialing
- *                    (or expired) entitlement, restoring `trialing`. Used to
- *                    grant extra trial days or revive a lapsed trial.
+ * - `extendTrial`  — push `trial_ends_at` forward by N days, restoring
+ *                    `trialing`. A RUNNING trial (trialing) is extended from
+ *                    `max(now, current end)`; an `expired` trial (lapsed or
+ *                    admin-stopped) is extended from `now` — the stale end is
+ *                    history, never a base, so "stop then extend by 2 days"
+ *                    means 2 days, not the unspent remainder + 2.
  * - `stopTrial`    — end a running trial now: `trialing → expired` (BILL-3
  *                    read-only grace period; the trial stamp stays, so the org
  *                    cannot restart it — BILL-2).
  * - `suspend`      — revoke a PAID module immediately: `active → suspended`.
  *                    The subscription item is kept; `activate` restores access.
  * - `activate`     — restore full access from `suspended`/`past_due`/`expired`
- *                    via the shared state machine (`→ active`).
+ *                    (`→ active`), or unblock a `blocked` module.
+ * - `block`        — gate a module until the org subscribes: any non-paid
+ *                    state → `blocked`. No access, no trial; only an admin
+ *                    grant or a payment can lift it (PLT-8).
  *
  * Every mutation binds the TARGET org via `runWithOrg` (PLT-3) and appends to
  * core_platform_audit_log with the acting admin (PLT-4, BILL-13).
@@ -37,6 +47,8 @@ export class AdjustEntitlementUseCase {
   constructor(
     @Inject(BILLING_REPOSITORY)
     private readonly billingRepo: BillingRepository,
+    @Inject(STRIPE_PORT)
+    private readonly stripe: StripePort,
     @Inject(PLATFORM_AUDIT_REPOSITORY)
     private readonly auditRepo: PlatformAuditRepository,
     private readonly txManager: TransactionManager,
@@ -63,6 +75,9 @@ export class AdjustEntitlementUseCase {
       case 'activate':
         await this.activate(input);
         break;
+      case 'block':
+        await this.block(input);
+        break;
     }
 
     return { message: `Module '${input.moduleKey}' ${input.action} for organization ${input.targetOrgId}.` };
@@ -72,6 +87,7 @@ export class AdjustEntitlementUseCase {
     state: string;
     trialStartedAt: Date | null;
     trialEndsAt: Date | null;
+    stripeSubscriptionItemId: string | null;
   }> {
     const entitlement = await this.txManager.runWithOrg(input.targetOrgId, (tx) =>
       this.billingRepo.findEntitlement(input.targetOrgId, input.moduleKey, tx),
@@ -80,6 +96,56 @@ export class AdjustEntitlementUseCase {
       throw new NotFoundError(ENTITLEMENT_NOT_FOUND, { moduleKey: input.moduleKey });
     }
     return entitlement;
+  }
+
+  /**
+   * Block a module until the org subscribes (PLT-8). From any non-paid state
+   * (available/trialing/expired/disabled) → `blocked`. Paid modules are never
+   * blocked — they are `suspend`ed (BILL-6 vocabulary). Stripe items are
+   * removed so billing stops; `activate` (or enable with a grant) lifts it.
+   */
+  private async block(input: {
+    targetOrgId: string;
+    moduleKey: string;
+    actorUserId: string | null;
+    actorEmail: string | null;
+  }): Promise<void> {
+    const entitlement = await this.txManager.runWithOrg(input.targetOrgId, (tx) =>
+      this.billingRepo.findEntitlement(input.targetOrgId, input.moduleKey, tx),
+    );
+    const fromState = entitlement?.state ?? 'available';
+    // The state machine rejects paid states (active/suspended/past_due) —
+    // those modules are `suspend`ed, never blocked (BILL-6 vocabulary).
+    validateStateTransition(fromState, 'blocked');
+
+    await this.txManager.runWithOrg(input.targetOrgId, async (tx) => {
+      if (entitlement?.stripeSubscriptionItemId) {
+        await this.stripe.removeSubscriptionItem(entitlement.stripeSubscriptionItemId);
+      }
+      await this.billingRepo.upsertEntitlement(
+        {
+          organizationId: input.targetOrgId,
+          moduleKey: input.moduleKey,
+          state: 'blocked',
+          stripeSubscriptionItemId: null,
+          // BILL-2: never wipe the permanent trial stamp — a later admin grant
+          // may still start a trial only if it was never used.
+          trialStartedAt: entitlement?.trialStartedAt ?? null,
+        },
+        tx,
+      );
+    });
+
+    await this.auditRepo.insert({
+      action: 'module.blocked',
+      entityType: 'organization',
+      entityId: input.targetOrgId,
+      actorUserId: input.actorUserId,
+      actorEmail: input.actorEmail,
+      metadata: { moduleKey: input.moduleKey },
+      before: { state: fromState },
+      after: { state: 'blocked' },
+    });
   }
 
   private async extendTrial(input: {
@@ -97,11 +163,16 @@ export class AdjustEntitlementUseCase {
       );
     }
 
-    // Extend means ADD days: the new end is computed from the later of the
-    // current end date (still running) or now (lapsed/expired trial), so a
-    // short extension never shortens a running trial.
+    // Extend means ADD days to a RUNNING trial: the new end is the later of
+    // the current end date (still trialing) or now, so a short extension never
+    // shortens a live trial. A trial that has already ended (state `expired`
+    // — lapsed naturally or stopped by an admin) always restarts from NOW:
+    // its `trialEndsAt` is stale history, and adding to it would hand back the
+    // unspent remainder (stop a 14-day trial, extend by 2 → 16 days, not 2).
     const base =
-      entitlement.trialEndsAt && entitlement.trialEndsAt.getTime() > Date.now() ? entitlement.trialEndsAt : new Date();
+      entitlement.state === 'trialing' && entitlement.trialEndsAt && entitlement.trialEndsAt.getTime() > Date.now()
+        ? entitlement.trialEndsAt
+        : new Date();
     const trialEndsAt = new Date(base.getTime() + input.days * 24 * 60 * 60 * 1000);
     await this.txManager.runWithOrg(input.targetOrgId, (tx) =>
       this.billingRepo.upsertEntitlement(

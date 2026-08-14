@@ -145,12 +145,13 @@ export class DrizzleBillingRepository implements BillingRepository {
         disabledAt: Date | null;
         purgeAfter: Date | null;
         stripeSubscriptionItemId: string | null;
+        accessUntil: Date | null;
       }
     | undefined
   > {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
-      sql`SELECT id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id
+      sql`SELECT id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, access_until
           FROM core_module_entitlements
           WHERE organization_id = ${organizationId} AND module_key = ${moduleKey}
           LIMIT 1`,
@@ -167,6 +168,7 @@ export class DrizzleBillingRepository implements BillingRepository {
       disabledAt: fromDbDate(row.disabled_at),
       purgeAfter: fromDbDate(row.purge_after),
       stripeSubscriptionItemId: row.stripe_subscription_item_id as string | null,
+      accessUntil: fromDbDate(row.access_until),
     };
   }
 
@@ -181,6 +183,7 @@ export class DrizzleBillingRepository implements BillingRepository {
       disabledAt?: Date | null;
       purgeAfter?: Date | null;
       stripeSubscriptionItemId?: string | null;
+      accessUntil?: Date | null;
       updatedBy?: string | null;
     },
     tx?: TxOrDb,
@@ -198,18 +201,20 @@ export class DrizzleBillingRepository implements BillingRepository {
       if (data.purgeAfter !== undefined) fragments.push(sql`purge_after = ${toDbDate(data.purgeAfter)}`);
       if (data.stripeSubscriptionItemId !== undefined)
         fragments.push(sql`stripe_subscription_item_id = ${data.stripeSubscriptionItemId}`);
+      if (data.accessUntil !== undefined) fragments.push(sql`access_until = ${toDbDate(data.accessUntil)}`);
 
       const setClause = sql.join(fragments, sql.raw(', '));
       await db.execute(sql`UPDATE core_module_entitlements SET ${setClause} WHERE id = ${existing.id}`);
     } else {
       await db.execute(sql`
         INSERT INTO core_module_entitlements
-          (id, organization_id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, created_at, updated_at)
+          (id, organization_id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, access_until, created_at, updated_at)
         VALUES
           (gen_random_uuid(), ${data.organizationId}, ${data.moduleKey}, ${data.state},
            ${toDbDate(data.trialStartedAt ?? null)}, ${toDbDate(data.trialEndsAt ?? null)},
            ${toDbDate(data.activatedAt ?? null)}, ${toDbDate(data.disabledAt ?? null)},
            ${toDbDate(data.purgeAfter ?? null)}, ${data.stripeSubscriptionItemId ?? null},
+           ${toDbDate(data.accessUntil ?? null)},
            NOW(), NOW())
       `);
     }
@@ -225,12 +230,30 @@ export class DrizzleBillingRepository implements BillingRepository {
   async findEntitlementsByOrg(
     organizationId: string,
     tx?: TxOrDb,
-  ): Promise<Array<{ id: string; moduleKey: string; state: string }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      moduleKey: string;
+      state: string;
+      stripeSubscriptionItemId: string | null;
+      trialEndsAt: Date | null;
+      accessUntil: Date | null;
+    }>
+  > {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
-      sql`SELECT id, module_key, state FROM core_module_entitlements WHERE organization_id = ${organizationId}`,
+      sql`SELECT id, module_key, state, stripe_subscription_item_id, trial_ends_at, access_until
+          FROM core_module_entitlements
+          WHERE organization_id = ${organizationId}`,
     );
-    return rows.map((r) => ({ id: r.id as string, moduleKey: r.module_key as string, state: r.state as string }));
+    return rows.map((r) => ({
+      id: r.id as string,
+      moduleKey: r.module_key as string,
+      state: r.state as string,
+      stripeSubscriptionItemId: r.stripe_subscription_item_id as string | null,
+      trialEndsAt: fromDbDate(r.trial_ends_at),
+      accessUntil: fromDbDate(r.access_until),
+    }));
   }
 
   async findActiveSubscriptionItems(

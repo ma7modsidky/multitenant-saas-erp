@@ -47,6 +47,7 @@ const h = vi.hoisted(() => {
 // page test).
 let catalogData: ModuleDefinition[] = h.CATALOG;
 let entitlementsData: Entitlement[] = [];
+let subscriptionData: { currentPeriodEnd: string | null } | null = null;
 
 vi.mock('@/lib/auth/session-context', () => ({
   useSession: () => ({
@@ -64,7 +65,7 @@ vi.mock('@/lib/auth/session-context', () => ({
 // The page pulls the shared ModuleStateBadge from its own module path, so
 // this mock only needs to override the entitlements hook.
 vi.mock('@/lib/entitlements', () => ({
-  useEntitlements: () => ({ data: { subscription: null, entitlements: entitlementsData } }),
+  useEntitlements: () => ({ data: { subscription: subscriptionData, entitlements: entitlementsData } }),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -83,6 +84,7 @@ import ModulesSettingsPage from '../page';
 beforeEach(() => {
   catalogData = h.CATALOG;
   entitlementsData = [];
+  subscriptionData = null;
   vi.mocked(enableModuleTrial).mockReset();
   vi.mocked(disableBillingModule).mockReset();
   vi.mocked(enableModuleTrial).mockResolvedValue({ message: 'ok' });
@@ -108,9 +110,9 @@ function inventoryCard() {
 describe('ModulesSettingsPage — state badges', () => {
   it('renders localized state badges instead of raw state codes', () => {
     entitlementsData = [
-      { moduleKey: 'pos', state: 'trialing', trialEndsAt: null, activatedAt: null },
-      { moduleKey: 'inventory', state: 'active', trialEndsAt: null, activatedAt: null },
-      { moduleKey: 'crm', state: 'past_due', trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'pos', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'inventory', state: 'active', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'crm', state: 'past_due', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
     ];
 
     renderPage();
@@ -154,6 +156,7 @@ describe('ModulesSettingsPage — state badges', () => {
       {
         moduleKey: 'pos',
         state: 'trialing',
+        trialStartedAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
         trialEndsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
         activatedAt: null,
       },
@@ -171,6 +174,131 @@ describe('ModulesSettingsPage — state badges', () => {
     renderPage();
 
     expect(within(posCard()).getByText('14-day free trial')).toBeInTheDocument();
+  });
+});
+
+describe('ModulesSettingsPage — active module expiry (PLT-8/BILL-14)', () => {
+  it('shows the subscription period end on a PAID active module card', () => {
+    subscriptionData = { currentPeriodEnd: '2026-09-01T00:00:00.000Z' };
+    entitlementsData = [
+      {
+        moduleKey: 'inventory',
+        state: 'active',
+        trialStartedAt: null,
+        trialEndsAt: null,
+        activatedAt: null,
+        isPaid: true,
+        accessUntil: null,
+      },
+    ];
+
+    renderPage();
+
+    expect(within(inventoryCard()).getByText(/Active until/)).toBeInTheDocument();
+    // Other cards (no paid entitlement) get no expiry line.
+    expect(within(posCard()).queryByText(/until/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the grant end date on a time-boxed free grant card', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'crm',
+        state: 'active',
+        trialStartedAt: null,
+        trialEndsAt: null,
+        activatedAt: null,
+        isPaid: false,
+        accessUntil: '2026-10-15T00:00:00.000Z',
+      },
+    ];
+
+    renderPage();
+
+    expect(within(screen.getByTestId('module-card-crm')).getByText(/Access until/)).toBeInTheDocument();
+  });
+
+  it('shows no expiry line for an unlimited free grant', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'crm',
+        state: 'active',
+        trialStartedAt: null,
+        trialEndsAt: null,
+        activatedAt: null,
+        isPaid: false,
+        accessUntil: null,
+      },
+    ];
+
+    renderPage();
+
+    expect(screen.queryByText(/until/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('ModulesSettingsPage — trial-used state (BILL-2)', () => {
+  it('shows the used state instead of the offer once the trial has expired', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'pos',
+        state: 'expired',
+        trialStartedAt: '2026-07-01T00:00:00.000Z',
+        trialEndsAt: '2026-07-15T00:00:00.000Z',
+        activatedAt: null,
+      },
+    ];
+
+    renderPage();
+
+    // The trial offer is gone — the card admits the trial already ran.
+    expect(within(posCard()).queryByText('14-day free trial')).not.toBeInTheDocument();
+    expect(within(posCard()).getByText(/already used/)).toBeInTheDocument();
+    // No way to start it again: the CTA is a disabled "Trial used" button.
+    expect(within(posCard()).getByRole('button', { name: 'Trial used' })).toBeDisabled();
+    expect(within(posCard()).queryByRole('button', { name: 'Start free trial' })).not.toBeInTheDocument();
+  });
+
+  it('shows the used state for a module disabled after its trial ran', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'pos',
+        state: 'disabled',
+        trialStartedAt: '2026-07-01T00:00:00.000Z',
+        trialEndsAt: '2026-07-15T00:00:00.000Z',
+        activatedAt: null,
+      },
+    ];
+
+    renderPage();
+
+    expect(within(posCard()).queryByText('14-day free trial')).not.toBeInTheDocument();
+    expect(within(posCard()).getByRole('button', { name: 'Trial used' })).toBeDisabled();
+  });
+
+  it('keeps the offer when a module was disabled before any trial started', () => {
+    entitlementsData = [
+      { moduleKey: 'pos', state: 'disabled', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
+
+    renderPage();
+
+    expect(within(posCard()).getByText('14-day free trial')).toBeInTheDocument();
+    expect(within(posCard()).getByRole('button', { name: 'Start free trial' })).toBeEnabled();
+  });
+
+  it('never offers a trial on an admin-suspended module', () => {
+    entitlementsData = [
+      { moduleKey: 'pos', state: 'suspended', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
+
+    renderPage();
+
+    // The backend forbids suspended → trialing, so the trial offer is a lie
+    // here — the card shows the suspension hint and a disabled CTA instead.
+    expect(within(posCard()).queryByText('14-day free trial')).not.toBeInTheDocument();
+    expect(within(posCard()).getByText(/suspended by your administrator/)).toBeInTheDocument();
+    expect(within(posCard()).getByRole('button', { name: 'Suspended' })).toBeDisabled();
+    expect(within(posCard()).queryByRole('button', { name: 'Start free trial' })).not.toBeInTheDocument();
   });
 });
 
@@ -198,7 +326,9 @@ describe('ModulesSettingsPage — enabling with dependencies', () => {
 
   it('enables directly when all dependencies are already active', async () => {
     const user = userEvent.setup();
-    entitlementsData = [{ moduleKey: 'inventory', state: 'trialing', trialEndsAt: null, activatedAt: null }];
+    entitlementsData = [
+      { moduleKey: 'inventory', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
 
     renderPage();
 
@@ -232,8 +362,8 @@ describe('ModulesSettingsPage — disabling with dependents', () => {
   it('warns that dependent modules will be disabled too, then disables them in order', async () => {
     const user = userEvent.setup();
     entitlementsData = [
-      { moduleKey: 'pos', state: 'trialing', trialEndsAt: null, activatedAt: null },
-      { moduleKey: 'inventory', state: 'trialing', trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'pos', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'inventory', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
     ];
 
     renderPage();
@@ -254,7 +384,9 @@ describe('ModulesSettingsPage — disabling with dependents', () => {
 
   it('disables a module without dependents after a plain confirmation', async () => {
     const user = userEvent.setup();
-    entitlementsData = [{ moduleKey: 'inventory', state: 'trialing', trialEndsAt: null, activatedAt: null }];
+    entitlementsData = [
+      { moduleKey: 'inventory', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
 
     renderPage();
 
@@ -275,7 +407,9 @@ describe('ModulesSettingsPage — disabling with dependents', () => {
 
   it('maps a dependent-module rejection to a friendly disable error (never the trial text)', async () => {
     const user = userEvent.setup();
-    entitlementsData = [{ moduleKey: 'inventory', state: 'trialing', trialEndsAt: null, activatedAt: null }];
+    entitlementsData = [
+      { moduleKey: 'inventory', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
     vi.mocked(disableBillingModule).mockRejectedValueOnce(new ApiError(409, { code: 'MODULE_DEPENDENCY_CONFLICT' }));
 
     renderPage();
@@ -296,7 +430,9 @@ describe('ModulesSettingsPage — disabling with dependents', () => {
 
   it('shows a generic disable message for unknown failures', async () => {
     const user = userEvent.setup();
-    entitlementsData = [{ moduleKey: 'inventory', state: 'trialing', trialEndsAt: null, activatedAt: null }];
+    entitlementsData = [
+      { moduleKey: 'inventory', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
     vi.mocked(disableBillingModule).mockRejectedValueOnce(new ApiError(500, { code: 'INTERNAL_ERROR' }));
 
     renderPage();

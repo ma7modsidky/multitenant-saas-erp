@@ -42,8 +42,17 @@ describe('ReconcileEntitlementsUseCase (BILL-4)', () => {
     useCase = new ReconcileEntitlementsUseCase(billingRepo as never, stripe as never, txManager as never);
   });
 
-  it('BILL-4: Stripe wins — a suspended module present in Stripe is reactivated', async () => {
-    billingRepo.findEntitlementsByOrg.mockResolvedValue([{ id: 'ent-1', moduleKey: 'crm', state: 'suspended' }]);
+  it('BILL-4: Stripe wins — a suspended PAID module present in Stripe is reactivated', async () => {
+    billingRepo.findEntitlementsByOrg.mockResolvedValue([
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'suspended',
+        stripeSubscriptionItemId: 'si_1',
+        trialEndsAt: null,
+        accessUntil: null,
+      },
+    ]);
 
     const result = await useCase.execute({ organizationId: 'org-1' });
 
@@ -53,10 +62,24 @@ describe('ReconcileEntitlementsUseCase (BILL-4)', () => {
     expect(billingRepo.updateEntitlementState).toHaveBeenCalledWith('org-1', 'crm', 'active', 'tx');
   });
 
-  it('BILL-4: Stripe wins — a local active module missing from Stripe is disabled', async () => {
+  it('BILL-4: Stripe wins — a local PAID module missing from Stripe is disabled', async () => {
     billingRepo.findEntitlementsByOrg.mockResolvedValue([
-      { id: 'ent-1', moduleKey: 'crm', state: 'active' },
-      { id: 'ent-2', moduleKey: 'inventory', state: 'active' },
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'active',
+        stripeSubscriptionItemId: 'si_1',
+        trialEndsAt: null,
+        accessUntil: null,
+      },
+      {
+        id: 'ent-2',
+        moduleKey: 'inventory',
+        state: 'active',
+        stripeSubscriptionItemId: 'si_2',
+        trialEndsAt: null,
+        accessUntil: null,
+      },
     ]);
     stripe.getSubscriptionItems.mockResolvedValue([{ id: 'si_1', priceKey: 'crm' }]);
 
@@ -69,6 +92,82 @@ describe('ReconcileEntitlementsUseCase (BILL-4)', () => {
     expect(billingRepo.updateEntitlementState).toHaveBeenCalledWith('org-1', 'inventory', 'disabled', 'tx');
   });
 
+  it('BILL-14: a FREE admin grant (no Stripe item) is never reconciled against Stripe', async () => {
+    // Active, no Stripe item, unlimited grant — Stripe has no such module item.
+    billingRepo.findEntitlementsByOrg.mockResolvedValue([
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'active',
+        stripeSubscriptionItemId: null,
+        trialEndsAt: null,
+        accessUntil: null,
+      },
+    ]);
+    stripe.getSubscriptionItems.mockResolvedValue([]);
+
+    const result = await useCase.execute({ organizationId: 'org-1' });
+
+    expect(result.updated).toBe(0);
+    expect(billingRepo.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('BILL-3: a lapsed trial moves to expired (read-only grace)', async () => {
+    billingRepo.findEntitlementsByOrg.mockResolvedValue([
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'trialing',
+        stripeSubscriptionItemId: 'si_1',
+        trialEndsAt: new Date(Date.now() - 1000),
+        accessUntil: null,
+      },
+    ]);
+
+    const result = await useCase.execute({ organizationId: 'org-1' });
+
+    expect(result.updated).toBe(1);
+    expect(result.alerts[0]).toMatch(/trial expired/);
+    expect(billingRepo.updateEntitlementState).toHaveBeenCalledWith('org-1', 'crm', 'expired', 'tx');
+  });
+
+  it('BILL-14: a lapsed time-boxed free grant moves to expired', async () => {
+    billingRepo.findEntitlementsByOrg.mockResolvedValue([
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'active',
+        stripeSubscriptionItemId: null,
+        trialEndsAt: null,
+        accessUntil: new Date(Date.now() - 1000),
+      },
+    ]);
+
+    const result = await useCase.execute({ organizationId: 'org-1' });
+
+    expect(result.updated).toBe(1);
+    expect(result.alerts[0]).toMatch(/grant access ended/);
+    expect(billingRepo.updateEntitlementState).toHaveBeenCalledWith('org-1', 'crm', 'expired', 'tx');
+  });
+
+  it('BILL-14: an unexpired free grant is left untouched', async () => {
+    billingRepo.findEntitlementsByOrg.mockResolvedValue([
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'active',
+        stripeSubscriptionItemId: null,
+        trialEndsAt: null,
+        accessUntil: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      },
+    ]);
+
+    const result = await useCase.execute({ organizationId: 'org-1' });
+
+    expect(result.updated).toBe(0);
+    expect(billingRepo.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
   it('reports an alert when the org has no subscription', async () => {
     billingRepo.findByOrgId.mockResolvedValue(undefined);
 
@@ -79,7 +178,16 @@ describe('ReconcileEntitlementsUseCase (BILL-4)', () => {
   });
 
   it('is a no-op when local state already matches Stripe', async () => {
-    billingRepo.findEntitlementsByOrg.mockResolvedValue([{ id: 'ent-1', moduleKey: 'crm', state: 'active' }]);
+    billingRepo.findEntitlementsByOrg.mockResolvedValue([
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'active',
+        stripeSubscriptionItemId: 'si_1',
+        trialEndsAt: null,
+        accessUntil: null,
+      },
+    ]);
     stripe.getSubscriptionItems.mockResolvedValue([{ id: 'si_1', priceKey: 'crm' }]);
 
     const result = await useCase.execute({ organizationId: 'org-1' });
@@ -91,8 +199,22 @@ describe('ReconcileEntitlementsUseCase (BILL-4)', () => {
 
   it('leaves read-only/disabled states untouched (they are not active)', async () => {
     billingRepo.findEntitlementsByOrg.mockResolvedValue([
-      { id: 'ent-1', moduleKey: 'crm', state: 'expired' },
-      { id: 'ent-2', moduleKey: 'inventory', state: 'disabled' },
+      {
+        id: 'ent-1',
+        moduleKey: 'crm',
+        state: 'expired',
+        stripeSubscriptionItemId: null,
+        trialEndsAt: new Date('2026-01-01T00:00:00Z'),
+        accessUntil: null,
+      },
+      {
+        id: 'ent-2',
+        moduleKey: 'inventory',
+        state: 'disabled',
+        stripeSubscriptionItemId: null,
+        trialEndsAt: null,
+        accessUntil: null,
+      },
     ]);
 
     const result = await useCase.execute({ organizationId: 'org-1' });

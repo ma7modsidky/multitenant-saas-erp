@@ -692,6 +692,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/admin/organizations/{orgId}/activity': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AdminController_organizationActivity'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/admin/organizations/{orgId}/modules/{moduleKey}/enable': {
     parameters: {
       query?: never;
@@ -734,6 +750,22 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations['AdminController_extendTrial'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/organizations/{orgId}/modules/{moduleKey}/block': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AdminController_blockModule'];
     delete?: never;
     options?: never;
     head?: never;
@@ -2064,8 +2096,11 @@ export interface components {
         entitlements: {
           moduleKey: string;
           state: string;
+          trialStartedAt: string | null;
           trialEndsAt: string | null;
           activatedAt: string | null;
+          accessUntil: string | null;
+          isPaid: boolean;
         }[];
       };
     };
@@ -2242,12 +2277,37 @@ export interface components {
           trialEndsAt: string | null;
           activatedAt: string | null;
           disabledAt: string | null;
+          accessUntil: string | null;
+          isPaid: boolean;
+        }[];
+      };
+    };
+    AdminOrgActivityEnvelopeResponse: {
+      data: {
+        items: {
+          id: string;
+          action: string;
+          actorUserId: string | null;
+          actorEmail: string | null;
+          before: {
+            [key: string]: unknown;
+          } | null;
+          after: {
+            [key: string]: unknown;
+          } | null;
+          metadata: {
+            [key: string]: unknown;
+          } | null;
+          occurredAt: string;
         }[];
       };
     };
     AdminEnableModuleDto: {
       /** @default false */
       skipTrial: boolean;
+      trialDays?: number;
+      /** Format: date-time */
+      accessUntil?: string;
     };
     AdminMessageEnvelopeResponse: {
       data: {
@@ -4361,6 +4421,29 @@ export interface operations {
       };
     };
   };
+  AdminController_organizationActivity: {
+    parameters: {
+      query: {
+        limit: string;
+      };
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminOrgActivityEnvelopeResponse'];
+        };
+      };
+    };
+  };
   AdminController_enableModule: {
     parameters: {
       query?: never;
@@ -4426,6 +4509,32 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['AdminExtendTrialDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMessageEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AdminController_blockModule: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        moduleKey: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminEmptyActionDto'];
       };
     };
     responses: {

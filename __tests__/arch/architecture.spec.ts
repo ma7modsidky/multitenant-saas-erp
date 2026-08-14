@@ -68,6 +68,7 @@ function findProcessEnvViolations(filePattern: string): string[] {
       // Playwright E2E config reads base URLs from env (test tooling, not
       // application code — same category as specs/tests).
       '**/playwright.config.ts',
+      '**/playwright.journey.config.ts',
     ],
   });
 
@@ -139,12 +140,12 @@ describe('architecture', () => {
 
     for (const [file, deps] of imports) {
       for (const dep of deps) {
-        if (
-          dep.includes('@/platform') ||
-          dep.includes('../platform') ||
-          dep.includes('@/modules') ||
-          dep.includes('../modules')
-        ) {
+        // Match by PATH SEGMENT, not substring: `../platform/admin` and bare
+        // `@/platform` both trip the boundary, but a filename like
+        // `../platform-admin.decorator.js` (which lives INSIDE core and shares
+        // the `platform-` prefix by naming convention) does not.
+        const segments = dep.split('/');
+        if (segments.includes('platform') || segments.includes('modules')) {
           violations.push(`${file} imports "${dep}"`);
         }
       }
@@ -166,7 +167,7 @@ describe('architecture', () => {
         continue;
       }
       for (const dep of deps) {
-        if (dep.includes('@/modules') || dep.includes('../modules')) {
+        if (dep.split('/').includes('modules')) {
           violations.push(`${file} imports "${dep}"`);
         }
       }
@@ -182,7 +183,7 @@ describe('architecture', () => {
 
     for (const [file, deps] of imports) {
       for (const dep of deps) {
-        if (dep.includes('@/platform') || dep.includes('../platform')) {
+        if (dep.split('/').includes('platform')) {
           violations.push(`${file} imports "${dep}"`);
         }
       }

@@ -7,9 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Entitlement } from '@/lib/api/types';
 
-// Module-level mutable fixture — the react-query mock reads it at render time
-// (same hoisted pattern as the audit and modules page tests).
+// Module-level mutable fixtures — the react-query mock reads them at render
+// time (same hoisted pattern as the audit and modules page tests).
 let entitlementsData: Entitlement[] = [];
+let subscriptionData: { currentPeriodEnd: string | null } | null = null;
 
 vi.mock('@/lib/auth/session-context', () => ({
   useSession: () => ({
@@ -29,7 +30,7 @@ vi.mock('@/lib/permissions', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: { subscription: null, entitlements: entitlementsData } }),
+  useQuery: () => ({ data: { subscription: subscriptionData, entitlements: entitlementsData } }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
@@ -42,6 +43,7 @@ import BillingSettingsPage from '../page';
 
 beforeEach(() => {
   entitlementsData = [];
+  subscriptionData = null;
 });
 
 function renderPage() {
@@ -55,9 +57,9 @@ function renderPage() {
 describe('BillingSettingsPage — module state badges', () => {
   it('renders localized state labels instead of raw state codes', () => {
     entitlementsData = [
-      { moduleKey: 'pos', state: 'active', trialEndsAt: null, activatedAt: null },
-      { moduleKey: 'inventory', state: 'trialing', trialEndsAt: null, activatedAt: null },
-      { moduleKey: 'crm', state: 'past_due', trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'pos', state: 'active', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'inventory', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'crm', state: 'past_due', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
     ];
 
     renderPage();
@@ -72,9 +74,9 @@ describe('BillingSettingsPage — module state badges', () => {
 
   it('labels the less common states too (disabled, expired, suspended)', () => {
     entitlementsData = [
-      { moduleKey: 'pos', state: 'disabled', trialEndsAt: null, activatedAt: null },
-      { moduleKey: 'inventory', state: 'expired', trialEndsAt: null, activatedAt: null },
-      { moduleKey: 'crm', state: 'suspended', trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'pos', state: 'disabled', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'inventory', state: 'expired', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'crm', state: 'suspended', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
     ];
 
     renderPage();
@@ -85,7 +87,9 @@ describe('BillingSettingsPage — module state badges', () => {
   });
 
   it('shows no badge for a none-state entitlement', () => {
-    entitlementsData = [{ moduleKey: 'crm', state: 'none', trialEndsAt: null, activatedAt: null }];
+    entitlementsData = [
+      { moduleKey: 'crm', state: 'none', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
 
     renderPage();
 
@@ -93,5 +97,126 @@ describe('BillingSettingsPage — module state badges', () => {
     expect(screen.getByText('CRM')).toBeInTheDocument();
     expect(screen.queryByText('none')).not.toBeInTheDocument();
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
+  });
+});
+
+describe('BillingSettingsPage — trial dates and days remaining', () => {
+  it('shows the end date and a live days-left countdown for a trialing module', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'inventory',
+        state: 'trialing',
+        trialStartedAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+        trialEndsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+        activatedAt: null,
+      },
+    ];
+
+    renderPage();
+
+    // End date line + the pluralized countdown (assert via text, not the
+    // locale-dependent date string).
+    expect(screen.getByText(/Ends .*· .*5 days left in trial/)).toBeInTheDocument();
+  });
+
+  it('shows the ended date for an expired trial', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'crm',
+        state: 'expired',
+        trialStartedAt: '2026-08-01T00:00:00.000Z',
+        trialEndsAt: '2026-08-12T00:00:00.000Z',
+        activatedAt: null,
+      },
+    ];
+
+    renderPage();
+
+    expect(screen.getByText(/Trial ended/)).toBeInTheDocument();
+  });
+
+  it('marks a module disabled after its trial as trial used (BILL-2)', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'pos',
+        state: 'disabled',
+        trialStartedAt: '2026-08-02T00:00:00.000Z',
+        trialEndsAt: '2026-08-13T00:00:00.000Z',
+        activatedAt: null,
+      },
+    ];
+
+    renderPage();
+
+    expect(screen.getByText('Trial used')).toBeInTheDocument();
+  });
+
+  it('shows no trial line for paid or suspended modules', () => {
+    entitlementsData = [
+      { moduleKey: 'pos', state: 'active', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      { moduleKey: 'crm', state: 'suspended', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+    ];
+
+    renderPage();
+
+    expect(screen.queryByText(/Ends/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Trial/)).not.toBeInTheDocument();
+  });
+});
+
+describe('BillingSettingsPage — active module expiry (PLT-8/BILL-14)', () => {
+  it('shows the subscription period end for a PAID active module', () => {
+    subscriptionData = { currentPeriodEnd: '2026-09-01T00:00:00.000Z' };
+    entitlementsData = [
+      {
+        moduleKey: 'pos',
+        state: 'active',
+        trialStartedAt: null,
+        trialEndsAt: null,
+        activatedAt: null,
+        isPaid: true,
+        accessUntil: null,
+      },
+    ];
+
+    renderPage();
+
+    expect(screen.getByText(/Active until/)).toBeInTheDocument();
+  });
+
+  it('shows the grant end date for a time-boxed free grant', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'pos',
+        state: 'active',
+        trialStartedAt: null,
+        trialEndsAt: null,
+        activatedAt: null,
+        isPaid: false,
+        accessUntil: '2026-10-15T00:00:00.000Z',
+      },
+    ];
+
+    renderPage();
+
+    expect(screen.getByText(/Access until/)).toBeInTheDocument();
+  });
+
+  it('shows no expiry line for an unlimited free grant', () => {
+    entitlementsData = [
+      {
+        moduleKey: 'pos',
+        state: 'active',
+        trialStartedAt: null,
+        trialEndsAt: null,
+        activatedAt: null,
+        isPaid: false,
+        accessUntil: null,
+      },
+    ];
+
+    renderPage();
+
+    expect(screen.queryByText(/until/i)).not.toBeInTheDocument();
   });
 });

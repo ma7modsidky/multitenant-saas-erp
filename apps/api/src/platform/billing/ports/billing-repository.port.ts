@@ -55,6 +55,8 @@ export interface BillingRepository {
         disabledAt: Date | null;
         purgeAfter: Date | null;
         stripeSubscriptionItemId: string | null;
+        /** End date of a free admin grant (PLT-8); null = unlimited grant. */
+        accessUntil: Date | null;
       }
     | undefined
   >;
@@ -71,6 +73,8 @@ export interface BillingRepository {
       disabledAt?: Date | null;
       purgeAfter?: Date | null;
       stripeSubscriptionItemId?: string | null;
+      /** End date of a free admin grant (PLT-8); null = unlimited grant. */
+      accessUntil?: Date | null;
       updatedBy?: string | null;
     },
     tx?: TxOrDb,
@@ -79,11 +83,21 @@ export interface BillingRepository {
   /** Update entitlement state. */
   updateEntitlementState(organizationId: string, moduleKey: string, state: string, tx?: TxOrDb): Promise<void>;
 
-  /** Get all entitlements for an organization. */
+  /** Get all entitlements for an organization (full row — the reconcile job
+      needs the Stripe item id and the expiry dates, BILL-4/BILL-14). */
   findEntitlementsByOrg(
     organizationId: string,
     tx?: TxOrDb,
-  ): Promise<Array<{ id: string; moduleKey: string; state: string }>>;
+  ): Promise<
+    Array<{
+      id: string;
+      moduleKey: string;
+      state: string;
+      stripeSubscriptionItemId: string | null;
+      trialEndsAt: Date | null;
+      accessUntil: Date | null;
+    }>
+  >;
 
   /** Get all active subscription items for an organization. */
   findActiveSubscriptionItems(

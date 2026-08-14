@@ -5,7 +5,7 @@ import { UpdateModulePricingUseCase } from '../application/update-module-pricing
 describe('UpdateModulePricingUseCase (PLT-6 / PLT-4)', () => {
   let pricingRepo: { listWithCatalog: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> };
   let moduleRegistryRepo: { getModule: ReturnType<typeof vi.fn> };
-  let auditRepo: { insert: ReturnType<typeof vi.fn> };
+  let auditRepo: { insert: ReturnType<typeof vi.fn>; listByOrg: ReturnType<typeof vi.fn> };
   let useCase: UpdateModulePricingUseCase;
 
   const actor = { actorUserId: 'admin-1', actorEmail: 'admin@modubiz.app' };
@@ -25,7 +25,7 @@ describe('UpdateModulePricingUseCase (PLT-6 / PLT-4)', () => {
     moduleRegistryRepo = {
       getModule: vi.fn().mockResolvedValue({ key: 'crm', name: 'CRM' }),
     };
-    auditRepo = { insert: vi.fn().mockResolvedValue(undefined) };
+    auditRepo = { insert: vi.fn().mockResolvedValue(undefined), listByOrg: vi.fn().mockResolvedValue([]) };
     useCase = new UpdateModulePricingUseCase(pricingRepo, moduleRegistryRepo as never, auditRepo);
   });
 

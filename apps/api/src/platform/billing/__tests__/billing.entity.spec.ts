@@ -49,6 +49,14 @@ describe('BILL-3/6/7: Entitlement state machine - VALID transitions', () => {
     ['suspended', 'active'],
     ['disabled', 'available'],
     ['disabled', 'active'],
+    // PLT-8: `blocked` is an admin gate (block until paid).
+    ['available', 'blocked'],
+    ['trialing', 'blocked'],
+    ['expired', 'blocked'],
+    ['disabled', 'blocked'],
+    ['blocked', 'active'],
+    ['blocked', 'trialing'],
+    ['blocked', 'disabled'],
   ];
 
   for (const [from, to] of validCases) {
@@ -89,6 +97,15 @@ describe('Entitlement state machine - INVALID transitions', () => {
     ['disabled', 'past_due'],
     ['disabled', 'expired'],
     ['disabled', 'suspended'],
+    // PLT-8: paid states can never be blocked (suspend is the paid-module hold).
+    ['active', 'blocked'],
+    ['suspended', 'blocked'],
+    ['past_due', 'blocked'],
+    ['blocked', 'blocked'],
+    ['blocked', 'expired'],
+    ['blocked', 'past_due'],
+    ['blocked', 'suspended'],
+    ['blocked', 'available'],
     ['unknown_state', 'active'],
     ['active', 'unknown_state'],
   ];
@@ -143,7 +160,7 @@ describe('Billing.toJSON()', () => {
 });
 
 describe('ENTITLEMENT_STATE_LABELS', () => {
-  it('has labels for all 7 states', () => {
+  it('has labels for all 8 states', () => {
     expect(ENTITLEMENT_STATE_LABELS.available).toBe('Available');
     expect(ENTITLEMENT_STATE_LABELS.trialing).toBe('Trial');
     expect(ENTITLEMENT_STATE_LABELS.active).toBe('Active');
@@ -151,5 +168,6 @@ describe('ENTITLEMENT_STATE_LABELS', () => {
     expect(ENTITLEMENT_STATE_LABELS.expired).toBe('Expired');
     expect(ENTITLEMENT_STATE_LABELS.suspended).toBe('Suspended');
     expect(ENTITLEMENT_STATE_LABELS.disabled).toBe('Disabled');
+    expect(ENTITLEMENT_STATE_LABELS.blocked).toBe('Blocked');
   });
 });

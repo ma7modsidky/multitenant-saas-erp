@@ -26,13 +26,17 @@ export interface SubscriptionData {
  * Allowed entitlement state transitions per BILL-3, BILL-6, BILL-7.
  */
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  available: ['trialing', 'active'],
-  trialing: ['active', 'expired', 'disabled'],
+  available: ['trialing', 'active', 'blocked'],
+  trialing: ['active', 'expired', 'disabled', 'blocked'],
   active: ['past_due', 'disabled', 'expired', 'suspended'],
   past_due: ['active', 'suspended'],
-  expired: ['active', 'disabled'],
+  expired: ['active', 'disabled', 'blocked'],
   suspended: ['active'],
-  disabled: ['available', 'active'],
+  // PLT-8: `blocked` is an admin gate — a blocked module can only be
+  // unblocked by an explicit admin action (full access, trial grant) or
+  // by a payment; the tenant can never self-enable a blocked module.
+  blocked: ['active', 'trialing', 'disabled'],
+  disabled: ['available', 'active', 'blocked'],
 };
 
 /**
@@ -114,4 +118,5 @@ export const ENTITLEMENT_STATE_LABELS: Record<string, string> = {
   expired: 'Expired',
   suspended: 'Suspended',
   disabled: 'Disabled',
+  blocked: 'Blocked',
 };

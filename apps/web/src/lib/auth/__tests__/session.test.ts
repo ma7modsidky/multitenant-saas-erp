@@ -80,7 +80,9 @@ describe('sessionStore', () => {
   it('stores and reads the org-scoped billing snapshot', () => {
     const billing = {
       subscription: null,
-      entitlements: [{ moduleKey: 'pos', state: 'trialing', trialEndsAt: null, activatedAt: null }],
+      entitlements: [
+        { moduleKey: 'pos', state: 'trialing', trialStartedAt: null, trialEndsAt: null, activatedAt: null },
+      ],
     };
     sessionStore.setCachedBilling('org-1', billing);
     expect(sessionStore.getCachedBilling('org-1')).toEqual(billing);
@@ -90,11 +92,11 @@ describe('sessionStore', () => {
     sessionStore.setCachedBilling('org-1', { subscription: null, entitlements: [] });
     sessionStore.setCachedBilling('org-2', {
       subscription: null,
-      entitlements: [{ moduleKey: 'crm', state: 'active', trialEndsAt: null, activatedAt: null }],
+      entitlements: [{ moduleKey: 'crm', state: 'active', trialStartedAt: null, trialEndsAt: null, activatedAt: null }],
     });
     expect(sessionStore.getCachedBilling('org-2')).toEqual({
       subscription: null,
-      entitlements: [{ moduleKey: 'crm', state: 'active', trialEndsAt: null, activatedAt: null }],
+      entitlements: [{ moduleKey: 'crm', state: 'active', trialStartedAt: null, trialEndsAt: null, activatedAt: null }],
     });
     expect(sessionStore.getCachedBilling('org-3')).toBeNull();
   });

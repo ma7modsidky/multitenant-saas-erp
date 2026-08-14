@@ -22,7 +22,7 @@ describe('SetOrganizationModuleUseCase (PLT-3/4/5, BILL-8/9)', () => {
     addSubscriptionItem: ReturnType<typeof vi.fn>;
     removeSubscriptionItem: ReturnType<typeof vi.fn>;
   };
-  let auditRepo: { insert: ReturnType<typeof vi.fn> };
+  let auditRepo: { insert: ReturnType<typeof vi.fn>; listByOrg: ReturnType<typeof vi.fn> };
   let txManager: { runWithOrg: ReturnType<typeof vi.fn> };
   let useCase: SetOrganizationModuleUseCase;
 
@@ -45,7 +45,7 @@ describe('SetOrganizationModuleUseCase (PLT-3/4/5, BILL-8/9)', () => {
       addSubscriptionItem: vi.fn().mockResolvedValue({ subscriptionItemId: 'si_1' }),
       removeSubscriptionItem: vi.fn().mockResolvedValue(undefined),
     };
-    auditRepo = { insert: vi.fn().mockResolvedValue(undefined) };
+    auditRepo = { insert: vi.fn().mockResolvedValue(undefined), listByOrg: vi.fn().mockResolvedValue([]) };
     txManager = {
       // runWithOrg binds the TARGET org — the RLS-safe cross-tenant path (PLT-3).
       runWithOrg: vi.fn(async (_orgId: string, fn: (tx: unknown) => Promise<unknown>) => fn('tx')),
@@ -94,9 +94,10 @@ describe('SetOrganizationModuleUseCase (PLT-3/4/5, BILL-8/9)', () => {
   });
 
   it('PLT-5/BILL-2: admin can still grant the module directly (skipTrial) after a used trial', async () => {
+    const stamp = new Date('2026-07-01T00:00:00Z');
     billingRepo.findEntitlement.mockResolvedValue({
       state: 'disabled',
-      trialStartedAt: new Date(),
+      trialStartedAt: stamp,
       stripeSubscriptionItemId: null,
     });
 
@@ -109,6 +110,132 @@ describe('SetOrganizationModuleUseCase (PLT-3/4/5, BILL-8/9)', () => {
     });
 
     expect(result.message).toContain('enabled');
+    // BILL-2: the full-access grant must PRESERVE the permanent stamp — wiping
+    // it would let the org restart its trial through the tenant self-service.
+    expect(billingRepo.upsertEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: orgId, moduleKey: 'crm', state: 'active', trialStartedAt: stamp }),
+      'tx',
+    );
+  });
+
+  it('PLT-8: admin can override the trial length with trialDays when granting a trial', async () => {
+    billingRepo.getModuleFromCatalog.mockResolvedValue({ ...CATALOG_CRM, trialDays: 14 });
+    billingRepo.findEntitlement.mockResolvedValue(undefined);
+
+    await useCase.execute({
+      targetOrgId: orgId,
+      moduleKey: 'crm',
+      action: 'enable',
+      trialDays: 30,
+      ...actor,
+    });
+
+    const call = billingRepo.upsertEntitlement.mock.calls[0]?.[0] as { trialEndsAt: Date; state: string };
+    expect(call.state).toBe('trialing');
+    // 30 admin-specified days, not the 14-day catalog default.
+    const approx = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    expect(Math.abs(call.trialEndsAt.getTime() - approx)).toBeLessThan(60_000);
+  });
+
+  it('PLT-8: full access grant on a module with no prior trial keeps the stamp null', async () => {
+    billingRepo.findEntitlement.mockResolvedValue(undefined);
+
+    await useCase.execute({
+      targetOrgId: orgId,
+      moduleKey: 'crm',
+      action: 'enable',
+      skipTrial: true,
+      ...actor,
+    });
+
+    const call = billingRepo.upsertEntitlement.mock.calls[0]?.[0] as { trialStartedAt: Date | null; state: string };
+    expect(call.state).toBe('active');
+    expect(call.trialStartedAt).toBeNull();
+  });
+
+  it('BILL-14: a full-access grant is FREE — no Stripe customer/subscription/item is created', async () => {
+    billingRepo.findEntitlement.mockResolvedValue(undefined);
+
+    await useCase.execute({
+      targetOrgId: orgId,
+      moduleKey: 'crm',
+      action: 'enable',
+      skipTrial: true,
+      ...actor,
+    });
+
+    // Grants never touch Stripe: no customer, no base subscription, no item.
+    expect(stripe.createCustomer).not.toHaveBeenCalled();
+    expect(stripe.createSubscription).not.toHaveBeenCalled();
+    expect(stripe.addSubscriptionItem).not.toHaveBeenCalled();
+    expect(billingRepo.insert).not.toHaveBeenCalled();
+    // Unlimited by default — accessUntil stays null.
+    const call = billingRepo.upsertEntitlement.mock.calls[0]?.[0] as { state: string; accessUntil: Date | null };
+    expect(call.state).toBe('active');
+    expect(call.accessUntil).toBeNull();
+  });
+
+  it('PLT-8: a full-access grant can be bounded with accessUntil', async () => {
+    billingRepo.findEntitlement.mockResolvedValue(undefined);
+    const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    await useCase.execute({
+      targetOrgId: orgId,
+      moduleKey: 'crm',
+      action: 'enable',
+      skipTrial: true,
+      accessUntil: until.toISOString(),
+      ...actor,
+    });
+
+    const call = billingRepo.upsertEntitlement.mock.calls[0]?.[0] as { accessUntil: Date };
+    expect(call.accessUntil).toBeInstanceOf(Date);
+    expect(Math.abs(call.accessUntil.getTime() - until.getTime())).toBeLessThan(1000);
+    expect(stripe.addSubscriptionItem).not.toHaveBeenCalled();
+  });
+
+  it('PLT-8/BILL-14: a free grant removes a leftover paid Stripe item so billing stops', async () => {
+    billingRepo.findEntitlement.mockResolvedValue({
+      state: 'expired',
+      trialStartedAt: null,
+      stripeSubscriptionItemId: 'si_stale',
+    });
+
+    await useCase.execute({
+      targetOrgId: orgId,
+      moduleKey: 'crm',
+      action: 'enable',
+      skipTrial: true,
+      ...actor,
+    });
+
+    expect(stripe.removeSubscriptionItem).toHaveBeenCalledWith('si_stale');
+    expect(billingRepo.upsertEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: orgId,
+        moduleKey: 'crm',
+        state: 'active',
+        stripeSubscriptionItemId: null,
+      }),
+      'tx',
+    );
+  });
+
+  it('PLT-8: enabling a blocked module grants full access (blocked → active)', async () => {
+    billingRepo.findEntitlement.mockResolvedValue({
+      state: 'blocked',
+      trialStartedAt: null,
+      stripeSubscriptionItemId: null,
+    });
+
+    await useCase.execute({
+      targetOrgId: orgId,
+      moduleKey: 'crm',
+      action: 'enable',
+      skipTrial: true,
+      ...actor,
+    });
+
     expect(billingRepo.upsertEntitlement).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: orgId, moduleKey: 'crm', state: 'active' }),
       'tx',

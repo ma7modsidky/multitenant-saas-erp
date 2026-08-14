@@ -208,19 +208,19 @@ pre-check entitlements from the boot context because they are RLS-protected.
 
 ### 4.2 Tenant-scoped platform tables (all RLS-protected)
 
-| Table                        | Purpose                                                                  | Key columns                                                                                                                                                                                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core_memberships`           | Links a user to an organization                                          | `user_id`, `organization_id`, `role_id`, `status`, `joined_at` — partial `uq_core_memberships_active` (`WHERE deleted_at IS NULL`): at most one **active** membership per (org, user); soft-deleted memberships do not block re-join (AUTHZ-7) |
-| `core_roles`                 | System + custom roles                                                    | `key`, `name_i18n jsonb`, `is_system`, `UNIQUE (organization_id, key)`                                                                                                                                                                         |
-| `core_role_permissions`      | Role → permission keys                                                   | `role_id`, `permission_key`                                                                                                                                                                                                                    |
-| `core_invitations`           | Pending invites                                                          | `email`, `role_id`, `token_hash`, `expires_at`, `accepted_at`, `revoked_at`                                                                                                                                                                    |
-| `core_subscriptions`         | Stripe subscription mirror                                               | `stripe_customer_id`, `stripe_subscription_id`, `status`, `billing_currency`, `current_period_end`                                                                                                                                             |
-| `core_module_entitlements`   | **Runtime authority for module access**                                  | `module_key`, `state`, `trial_started_at`, `trial_ends_at`, `activated_at`, `disabled_at`, `purge_after`, `stripe_subscription_item_id` — `UNIQUE (organization_id, module_key)`                                                               |
-| `core_audit_log`             | Append-only audit trail                                                  | `actor_user_id`, `actor_type`, `action`, `entity_type`, `entity_id`, `before jsonb`, `after jsonb`, `ip`, `correlation_id`, `occurred_at`                                                                                                      |
-| `core_notifications`         | In-app notifications                                                     | `user_id`, `type`, `payload jsonb`, `read_at`                                                                                                                                                                                                  |
-| `core_outbox`                | Transactional outbox for durable events                                  | `event_name`, `payload jsonb`, `published_at`, `attempts`, `failed_reason`                                                                                                                                                                     |
-| `core_data_exports`          | Export/erasure requests                                                  | `type`, `status`, `requested_by`, `file_key`, `expires_at`                                                                                                                                                                                     |
-| `core_organization_settings` | Locale, timezone, base currency, number/date preferences, receipt footer | one row per org                                                                                                                                                                                                                                |
+| Table                        | Purpose                                                                  | Key columns                                                                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `core_memberships`           | Links a user to an organization                                          | `user_id`, `organization_id`, `role_id`, `status`, `joined_at` — partial `uq_core_memberships_active` (`WHERE deleted_at IS NULL`): at most one **active** membership per (org, user); soft-deleted memberships do not block re-join (AUTHZ-7)         |
+| `core_roles`                 | System + custom roles                                                    | `key`, `name_i18n jsonb`, `is_system`, `UNIQUE (organization_id, key)`                                                                                                                                                                                 |
+| `core_role_permissions`      | Role → permission keys                                                   | `role_id`, `permission_key`                                                                                                                                                                                                                            |
+| `core_invitations`           | Pending invites                                                          | `email`, `role_id`, `token_hash`, `expires_at`, `accepted_at`, `revoked_at`                                                                                                                                                                            |
+| `core_subscriptions`         | Stripe subscription mirror                                               | `stripe_customer_id`, `stripe_subscription_id`, `status`, `billing_currency`, `current_period_end`                                                                                                                                                     |
+| `core_module_entitlements`   | **Runtime authority for module access**                                  | `module_key`, `state`, `trial_started_at`, `trial_ends_at`, `activated_at`, `disabled_at`, `purge_after`, `stripe_subscription_item_id`, `access_until` (free admin grant end date, PLT-8 — null = unlimited) — `UNIQUE (organization_id, module_key)` |
+| `core_audit_log`             | Append-only audit trail                                                  | `actor_user_id`, `actor_type`, `action`, `entity_type`, `entity_id`, `before jsonb`, `after jsonb`, `ip`, `correlation_id`, `occurred_at`                                                                                                              |
+| `core_notifications`         | In-app notifications                                                     | `user_id`, `type`, `payload jsonb`, `read_at`                                                                                                                                                                                                          |
+| `core_outbox`                | Transactional outbox for durable events                                  | `event_name`, `payload jsonb`, `published_at`, `attempts`, `failed_reason`                                                                                                                                                                             |
+| `core_data_exports`          | Export/erasure requests                                                  | `type`, `status`, `requested_by`, `file_key`, `expires_at`                                                                                                                                                                                             |
+| `core_organization_settings` | Locale, timezone, base currency, number/date preferences, receipt footer | one row per org                                                                                                                                                                                                                                        |
 
 ### 4.3 Organization identity columns
 
@@ -241,9 +241,18 @@ core_organizations
 ### Entitlement states
 
 `available` · `trialing` · `active` · `past_due` · `expired` · `suspended` ·
-`disabled` — semantics and transition rules in
+`disabled` · `blocked` — semantics and transition rules in
 [PRD.md §6](./PRD.md#6-module-lifecycle) and
 [BUSINESS_RULES.md §4](./BUSINESS_RULES.md#4-subscription-trial-and-entitlement-rules).
+`blocked` (PLT-8) is an admin-only gate (block until paid): no access, no
+self-service trial — only an admin grant or a payment lifts it. The DB CHECK
+constraint was extended by migration `0014_admin_blocked_state.sql`.
+
+`access_until` (migration `0015_admin_grant_access_until.sql`) is the optional
+end date of a **free** admin full-access grant: `NULL` = unlimited, a date =
+access ends (moved to `expired` by the nightly reconcile job, BILL-14). Grants
+never create a Stripe item; paid modules are governed by the Stripe
+subscription's `current_period_end`, never by `access_until`.
 
 ---
 

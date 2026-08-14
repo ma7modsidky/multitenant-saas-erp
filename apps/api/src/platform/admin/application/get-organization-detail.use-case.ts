@@ -49,6 +49,10 @@ export class GetOrganizationDetailUseCase {
       trialEndsAt: string | null;
       activatedAt: string | null;
       disabledAt: string | null;
+      /** End date of a free admin grant (PLT-8); null = unlimited grant. */
+      accessUntil: string | null;
+      /** True when the module is on a paid Stripe subscription item. */
+      isPaid: boolean;
     }>;
   }> {
     const org = await this.directoryRepo.findOrgById(input.organizationId);
@@ -86,6 +90,11 @@ export class GetOrganizationDetailUseCase {
           trialEndsAt: detail?.trialEndsAt?.toISOString() ?? null,
           activatedAt: detail?.activatedAt?.toISOString() ?? null,
           disabledAt: detail?.disabledAt?.toISOString() ?? null,
+          // PLT-8: the end date of a free admin grant (null = unlimited).
+          accessUntil: detail?.accessUntil?.toISOString() ?? null,
+          // PLT-8: a Stripe subscription item means the org pays for this
+          // module — the admin console shows a "Paid" badge + renewal date.
+          isPaid: (detail?.stripeSubscriptionItemId ?? null) !== null,
         };
       }),
     );

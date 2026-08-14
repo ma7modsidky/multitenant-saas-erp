@@ -5,7 +5,7 @@ import { UpdateSaasSettingsUseCase } from '../application/update-saas-settings.u
 
 describe('UpdateSaasSettingsUseCase (PLT-7 / PLT-4)', () => {
   let settingsRepo: { getAll: ReturnType<typeof vi.fn>; set: ReturnType<typeof vi.fn> };
-  let auditRepo: { insert: ReturnType<typeof vi.fn> };
+  let auditRepo: { insert: ReturnType<typeof vi.fn>; listByOrg: ReturnType<typeof vi.fn> };
   let useCase: UpdateSaasSettingsUseCase;
 
   const actor = { actorUserId: 'admin-1', actorEmail: 'admin@modubiz.app' };
@@ -15,7 +15,7 @@ describe('UpdateSaasSettingsUseCase (PLT-7 / PLT-4)', () => {
       getAll: vi.fn().mockResolvedValue([]),
       set: vi.fn().mockResolvedValue(undefined),
     };
-    auditRepo = { insert: vi.fn().mockResolvedValue(undefined) };
+    auditRepo = { insert: vi.fn().mockResolvedValue(undefined), listByOrg: vi.fn().mockResolvedValue([]) };
     useCase = new UpdateSaasSettingsUseCase(settingsRepo, auditRepo);
   });
 

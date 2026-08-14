@@ -14,6 +14,7 @@ export {
   AdminMessageEnvelopeResponse,
   AdminOrganizationsEnvelopeResponse,
   AdminOrgDetailEnvelopeResponse,
+  AdminOrgActivityEnvelopeResponse,
   AdminOverviewEnvelopeResponse,
   AdminModulesEnvelopeResponse,
   AdminSettingsEnvelopeResponse,

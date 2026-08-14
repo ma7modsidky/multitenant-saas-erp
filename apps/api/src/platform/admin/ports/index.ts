@@ -13,9 +13,26 @@ export interface PlatformAuditEntry {
   metadata?: Record<string, unknown> | null;
 }
 
+/** One row read back from core_platform_audit_log (global, no RLS). */
+export interface PlatformAuditLogRow {
+  id: string;
+  action: string;
+  actorUserId: string | null;
+  actorEmail: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  occurredAt: Date;
+}
+
 export interface PlatformAuditRepository {
   /** Append an entry to core_platform_audit_log (append-only, AUD-2). */
   insert(entry: PlatformAuditEntry, tx?: TxOrDb): Promise<void>;
+  /**
+   * Most recent audit entries for one organization (entity_type = 'organization'),
+   * newest first — the admin org-detail activity feed (PLT-4). Global read.
+   */
+  listByOrg(organizationId: string, limit: number, tx?: TxOrDb): Promise<PlatformAuditLogRow[]>;
 }
 
 export const PLATFORM_AUDIT_REPOSITORY = Symbol('PLATFORM_AUDIT_REPOSITORY');

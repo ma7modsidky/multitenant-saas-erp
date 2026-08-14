@@ -43,6 +43,10 @@ export class SetOrganizationModuleUseCase {
     moduleKey: string;
     action: 'enable' | 'disable';
     skipTrial?: boolean;
+    /** Admin-specified trial length in days; defaults to the catalog value (PLT-8). */
+    trialDays?: number;
+    /** Optional end date (ISO) of a FREE full-access grant; omitted/null = unlimited (PLT-8). */
+    accessUntil?: string;
     actorUserId: string | null;
     actorEmail: string | null;
   }): Promise<{ message: string }> {
@@ -69,6 +73,8 @@ export class SetOrganizationModuleUseCase {
     targetOrgId: string;
     moduleKey: string;
     skipTrial?: boolean;
+    trialDays?: number;
+    accessUntil?: string;
     actorUserId: string | null;
     actorEmail: string | null;
   }): Promise<void> {
@@ -116,38 +122,55 @@ export class SetOrganizationModuleUseCase {
 
     const isTrial = !input.skipTrial && moduleCatalog.trialDays > 0;
     const targetState = isTrial ? 'trialing' : 'active';
-    const trialDays = moduleCatalog.trialDays;
+    // PLT-8: the admin may override the catalog trial length when granting a
+    // trial (1–365 days, validated by the API DTO). Defaults to the catalog.
+    const trialDays = input.trialDays ?? moduleCatalog.trialDays;
+    // A full-access grant is FREE — it never creates a Stripe item and the org
+    // is never billed (BILL-14). Trial grants attach the module item to the
+    // (lazily created) base subscription, like the tenant self-service path.
+    const isFreeGrant = !isTrial;
+    // PLT-8: the admin may bound a free grant with an explicit end date
+    // (accessUntil); omitted = unlimited. Paid modules never use this column.
+    const accessUntil = isFreeGrant && input.accessUntil ? new Date(input.accessUntil) : null;
 
     const after = await this.txManager.runWithOrg(input.targetOrgId, async (tx) => {
-      // BILL-1/BILL-2: lazily create the base subscription when the org has
-      // none yet (same behaviour as the tenant self-service path).
       let activeSubscription = subscription;
-      if (!activeSubscription) {
-        const billingCurrency = (await this.billingRepo.getOrganizationBaseCurrency(input.targetOrgId, tx)) ?? 'USD';
-        const { customerId } = await this.stripe.createCustomer(
-          input.targetOrgId,
-          'Organization',
-          `${input.targetOrgId}@local.dev`,
-        );
-        const created = await this.stripe.createSubscription({
-          customerId,
-          billingCurrency,
-          priceKeys: [],
-        });
-        activeSubscription = await this.billingRepo.insert(
-          {
-            id: crypto.randomUUID(),
-            organizationId: input.targetOrgId,
-            stripeCustomerId: customerId,
-            stripeSubscriptionId: created.subscriptionId,
-            status: 'active',
+      if (isTrial) {
+        // BILL-1/BILL-2: lazily create the base subscription when the org has
+        // none yet (same behaviour as the tenant self-service path).
+        if (!activeSubscription) {
+          const billingCurrency = (await this.billingRepo.getOrganizationBaseCurrency(input.targetOrgId, tx)) ?? 'USD';
+          const { customerId } = await this.stripe.createCustomer(
+            input.targetOrgId,
+            'Organization',
+            `${input.targetOrgId}@local.dev`,
+          );
+          const created = await this.stripe.createSubscription({
+            customerId,
             billingCurrency,
-            currentPeriodEnd: created.currentPeriodEnd,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          tx,
-        );
+            priceKeys: [],
+          });
+          activeSubscription = await this.billingRepo.insert(
+            {
+              id: crypto.randomUUID(),
+              organizationId: input.targetOrgId,
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: created.subscriptionId,
+              status: 'active',
+              billingCurrency,
+              currentPeriodEnd: created.currentPeriodEnd,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            tx,
+          );
+        }
+      }
+
+      // A free grant takes over any leftover paid item so billing stops — the
+      // grant is complimentary, the org must not keep paying for it.
+      if (isFreeGrant && entitlement?.stripeSubscriptionItemId) {
+        await this.stripe.removeSubscriptionItem(entitlement.stripeSubscriptionItemId);
       }
 
       await this.billingRepo.upsertEntitlement(
@@ -155,17 +178,21 @@ export class SetOrganizationModuleUseCase {
           organizationId: input.targetOrgId,
           moduleKey: input.moduleKey,
           state: targetState,
-          trialStartedAt: isTrial ? new Date() : null,
+          // BILL-2: `trialStartedAt` is a permanent stamp. A full-access grant
+          // (skipTrial) must NEVER wipe it — otherwise the org could restart
+          // its trial after an admin grant. Only a fresh trial sets it.
+          trialStartedAt: isTrial ? new Date() : (entitlement?.trialStartedAt ?? null),
           trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null,
           activatedAt: new Date(),
           stripeSubscriptionItemId: null,
+          accessUntil,
         },
         tx,
       );
 
-      if (moduleCatalog.stripePriceKey) {
+      if (isTrial && moduleCatalog.stripePriceKey) {
         const { subscriptionItemId } = await this.stripe.addSubscriptionItem({
-          subscriptionId: activeSubscription.stripeSubscriptionId,
+          subscriptionId: activeSubscription!.stripeSubscriptionId,
           priceKey: moduleCatalog.stripePriceKey,
         });
         await this.billingRepo.upsertEntitlement(
@@ -182,6 +209,7 @@ export class SetOrganizationModuleUseCase {
       return {
         state: targetState,
         trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null,
+        accessUntil,
       };
     });
 
@@ -196,6 +224,7 @@ export class SetOrganizationModuleUseCase {
         moduleKey: input.moduleKey,
         state: targetState,
         trialEndsAt: after.trialEndsAt?.toISOString() ?? null,
+        accessUntil: after.accessUntil?.toISOString() ?? null,
       },
     });
   }

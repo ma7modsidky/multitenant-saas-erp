@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConflictError, NotFoundError } from '../../../core/common/errors.js';
-import { MODULE_DEPENDENCY_MISSING, MODULE_NOT_FOUND, TRIAL_ALREADY_USED } from '../domain/errors.js';
+import { MODULE_BLOCKED, MODULE_DEPENDENCY_MISSING, MODULE_NOT_FOUND, TRIAL_ALREADY_USED } from '../domain/errors.js';
 import { EnableModuleTrialUseCase } from '../application/enable-module-trial.use-case.js';
 
 describe('EnableModuleTrialUseCase', () => {
@@ -120,6 +120,13 @@ describe('EnableModuleTrialUseCase', () => {
     billingRepo.findEntitlement.mockResolvedValue({ ...inventoryEntitled, state: 'active' });
 
     await expect(execute()).rejects.toMatchObject({ code: TRIAL_ALREADY_USED });
+  });
+
+  it('PLT-8: rejects self-enabling a module blocked by the platform admin (block until paid)', async () => {
+    billingRepo.findEntitlement.mockResolvedValue({ ...inventoryEntitled, state: 'blocked', trialStartedAt: null });
+
+    await expect(execute()).rejects.toMatchObject({ code: MODULE_BLOCKED, httpStatus: 409 });
+    expect(billingRepo.upsertEntitlement).not.toHaveBeenCalled();
   });
 
   it('BILL-2: rejects a fresh trial after a trial was already used — even from disabled', async () => {

@@ -60,10 +60,38 @@ describe('GetBillingUseCase', () => {
       {
         moduleKey: 'crm',
         state: 'active',
+        trialStartedAt: null,
         trialEndsAt: null,
         activatedAt: '2026-07-01T00:00:00.000Z',
+        accessUntil: null,
+        // si_1 on the entitlement row → paid module (shows the period end).
+        isPaid: true,
       },
     ]);
+  });
+
+  it('exposes the permanent trialStartedAt stamp so the UI can show the trial-used state', async () => {
+    billingRepo.findEntitlement.mockResolvedValue({
+      id: 'ent-1',
+      moduleKey: 'crm',
+      state: 'expired',
+      trialStartedAt: new Date('2026-07-01T00:00:00Z'),
+      trialEndsAt: new Date('2026-07-15T00:00:00Z'),
+      activatedAt: null,
+      disabledAt: null,
+      purgeAfter: null,
+      stripeSubscriptionItemId: null,
+    });
+
+    const result = await useCase.execute({ organizationId: 'org-1' });
+
+    expect(result.entitlements[0]).toMatchObject({
+      state: 'expired',
+      trialStartedAt: '2026-07-01T00:00:00.000Z',
+      trialEndsAt: '2026-07-15T00:00:00.000Z',
+      accessUntil: null,
+      isPaid: false,
+    });
   });
 
   it('returns a null subscription when the org has none', async () => {

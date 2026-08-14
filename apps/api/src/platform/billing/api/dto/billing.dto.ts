@@ -61,8 +61,14 @@ export const billingResponseSchema = z.object({
     z.object({
       moduleKey: z.string(),
       state: z.string(),
+      /** Permanent BILL-2 stamp — non-null means the free trial was already used. */
+      trialStartedAt: z.string().nullable(),
       trialEndsAt: z.string().nullable(),
       activatedAt: z.string().nullable(),
+      /** End date of a free admin grant (PLT-8); null = unlimited grant. */
+      accessUntil: z.string().nullable(),
+      /** True when the module is on a paid Stripe subscription item. */
+      isPaid: z.boolean(),
     }),
   ),
 });

@@ -10,6 +10,7 @@ import {
   AdjustEntitlementUseCase,
   AdminOverviewUseCase,
   GetModulePricingUseCase,
+  GetOrganizationActivityUseCase,
   GetOrganizationDetailUseCase,
   GetSaasSettingsUseCase,
   ListOrganizationsUseCase,
@@ -31,6 +32,7 @@ import {
   AdminExtendTrialDto,
   AdminMessageEnvelopeResponse,
   AdminModulesEnvelopeResponse,
+  AdminOrgActivityEnvelopeResponse,
   AdminOrgDetailEnvelopeResponse,
   AdminOrganizationsEnvelopeResponse,
   AdminOverviewEnvelopeResponse,
@@ -57,6 +59,7 @@ export class AdminController {
     private readonly overviewUseCase: AdminOverviewUseCase,
     private readonly listOrganizationsUseCase: ListOrganizationsUseCase,
     private readonly getOrganizationDetailUseCase: GetOrganizationDetailUseCase,
+    private readonly getOrganizationActivityUseCase: GetOrganizationActivityUseCase,
     private readonly setOrganizationModuleUseCase: SetOrganizationModuleUseCase,
     private readonly adjustEntitlementUseCase: AdjustEntitlementUseCase,
     private readonly getModulePricingUseCase: GetModulePricingUseCase,
@@ -100,6 +103,22 @@ export class AdminController {
     return { data: await this.getOrganizationDetailUseCase.execute({ organizationId: orgId }) };
   }
 
+  @Get('organizations/:orgId/activity')
+  @RequiresPlatformAdmin()
+  @ApiOkResponse({ type: AdminOrgActivityEnvelopeResponse })
+  async organizationActivity(
+    @Param('orgId') orgId: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ data: Awaited<ReturnType<GetOrganizationActivityUseCase['execute']>> }> {
+    return {
+      data: await this.getOrganizationActivityUseCase.execute({
+        organizationId: orgId,
+        // exactOptionalPropertyTypes: only pass limit when the admin set one.
+        ...(limit !== undefined && limit.length > 0 ? { limit: Number(limit) } : {}),
+      }),
+    };
+  }
+
   @Post('organizations/:orgId/modules/:moduleKey/enable')
   @RequiresPlatformAdmin()
   @UsePipes(new ZodValidationPipe(adminEnableModuleSchema))
@@ -111,12 +130,15 @@ export class AdminController {
     @Req() req: IncomingMessage,
   ): Promise<{ data: { message: string } }> {
     const actor = this.actor(req);
+    // exactOptionalPropertyTypes: only pass trialDays/accessUntil when set.
     return {
       data: await this.setOrganizationModuleUseCase.execute({
         targetOrgId: orgId,
         moduleKey,
         action: 'enable',
         skipTrial: dto.skipTrial,
+        ...(dto.trialDays !== undefined ? { trialDays: dto.trialDays } : {}),
+        ...(dto.accessUntil !== undefined ? { accessUntil: dto.accessUntil } : {}),
         actorUserId: actor.userId,
         actorEmail: actor.email,
       }),
@@ -162,6 +184,28 @@ export class AdminController {
         moduleKey,
         action: 'extendTrial',
         days: dto.days,
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+      }),
+    };
+  }
+
+  @Post('organizations/:orgId/modules/:moduleKey/block')
+  @RequiresPlatformAdmin()
+  @UsePipes(new ZodValidationPipe(adminEmptyActionSchema))
+  @ApiOkResponse({ type: AdminMessageEnvelopeResponse })
+  async blockModule(
+    @Param('orgId') orgId: string,
+    @Param('moduleKey') moduleKey: string,
+    @Body() _dto: AdminEmptyActionDto,
+    @Req() req: IncomingMessage,
+  ): Promise<{ data: { message: string } }> {
+    const actor = this.actor(req);
+    return {
+      data: await this.adjustEntitlementUseCase.execute({
+        targetOrgId: orgId,
+        moduleKey,
+        action: 'block',
         actorUserId: actor.userId,
         actorEmail: actor.email,
       }),

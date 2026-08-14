@@ -17,6 +17,8 @@ const STATE_BADGES: Record<string, { variant: 'default' | 'secondary' | 'destruc
     disabled: { variant: 'outline', labelKey: 'modules.state.disabled' },
     expired: { variant: 'outline', labelKey: 'modules.state.expired' },
     suspended: { variant: 'destructive', labelKey: 'modules.state.suspended' },
+    // PLT-8: admin-gated until paid — the tenant sees it and cannot self-enable.
+    blocked: { variant: 'destructive', labelKey: 'modules.state.blocked' },
   };
 
 /**

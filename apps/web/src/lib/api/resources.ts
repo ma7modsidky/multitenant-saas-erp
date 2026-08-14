@@ -1430,6 +1430,10 @@ export interface AdminOrgDetail {
     trialEndsAt: string | null;
     activatedAt: string | null;
     disabledAt: string | null;
+    /** End date of a free admin grant (PLT-8); null = unlimited grant. */
+    accessUntil: string | null;
+    /** True when the module is on a paid Stripe subscription item (PLT-8). */
+    isPaid: boolean;
   }>;
 }
 
@@ -1482,15 +1486,50 @@ export function getAdminOrganization(orgId: string): Promise<AdminOrgDetail> {
   return apiFetch<AdminOrgDetail>(`/v1/admin/organizations/${orgId}`);
 }
 
-export function adminEnableModule(orgId: string, moduleKey: string, skipTrial = false): Promise<{ message: string }> {
+/** One platform-admin audit entry against an org (PLT-4 activity feed). */
+export interface AdminActivityEntry {
+  id: string;
+  /** e.g. module.trial.extended | module.blocked | module.suspended … */
+  action: string;
+  actorUserId: string | null;
+  actorEmail: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  occurredAt: string;
+}
+
+/** Recent platform-admin actions against one org, newest first (PLT-4). */
+export function getAdminOrganizationActivity(orgId: string, limit = 20): Promise<{ items: AdminActivityEntry[] }> {
+  const qs = limit > 0 ? `?limit=${limit}` : '';
+  return apiFetch<{ items: AdminActivityEntry[] }>(`/v1/admin/organizations/${orgId}/activity${qs}`);
+}
+
+export function adminEnableModule(
+  orgId: string,
+  moduleKey: string,
+  options: { skipTrial?: boolean; trialDays?: number; accessUntil?: string } = {},
+): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/enable`, {
     method: 'POST',
-    body: JSON.stringify({ skipTrial }),
+    body: JSON.stringify({
+      skipTrial: options.skipTrial ?? false,
+      ...(options.trialDays ? { trialDays: options.trialDays } : {}),
+      ...(options.accessUntil ? { accessUntil: options.accessUntil } : {}),
+    }),
   });
 }
 
 export function adminDisableModule(orgId: string, moduleKey: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/disable`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** Gate a module until the org subscribes (PLT-8) — state → blocked. */
+export function adminBlockModule(orgId: string, moduleKey: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/v1/admin/organizations/${orgId}/modules/${moduleKey}/block`, {
     method: 'POST',
     body: JSON.stringify({}),
   });

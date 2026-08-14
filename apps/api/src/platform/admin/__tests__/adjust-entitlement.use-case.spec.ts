@@ -16,7 +16,8 @@ const ENTITLEMENT = {
 
 describe('AdjustEntitlementUseCase (PLT-8, BILL-2/3/6/13)', () => {
   let billingRepo: { findEntitlement: ReturnType<typeof vi.fn>; upsertEntitlement: ReturnType<typeof vi.fn> };
-  let auditRepo: { insert: ReturnType<typeof vi.fn> };
+  let stripe: { removeSubscriptionItem: ReturnType<typeof vi.fn> };
+  let auditRepo: { insert: ReturnType<typeof vi.fn>; listByOrg: ReturnType<typeof vi.fn> };
   let txManager: { runWithOrg: ReturnType<typeof vi.fn> };
   let useCase: AdjustEntitlementUseCase;
 
@@ -28,11 +29,12 @@ describe('AdjustEntitlementUseCase (PLT-8, BILL-2/3/6/13)', () => {
       findEntitlement: vi.fn().mockResolvedValue(ENTITLEMENT),
       upsertEntitlement: vi.fn().mockResolvedValue(undefined),
     };
-    auditRepo = { insert: vi.fn().mockResolvedValue(undefined) };
+    stripe = { removeSubscriptionItem: vi.fn().mockResolvedValue(undefined) };
+    auditRepo = { insert: vi.fn().mockResolvedValue(undefined), listByOrg: vi.fn().mockResolvedValue([]) };
     txManager = {
       runWithOrg: vi.fn(async (_orgId: string, fn: (tx: unknown) => Promise<unknown>) => fn('tx')),
     };
-    useCase = new AdjustEntitlementUseCase(billingRepo as never, auditRepo, txManager as never);
+    useCase = new AdjustEntitlementUseCase(billingRepo as never, stripe as never, auditRepo, txManager as never);
   });
 
   it('PLT-8: extends a running trial — state stays trialing, trialEndsAt moves forward', async () => {
@@ -71,6 +73,23 @@ describe('AdjustEntitlementUseCase (PLT-8, BILL-2/3/6/13)', () => {
 
     const call = billingRepo.upsertEntitlement.mock.calls[0]?.[0] as { state: string };
     expect(call.state).toBe('trialing');
+  });
+
+  it('PLT-8: extends a STOPPED trial from NOW — stop a 14-day trial, extend by 2 ⇒ 2 days, not 16', async () => {
+    // Admin stops a trial whose end date is still 14 days out; `trialEndsAt`
+    // is stale history once the state is `expired`. Extending by 2 must give
+    // exactly 2 days from now — never the unspent remainder + 2.
+    const staleFutureEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    billingRepo.findEntitlement.mockResolvedValue({ ...ENTITLEMENT, state: 'expired', trialEndsAt: staleFutureEnd });
+
+    await useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'extendTrial', days: 2, ...actor });
+
+    const call = billingRepo.upsertEntitlement.mock.calls[0]?.[0] as { state: string; trialEndsAt: Date };
+    expect(call.state).toBe('trialing');
+    const dayMs = 24 * 60 * 60 * 1000;
+    // ~2 days from now — far below the stale 14-day end + 2 (= 16 days).
+    expect(Math.abs(call.trialEndsAt.getTime() - (Date.now() + 2 * dayMs))).toBeLessThan(60_000);
+    expect(call.trialEndsAt.getTime()).toBeLessThan(staleFutureEnd.getTime());
   });
 
   it('PLT-8: rejects extending a module that is not trialing or expired', async () => {
@@ -153,5 +172,66 @@ describe('AdjustEntitlementUseCase (PLT-8, BILL-2/3/6/13)', () => {
     await expect(
       useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'stopTrial', ...actor }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'ENTITLEMENT_NOT_FOUND', httpStatus: 404 });
+  });
+
+  // ─── block (PLT-8) ────────────────────────────────────────────────────────
+
+  it('PLT-8: blocks a trialing module — state → blocked, stamp preserved, audit written', async () => {
+    billingRepo.findEntitlement.mockResolvedValue({
+      ...ENTITLEMENT,
+      state: 'trialing',
+      stripeSubscriptionItemId: 'si_1',
+    });
+
+    await useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'block', ...actor });
+
+    expect(billingRepo.upsertEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: orgId,
+        moduleKey: 'crm',
+        state: 'blocked',
+        stripeSubscriptionItemId: null,
+        // BILL-2: the permanent stamp survives the block.
+        trialStartedAt: ENTITLEMENT.trialStartedAt,
+      }),
+      'tx',
+    );
+    // A blocked trial stops billing — the Stripe item is removed like disable.
+    expect(stripe.removeSubscriptionItem).toHaveBeenCalledWith('si_1');
+    expect(auditRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'module.blocked', before: { state: 'trialing' }, after: { state: 'blocked' } }),
+    );
+  });
+
+  it('PLT-8: blocks a module with no entitlement row yet (available → blocked)', async () => {
+    billingRepo.findEntitlement.mockResolvedValue(undefined);
+
+    await useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'block', ...actor });
+
+    expect(billingRepo.upsertEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: orgId, moduleKey: 'crm', state: 'blocked' }),
+      'tx',
+    );
+    expect(auditRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'module.blocked', before: { state: 'available' } }),
+    );
+  });
+
+  it('PLT-8: rejects blocking a paid module (active) — suspend is the paid hold', async () => {
+    billingRepo.findEntitlement.mockResolvedValue({ ...ENTITLEMENT, state: 'active' });
+
+    await expect(
+      useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'block', ...actor }),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
+    expect(billingRepo.upsertEntitlement).not.toHaveBeenCalled();
+  });
+
+  it('PLT-8: block from disabled/expired is allowed (non-paid states)', async () => {
+    for (const from of ['disabled', 'expired']) {
+      billingRepo.findEntitlement.mockResolvedValue({ ...ENTITLEMENT, state: from });
+      await useCase.execute({ targetOrgId: orgId, moduleKey: 'crm', action: 'block', ...actor });
+    }
+    const states = billingRepo.upsertEntitlement.mock.calls.map((c) => (c[0] as { state: string }).state);
+    expect(states).toEqual(['blocked', 'blocked']);
   });
 });

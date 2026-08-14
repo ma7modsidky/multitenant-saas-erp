@@ -30,6 +30,7 @@ import { TenantContext, type TenantContextData } from '../../apps/api/src/core/t
 import { applyAllMigrations } from './helpers/migrations.js';
 import { AdjustEntitlementUseCase } from '../../apps/api/src/platform/admin/application/adjust-entitlement.use-case.js';
 import { AdminOverviewUseCase } from '../../apps/api/src/platform/admin/application/admin-overview.use-case.js';
+import { GetOrganizationActivityUseCase } from '../../apps/api/src/platform/admin/application/get-organization-activity.use-case.js';
 import { GetOrganizationDetailUseCase } from '../../apps/api/src/platform/admin/application/get-organization-detail.use-case.js';
 import { SetOrganizationModuleUseCase } from '../../apps/api/src/platform/admin/application/set-organization-module.use-case.js';
 import { UpdateModulePricingUseCase } from '../../apps/api/src/platform/admin/application/update-module-pricing.use-case.js';
@@ -40,6 +41,7 @@ import { DrizzlePlatformAuditRepository } from '../../apps/api/src/platform/admi
 import { DrizzleSaasSettingsRepository } from '../../apps/api/src/platform/admin/infrastructure/repositories/drizzle-saas-settings.repository.js';
 import { DrizzleBillingRepository } from '../../apps/api/src/platform/billing/infrastructure/repositories/drizzle-billing.repository.js';
 import { FakeStripeAdapter } from '../../apps/api/src/platform/billing/infrastructure/stripe/fake-stripe.adapter.js';
+import { EnableModuleTrialUseCase } from '../../apps/api/src/platform/billing/application/enable-module-trial.use-case.js';
 import { DrizzleMembershipRepository } from '../../apps/api/src/platform/memberships/infrastructure/repositories/drizzle-membership.repository.js';
 import { DrizzleModuleRegistryRepository } from '../../apps/api/src/platform/module-registry/infrastructure/repositories/drizzle-module-registry.repository.js';
 import { CreateOrganizationUseCase } from '../../apps/api/src/platform/organizations/application/create-organization.use-case.js';
@@ -313,6 +315,46 @@ describe('Admin directory + overview (integration, real Postgres + RLS)', () => 
     expect(actions).toContain('settings.updated');
   });
 
+  it("PLT-4: the org activity feed returns the org's admin actions newest-first", async () => {
+    const { orgId } = await createOrg();
+    const auditRepo = new DrizzlePlatformAuditRepository(db);
+    const billingRepo = new DrizzleBillingRepository(db);
+    const directoryRepo = new DrizzleAdminDirectoryRepository(db);
+    const txManager = new TransactionManager(db);
+
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId }, () =>
+      new SetOrganizationModuleUseCase(billingRepo, new FakeStripeAdapter(), auditRepo, txManager).execute({
+        targetOrgId: orgId,
+        moduleKey: 'crm',
+        action: 'enable',
+        actorUserId: ownerUserId,
+        actorEmail: 'owner@example.com',
+      }),
+    );
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId }, () =>
+      new AdjustEntitlementUseCase(billingRepo, new FakeStripeAdapter(), auditRepo, txManager).execute({
+        targetOrgId: orgId,
+        moduleKey: 'crm',
+        action: 'block',
+        actorUserId: ownerUserId,
+        actorEmail: 'owner@example.com',
+      }),
+    );
+
+    const feed = await new GetOrganizationActivityUseCase(directoryRepo, auditRepo).execute({
+      organizationId: orgId,
+      limit: 10,
+    });
+
+    // Newest first — the block happened after the enable.
+    expect(feed.items.map((e) => e.action)).toEqual(['module.blocked', 'module.trialing']);
+    const block = feed.items[0];
+    expect(block.metadata).toMatchObject({ moduleKey: 'crm' });
+    expect(block.actorEmail).toBe('owner@example.com');
+    expect(block.after).toMatchObject({ state: 'blocked' });
+    expect(new Date(block.occurredAt).getTime()).not.toBeNaN();
+  });
+
   it('PLT-3: dependency-gated disable — disabling inventory while pos depends on it is rejected', async () => {
     const { orgId } = await createOrg();
     const billingRepo = new DrizzleBillingRepository(db);
@@ -356,7 +398,7 @@ describe('Admin directory + overview (integration, real Postgres + RLS)', () => 
     const auditRepo = new DrizzlePlatformAuditRepository(db);
     const txManager = new TransactionManager(db);
     const setModule = new SetOrganizationModuleUseCase(billingRepo, new FakeStripeAdapter(), auditRepo, txManager);
-    const adjust = new AdjustEntitlementUseCase(billingRepo, auditRepo, txManager);
+    const adjust = new AdjustEntitlementUseCase(billingRepo, new FakeStripeAdapter(), auditRepo, txManager);
 
     const run = (fn: () => Promise<unknown>) => TenantContext.run({ ...ownerContext, userId: ownerUserId }, fn);
     const entitlementOf = async () =>
@@ -463,6 +505,80 @@ describe('Admin directory + overview (integration, real Postgres + RLS)', () => 
     expect(actions).toContain('module.trial.stopped');
     expect(actions).toContain('module.suspended');
     expect(actions).toContain('module.activated');
+  });
+
+  it('PLT-8/BILL-2: block-until-paid lifecycle — block, no self-enable, unblock (real Postgres)', async () => {
+    const { orgId } = await createOrg();
+    const billingRepo = new DrizzleBillingRepository(db);
+    const auditRepo = new DrizzlePlatformAuditRepository(db);
+    const txManager = new TransactionManager(db);
+    const setModule = new SetOrganizationModuleUseCase(billingRepo, new FakeStripeAdapter(), auditRepo, txManager);
+    const adjust = new AdjustEntitlementUseCase(billingRepo, new FakeStripeAdapter(), auditRepo, txManager);
+
+    const run = (fn: () => Promise<unknown>) => TenantContext.run({ ...ownerContext, userId: ownerUserId }, fn);
+    const entitlementOf = async () =>
+      run(() => txManager.runWithOrg(orgId, (tx) => billingRepo.findEntitlement(orgId, 'crm', tx)));
+    const block = () =>
+      run(() =>
+        adjust.execute({
+          targetOrgId: orgId,
+          moduleKey: 'crm',
+          action: 'block',
+          actorUserId: ownerUserId,
+          actorEmail: 'owner@example.com',
+        }),
+      );
+
+    // 1. A never-enabled module can be blocked (creates a blocked row).
+    await block();
+    let ent = await entitlementOf();
+    expect(ent?.state).toBe('blocked');
+
+    // 2. The tenant cannot self-enable a blocked module (PLT-8 gate). The
+    // tenant path is RLS-bound to its own org — the context must carry the
+    // org id (an admin context has none, fail-closed, so the entitlement row
+    // would be invisible and the check would never fire).
+    await expect(
+      TenantContext.run({ ...ownerContext, organizationId: orgId, userId: ownerUserId }, () =>
+        new EnableModuleTrialUseCase(billingRepo, new FakeStripeAdapter(), txManager).execute({
+          organizationId: orgId,
+          moduleKey: 'crm',
+          userId: ownerUserId,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'MODULE_BLOCKED', httpStatus: 409 });
+
+    // 3. The admin unblocks with a full-access grant (blocked → active).
+    await run(() =>
+      setModule.execute({
+        targetOrgId: orgId,
+        moduleKey: 'crm',
+        action: 'enable',
+        skipTrial: true,
+        actorUserId: ownerUserId,
+        actorEmail: 'owner@example.com',
+      }),
+    );
+    ent = await entitlementOf();
+    expect(ent?.state).toBe('active');
+
+    // 4. A paid module can never be blocked — suspend is the paid hold.
+    await expect(
+      run(() =>
+        adjust.execute({
+          targetOrgId: orgId,
+          moduleKey: 'crm',
+          action: 'block',
+          actorUserId: ownerUserId,
+          actorEmail: 'owner@example.com',
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
+
+    const actions = (
+      await ownerSql`SELECT action FROM core_platform_audit_log WHERE entity_id = ${orgId} ORDER BY occurred_at`
+    ).map((r) => r.action as string);
+    expect(actions).toContain('module.blocked');
   });
 
   it('PLT-3: organization detail returns members, subscription, and entitlements', async () => {

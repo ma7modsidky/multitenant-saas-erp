@@ -4,7 +4,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError, NotFoundError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
-import { TRIAL_ALREADY_USED, MODULE_NOT_FOUND, MODULE_DEPENDENCY_MISSING } from '../domain/index.js';
+import { TRIAL_ALREADY_USED, MODULE_NOT_FOUND, MODULE_DEPENDENCY_MISSING, MODULE_BLOCKED } from '../domain/index.js';
 import { BILLING_REPOSITORY, STRIPE_PORT, type BillingRepository, type StripePort } from '../ports/index.js';
 
 /** States that grant any level of access (full or read-only). */
@@ -47,6 +47,12 @@ export class EnableModuleTrialUseCase {
         TRIAL_ALREADY_USED,
         `Module '${input.moduleKey}' already has an active trial or subscription`,
       );
+    }
+
+    // PLT-8: a module blocked by the platform admin (block until paid) cannot
+    // be self-enabled — the org must subscribe (or the admin grants access).
+    if (entitlement?.state === 'blocked') {
+      throw new ConflictError(MODULE_BLOCKED, `Module '${input.moduleKey}' is blocked by the platform administrator`);
     }
 
     // BILL-2: a module may be trialled ONCE per organization. `trialStartedAt`

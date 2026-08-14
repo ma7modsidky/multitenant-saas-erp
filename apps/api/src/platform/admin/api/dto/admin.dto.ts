@@ -3,10 +3,21 @@ import { z } from 'zod';
 
 // ─── Request bodies ─────────────────────────────────────────────────────────
 
-/** Enable a module for an org — optional `skipTrial` (grant directly). */
+/**
+ * Enable a module for an org — PLT-8.
+ * - `skipTrial`  — grant full access directly (no trial). The grant is FREE:
+ *                  no Stripe item is created and the org is never billed
+ *                  (BILL-14).
+ * - `trialDays`  — optional admin-specified trial length (1–365), overrides
+ *                  the catalog default when a trial is granted.
+ * - `accessUntil` — optional ISO end date bounding a free full-access grant;
+ *                  omitted = unlimited (PLT-8). Ignored for trial grants.
+ */
 export const adminEnableModuleSchema = z
   .object({
     skipTrial: z.boolean().optional().default(false),
+    trialDays: z.number().int().min(1).max(365).optional(),
+    accessUntil: z.string().datetime().optional(),
   })
   .strict();
 
@@ -106,12 +117,32 @@ const orgDetailSchema = z.object({
       trialEndsAt: z.string().nullable(),
       activatedAt: z.string().nullable(),
       disabledAt: z.string().nullable(),
+      /** End date of a free admin grant (PLT-8); null = unlimited grant. */
+      accessUntil: z.string().nullable(),
+      /** True when the module is on a paid Stripe subscription item (PLT-8). */
+      isPaid: z.boolean(),
     }),
   ),
 });
 
 const orgDetailEnvelopeSchema = z.object({ data: orgDetailSchema });
 export class AdminOrgDetailEnvelopeResponse extends createZodDto(orgDetailEnvelopeSchema) {}
+
+const orgActivityEntrySchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  actorUserId: z.string().nullable(),
+  actorEmail: z.string().nullable(),
+  before: z.record(z.string(), z.unknown()).nullable(),
+  after: z.record(z.string(), z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  occurredAt: z.string(),
+});
+
+const orgActivityEnvelopeSchema = z.object({
+  data: z.object({ items: z.array(orgActivityEntrySchema) }),
+});
+export class AdminOrgActivityEnvelopeResponse extends createZodDto(orgActivityEnvelopeSchema) {}
 
 const overviewSchema = z.object({
   organizations: z.object({

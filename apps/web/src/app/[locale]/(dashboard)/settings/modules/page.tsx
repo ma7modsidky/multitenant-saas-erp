@@ -14,20 +14,10 @@ import type { ModuleDefinition } from '@/lib/api/types';
 import { useSession } from '@/lib/auth/session-context';
 import { useEntitlements } from '@/lib/entitlements';
 import { ModuleStateBadge } from '@/lib/entitlements/module-state-badge';
+import { trialDaysLeft } from '@/lib/trial';
 
 /** States that grant any level of access (full or read-only). */
 const ENABLED_STATES = ['active', 'trialing', 'past_due'];
-
-/**
- * Whole days remaining in a free trial (ceiling, so the final partial day
- * still counts). 0 once the end date has passed.
- */
-function trialDaysLeft(trialEndsAt: string): number {
-  const end = new Date(trialEndsAt).getTime();
-  if (Number.isNaN(end)) return 0;
-  const ms = end - Date.now();
-  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
-}
 
 /** Locale-aware list join: ['Inventory', 'CRM'] → "Inventory and CRM". */
 function listNames(names: string[], locale: string): string {
@@ -50,6 +40,9 @@ function actionErrorKey(code: string, action: 'enable' | 'disable'): string {
       return 'modules.dependencyMissing';
     case 'MODULE_DEPENDENCY_CONFLICT':
       return 'modules.dependencyConflict';
+    // MODULE_BLOCKED (PLT-8) can only be raised by the enable use case.
+    case 'MODULE_BLOCKED':
+      return action === 'enable' ? 'modules.blockedHint' : 'modules.disableFailed';
     // TRIAL_ALREADY_USED can only be raised by the enable use case — mapping
     // it onto a disable failure would be nonsense, so fall through there.
     case 'TRIAL_ALREADY_USED':
@@ -193,6 +186,20 @@ export default function ModulesSettingsPage() {
           // switches from the static trial-length line to days remaining.
           const trialEnd = entitlement?.state === 'trialing' ? entitlement.trialEndsAt : null;
           const trialRemaining = trialEnd ? trialDaysLeft(trialEnd) : 0;
+          // Permanent BILL-2 stamp — once set, the free trial can never be
+          // started again (even after expiry or disable), so the card must
+          // stop offering it.
+          const trialUsed = entitlement?.trialStartedAt != null;
+          // Expiry of an ACTIVE module: paid renews at the shared subscription
+          // period end (BILL-1); a free admin grant expires at accessUntil
+          // (PLT-8/BILL-14). Unlimited grants show no line.
+          const activeUntil =
+            state === 'active'
+              ? entitlement?.isPaid
+                ? (billing?.subscription?.currentPeriodEnd ?? null)
+                : (entitlement?.accessUntil ?? null)
+              : null;
+          const activeUntilKey = entitlement?.isPaid ? 'billing.paidUntil' : 'billing.grantAccessUntil';
           return (
             <Card key={mod.key} className="flex flex-col" data-testid={`module-card-${mod.key}`}>
               <CardHeader>
@@ -223,15 +230,41 @@ export default function ModulesSettingsPage() {
                     })}
                   </p>
                 )}
-                {/* Trial line: LIVE countdown for modules actually in trial
-                    (BILL-2); static offer for not-yet-activated ones. Paid
-                    (active) and past_due cards show neither. */}
-                {(state === 'trialing' || !enabled) && mod.trialDays > 0 && (
+                {/* Active-until line: "Active until {period end}" for paid
+                    modules, "Access until {date}" for time-boxed free grants
+                    (PLT-8/BILL-14) — the badge alone would read just
+                    "Active" and hide the expiration day. */}
+                {state === 'active' && activeUntil && (
                   <p className="text-xs text-muted-foreground">
-                    {trialRemaining > 0
-                      ? t('modules.trialDaysLeft', { count: trialRemaining })
-                      : t('modules.trialDays', { days: mod.trialDays })}
+                    {t(activeUntilKey, { date: new Date(activeUntil).toLocaleDateString(locale) })}
                   </p>
+                )}
+                {/* Trial line: LIVE countdown for modules actually in trial
+                    (BILL-2) — only when an end date exists; static offer for
+                    not-yet-activated ones; the used state (with hint) for a
+                    module whose trial already ran, so the offer is never
+                    repeated; a suspension hint for admin-suspended modules
+                    (the backend forbids a new trial on them). Paid (active)
+                    and past_due cards show neither. */}
+                {state === 'trialing' && trialEnd && (
+                  <p className="text-xs text-muted-foreground">
+                    {t('modules.trialDaysLeft', { count: trialRemaining })}
+                  </p>
+                )}
+                {state === 'trialing' && !trialEnd && mod.trialDays > 0 && (
+                  <p className="text-xs text-muted-foreground">{t('modules.trialDays', { days: mod.trialDays })}</p>
+                )}
+                {!enabled && trialUsed && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">{t('modules.trialUsedHint')}</p>
+                )}
+                {!enabled && !trialUsed && state === 'suspended' && (
+                  <p className="text-xs text-muted-foreground">{t('modules.suspendedHint')}</p>
+                )}
+                {!enabled && !trialUsed && state === 'blocked' && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">{t('modules.blockedHint')}</p>
+                )}
+                {!enabled && !trialUsed && state !== 'suspended' && state !== 'blocked' && mod.trialDays > 0 && (
+                  <p className="text-xs text-muted-foreground">{t('modules.trialDays', { days: mod.trialDays })}</p>
                 )}
                 {errors[mod.key] && (
                   <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -242,6 +275,21 @@ export default function ModulesSettingsPage() {
                   {enabled ? (
                     <Button variant="outline" className="w-full" onClick={() => startDisable(mod)}>
                       {t('billing.disable')}
+                    </Button>
+                  ) : trialUsed ? (
+                    // BILL-2: the trial stamp is permanent — the module can
+                    // only be re-enabled by paying, so the trial CTA is gone.
+                    <Button disabled variant="outline" className="w-full">
+                      {t('modules.trialUsed')}
+                    </Button>
+                  ) : state === 'suspended' ? (
+                    <Button disabled variant="outline" className="w-full">
+                      {t('modules.state.suspended')}
+                    </Button>
+                  ) : state === 'blocked' ? (
+                    // PLT-8: admin-gated until the org subscribes — no trial CTA.
+                    <Button disabled variant="outline" className="w-full">
+                      {t('modules.state.blocked')}
                     </Button>
                   ) : (
                     <Button className="w-full" onClick={() => startEnable(mod)}>

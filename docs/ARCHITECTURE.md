@@ -573,6 +573,13 @@ reject a fresh trial with `TRIAL_ALREADY_USED` once it is set (BILL-2). The org
 detail endpoint returns `trialStartedAt`/`trialEndsAt` so the console can show
 the trial timeline (days left, "trial used").
 
+`GET /v1/admin/organizations/:orgId/activity` (PLT-4) returns the recent
+platform-admin actions against one org — enable/disable, trial extend/stop,
+block, suspend, activate — newest first (default 20, capped at 100). It reads
+`core_platform_audit_log` directly (global, no RLS needed), and the web org
+detail page renders it as a "Recent activity" feed that refreshes after every
+admin action.
+
 **Reconciliation caveat.** `suspend`/`activate` are local runtime overrides —
 they do not touch the Stripe subscription item (billing continues). The nightly
 BILL-4 reconciliation treats Stripe as the commercial authority, so a locally

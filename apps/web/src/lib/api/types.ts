@@ -74,13 +74,21 @@ export interface RoleMatrix {
 // Backend entitlement vocabulary (core/entitlements) plus `none` for the
 // frontend's absent-entitlement fallback.
 export type EntitlementState =
-  'active' | 'trialing' | 'past_due' | 'expired' | 'suspended' | 'disabled' | 'available' | 'none';
+  'active' | 'trialing' | 'past_due' | 'expired' | 'suspended' | 'disabled' | 'available' | 'blocked' | 'none';
 
 export interface Entitlement {
   moduleKey: string;
   state: EntitlementState;
+  /** Permanent BILL-2 stamp — non-null means the free trial was already used. */
+  trialStartedAt: string | null;
   trialEndsAt: string | null;
   activatedAt: string | null;
+  /** End date of a free admin grant (PLT-8); null = unlimited grant. Optional
+      for legacy fixtures — the API always returns it. */
+  accessUntil?: string | null;
+  /** True when the module is on a paid Stripe subscription item. Optional for
+      legacy fixtures — the API always returns it. */
+  isPaid?: boolean;
 }
 
 export interface BillingResponse {

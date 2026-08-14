@@ -16,6 +16,9 @@ export const MODULE_DEPENDENCY_CONFLICT = 'MODULE_DEPENDENCY_CONFLICT';
 /** Trial already used for this module (BILL-2). */
 export const TRIAL_ALREADY_USED = 'TRIAL_ALREADY_USED';
 
+/** Module is admin-blocked until the org subscribes (PLT-8). */
+export const MODULE_BLOCKED = 'MODULE_BLOCKED';
+
 /** No entitlement found for enabling/disabling. */
 export const ENTITLEMENT_NOT_FOUND = 'ENTITLEMENT_NOT_FOUND';
 
