@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import createMiddleware from 'next-intl/middleware';
 
-import { localePrefix, isLocale, locales, pathnames } from './i18n/routing';
+import { isLocale, routing } from './i18n/routing';
 import { AUTH_COOKIE } from './lib/auth/session';
 
 /**
@@ -31,13 +31,8 @@ function resolveLocale(request: NextRequest): string {
   return 'en';
 }
 
-const intlMiddleware = createMiddleware({
-  locales,
-  defaultLocale: 'en',
-  localePrefix,
-  pathnames,
-  localeDetection: true,
-});
+// next-intl v4: pass the shared routing config directly.
+const intlMiddleware = createMiddleware(routing);
 
 export default function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;

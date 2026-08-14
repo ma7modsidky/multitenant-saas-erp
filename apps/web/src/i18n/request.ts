@@ -20,19 +20,18 @@ const catalogs: Record<Locale, () => Promise<{ default: AbstractIntlMessages }>>
  * next-intl request configuration.
  * Loads the appropriate message catalog for each locale.
  */
-export default getRequestConfig(async ({ requestLocale }) => {
-  // This typically corresponds to the `[locale]` segment
-  const rawLocale = await requestLocale;
-
-  // Ensure a valid locale is used
-  const locale: Locale =
-    rawLocale && routing.locales.includes(rawLocale as Locale) ? (rawLocale as Locale) : routing.defaultLocale;
+export default getRequestConfig(async ({ locale }) => {
+  // v4 passes the resolved `locale` as a plain string (`requestLocale`,
+  // the promise form, is deprecated). Falls back to the default locale for
+  // undefined or invalid segment values (e.g. a language selection page).
+  const resolvedLocale: Locale =
+    locale && routing.locales.includes(locale as Locale) ? (locale as Locale) : routing.defaultLocale;
 
   // Load messages from @modubiz/i18n workspace package
-  const messages = (await catalogs[locale]()).default;
+  const messages = (await catalogs[resolvedLocale]()).default;
 
   return {
-    locale,
+    locale: resolvedLocale,
     messages,
   };
 });

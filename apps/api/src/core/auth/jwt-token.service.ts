@@ -3,7 +3,7 @@ import * as crypto from 'node:crypto';
 
 import { ConfigService } from '@modubiz/config';
 import { Inject, Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 
 import { type SessionStore, type Session } from './session-store.interface.js';
 
@@ -84,7 +84,10 @@ export class JwtTokenService {
       { ...payload },
       {
         secret: this.config.jwtAccessSecret,
-        expiresIn: this.config.jwtAccessTtl,
+        // @nestjs/jwt 11 types expiresIn as `number | StringValue`; config TTLs
+        // are plain strings like '15m' that jsonwebtoken accepts at runtime.
+        // NonNullable keeps `undefined` out of the union (exactOptionalPropertyTypes).
+        expiresIn: this.config.jwtAccessTtl as NonNullable<JwtSignOptions['expiresIn']>,
       },
     );
   }

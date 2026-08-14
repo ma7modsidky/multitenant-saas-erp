@@ -5,7 +5,9 @@ packages:
   - 'tooling/*/*'
 allowBuilds:
   '@nestjs/core': true
+  '@parcel/watcher': true
   '@scarf/scarf': false
+  '@swc/core': true
   argon2: true
   cpu-features: true
   esbuild: true
@@ -13,3 +15,18 @@ allowBuilds:
   sharp: true
   ssh2: true
   unrs-resolver: true
+# Transitive security fixes (pnpm 11: `pnpm.overrides` in package.json is
+# deprecated; the replacement lives here). See .pnpmfile.cjs for the rest.
+overrides:
+  # @redocly/openapi-core pins js-yaml 4.3.0 (GHSA-5p4m-2wfm-xmqj). Patch bump.
+  js-yaml@4.3.0: ^4.3.1
+  # @angular-devkit/core pins ajv 8.17.1 (GHSA-2g4f-4pwh-qvx6, patched >=8.18.0).
+  ajv@8.17.1: ^8.18.0
+  # vitest 3.2.x accepts vite ^5 || ^6 || ^7-0 but resolves the lowest major;
+  # vite 5.4.x has dev-server advisories (GHSA-fx2h-pf6j-xcff, GHSA-4w7w-66w2-5vf9,
+  # GHSA-v6wh-96g9-6wx3). vite 6.3.x also pulls patched esbuild ^0.25.0
+  # (GHSA-67mh-4wv8-2f99). Dev/test tooling only.
+  vite: ^6.3.5
+  # @angular-devkit/core (NestJS schematics/CLI tooling) pins picomatch 4.0.2
+  # (GHSA-c2c7-rcm5-vvqj ReDoS / GHSA-3v7f-55p6-f55p glob matching, patched >=4.0.4).
+  picomatch@4.0.2: ^4.0.4

@@ -27,12 +27,12 @@
     "seed": "tsc -b && node --env-file=../../.env scripts/seed.mjs"
   },
   "dependencies": {
-    "drizzle-orm": "^0.36.4",
+    "drizzle-orm": "0.45.2",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@modubiz/tsconfig": "workspace:*",
-    "@types/node": "^22.10.2",
+    "@types/node": "^22.20.1",
     "typescript": "^5.7.2"
   }
 }

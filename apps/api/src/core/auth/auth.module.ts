@@ -1,6 +1,6 @@
 import { ConfigService } from '@modubiz/config';
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, type JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
 import { JwtAccessStrategy } from './jwt-access.strategy.js';
@@ -41,7 +41,10 @@ import { InMemorySessionStore } from './session-store.js';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.jwtAccessSecret,
-        signOptions: { expiresIn: config.jwtAccessTtl },
+        // @nestjs/jwt 11 types expiresIn as `number | StringValue`; env TTLs are
+        // plain strings like '15m' that jsonwebtoken accepts at runtime.
+        // NonNullable keeps `undefined` out of the union (exactOptionalPropertyTypes).
+        signOptions: { expiresIn: config.jwtAccessTtl as NonNullable<JwtSignOptions['expiresIn']> },
       }),
     }),
   ],

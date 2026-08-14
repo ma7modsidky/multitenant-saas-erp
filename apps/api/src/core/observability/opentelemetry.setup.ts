@@ -38,7 +38,9 @@ export async function initializeTelemetry(): Promise<void> {
     const { NodeSDK } = await import('@opentelemetry/sdk-node');
     const { getNodeAutoInstrumentations } = await import('@opentelemetry/auto-instrumentations-node');
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
-    const { Resource } = await import('@opentelemetry/resources');
+    // @opentelemetry/resources >= 2.0 exports `Resource` as a type-only export;
+    // the value-level API is `resourceFromAttributes()`.
+    const { resourceFromAttributes } = await import('@opentelemetry/resources');
     const { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } =
       await import('@opentelemetry/semantic-conventions');
 
@@ -46,7 +48,7 @@ export async function initializeTelemetry(): Promise<void> {
     const env = process.env['NODE_ENV'] || 'development';
 
     const sdk = new NodeSDK({
-      resource: new Resource({
+      resource: resourceFromAttributes({
         [SEMRESATTRS_SERVICE_NAME]: serviceName,
         [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: env,
       }),

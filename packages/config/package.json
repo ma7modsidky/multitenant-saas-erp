@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@modubiz/tsconfig": "workspace:*",
-    "@types/node": "^22.10.2",
+    "@types/node": "^22.20.1",
     "typescript": "^5.7.2"
   }
 }
