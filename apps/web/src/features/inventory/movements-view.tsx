@@ -1,6 +1,6 @@
 'use client';
 
-import { Lock, Search, X } from 'lucide-react';
+import { History, Lock, Search, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 
@@ -14,6 +14,7 @@ import { ModuleGate } from '@/lib/entitlements';
 
 import { useCurrencies, useInventoryMovements } from './hooks';
 import { localizedLabel } from './labels';
+import { InventoryModuleNav, InventoryPageHeader, StockSectionTabs } from './module-nav';
 import { compareQuantity, formatMinorAmount } from './money';
 import { InventoryPagination, useInventoryListUrlState } from './table-shared';
 
@@ -126,10 +127,9 @@ export function MovementsView() {
   return (
     <ModuleGate moduleKey="inventory">
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t('movements.title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t('movements.subtitle')}</p>
-        </div>
+        <InventoryModuleNav />
+        <StockSectionTabs />
+        <InventoryPageHeader icon={History} title={t('movements.title')} subtitle={t('movements.subtitle')} />
 
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lock className="size-3.5" aria-hidden="true" />
@@ -186,8 +186,12 @@ export function MovementsView() {
                               timeStyle: 'short',
                             })}
                           </td>
-                          <td className="px-4 py-3 font-medium" dir="auto">
-                            {localizedLabel(movement.nameI18n, locale, movement.sku)}
+                          <td className="px-4 py-3" dir="auto">
+                            {/* The movement belongs to ONE variant — show the
+                                product name with its SKU so multi-variant
+                                products don't hide which variant moved. */}
+                            <span className="block font-medium">{localizedLabel(movement.nameI18n, locale)}</span>
+                            <span className="block font-mono text-xs text-muted-foreground">{movement.sku}</span>
                           </td>
                           <td className="px-4 py-3">{t(`movements.types.${movement.type}`)}</td>
                           <td className="px-4 py-3 text-muted-foreground" dir="auto">

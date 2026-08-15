@@ -11,6 +11,7 @@ import { ModuleGate } from '@/lib/entitlements';
 
 import { inventoryErrorKey } from './errors';
 import { TransferForm } from './forms';
+import { InventoryModuleNav, InventoryPageHeader, StockSectionTabs } from './module-nav';
 import {
   useInventoryMutations,
   useInventoryMovements,
@@ -133,10 +134,9 @@ export function TransfersView() {
   return (
     <ModuleGate moduleKey="inventory">
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t('transfers.title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t('transfers.subtitle')}</p>
-        </div>
+        <InventoryModuleNav />
+        <StockSectionTabs />
+        <InventoryPageHeader icon={Repeat} title={t('transfers.title')} subtitle={t('transfers.subtitle')} />
 
         {error && (
           <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -209,8 +209,11 @@ export function TransfersView() {
                             timeStyle: 'short',
                           })}
                         </td>
-                        <td className="px-4 py-3 font-medium" dir="auto">
-                          {localizedLabel(transfer.nameI18n, locale, transfer.sku)}
+                        <td className="px-4 py-3" dir="auto">
+                          {/* A transfer moves ONE variant — show its SKU under
+                              the product name, matching the movements ledger. */}
+                          <span className="block font-medium">{localizedLabel(transfer.nameI18n, locale)}</span>
+                          <span className="block font-mono text-xs text-muted-foreground">{transfer.sku}</span>
                         </td>
                         <td className="px-4 py-3" dir="auto">
                           {warehouseName(transfer.fromWarehouseId)}

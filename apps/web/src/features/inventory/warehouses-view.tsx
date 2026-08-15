@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2 } from 'lucide-react';
+import { Warehouse } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -14,6 +14,7 @@ import { Can } from '@/lib/permissions';
 
 import { inventoryErrorKey } from './errors';
 import { WarehouseForm } from './forms';
+import { InventoryModuleNav, InventoryPageHeader } from './module-nav';
 import { useInventoryMutations, useInventoryWarehouses } from './hooks';
 import type { WarehouseFormValues } from './schemas';
 
@@ -50,18 +51,20 @@ export function WarehousesView() {
   return (
     <ModuleGate moduleKey="inventory">
       <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{t('warehouses.title')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('warehouses.subtitle')}</p>
-          </div>
-          <Can permission="inventory:warehouse:write">
-            <Button onClick={() => setShowForm((current) => !current)}>
-              <Building2 className="size-4" aria-hidden="true" />
-              <span className="ms-1">{t('warehouses.create')}</span>
-            </Button>
-          </Can>
-        </div>
+        <InventoryModuleNav />
+        <InventoryPageHeader
+          icon={Warehouse}
+          title={t('warehouses.title')}
+          subtitle={t('warehouses.subtitle')}
+          actions={
+            <Can permission="inventory:warehouse:write">
+              <Button onClick={() => setShowForm((current) => !current)}>
+                <Warehouse className="size-4" aria-hidden="true" />
+                <span className="ms-1">{t('warehouses.create')}</span>
+              </Button>
+            </Can>
+          }
+        />
 
         {error && (
           <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

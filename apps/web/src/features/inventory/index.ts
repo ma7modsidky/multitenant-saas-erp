@@ -1,4 +1,5 @@
 export { InventoryLowStockWidget, InventoryStockValuationWidget } from './dashboard-widgets';
+export { InventoryModuleNav, InventoryPageHeader, StockSectionTabs } from './module-nav';
 export { ProductsView } from './products-view';
 export { ProductDetailView } from './product-detail-view';
 export { StockView } from './stock-view';

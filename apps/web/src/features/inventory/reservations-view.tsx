@@ -12,6 +12,7 @@ import { ModuleGate } from '@/lib/entitlements';
 
 import { useInventoryReservations } from './hooks';
 import { localizedLabel } from './labels';
+import { InventoryModuleNav, InventoryPageHeader, StockSectionTabs } from './module-nav';
 import { InventoryPagination, useInventoryListUrlState } from './table-shared';
 
 /** Reservation state → localized badge variant + label key. */
@@ -50,10 +51,9 @@ export function ReservationsView() {
   return (
     <ModuleGate moduleKey="inventory">
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t('reservations.title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t('reservations.subtitle')}</p>
-        </div>
+        <InventoryModuleNav />
+        <StockSectionTabs />
+        <InventoryPageHeader icon={Lock} title={t('reservations.title')} subtitle={t('reservations.subtitle')} />
 
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lock className="size-3.5" aria-hidden="true" />
@@ -106,8 +106,12 @@ export function ReservationsView() {
                   ) : (
                     data?.items.map((reservation) => (
                       <tr key={reservation.id} className="transition-colors hover:bg-accent/30">
-                        <td className="px-4 py-3 font-medium" dir="auto">
-                          {localizedLabel(reservation.nameI18n, locale, reservation.sku)}
+                        <td className="px-4 py-3" dir="auto">
+                          {/* Each reservation holds ONE variant — surface its
+                              SKU under the product name like the movements
+                              ledger does. */}
+                          <span className="block font-medium">{localizedLabel(reservation.nameI18n, locale)}</span>
+                          <span className="block font-mono text-xs text-muted-foreground">{reservation.sku}</span>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground" dir="auto">
                           {reservation.warehouseName}

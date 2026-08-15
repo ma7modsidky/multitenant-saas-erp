@@ -48,7 +48,17 @@ const NAV = [
     items: [
       { labelKey: 'modules.inventory.nav.products', href: '/m/inventory/products' },
       { labelKey: 'modules.inventory.nav.warehouses', href: '/m/inventory/warehouses' },
-      { labelKey: 'modules.inventory.nav.stock', href: '/m/inventory/stock' },
+      {
+        labelKey: 'modules.inventory.nav.stock',
+        href: '/m/inventory/stock',
+        // Stock owns its sub-routes — the sidebar must render them nested so
+        // reservations reads as under Stock, not a floating sibling.
+        children: [
+          { labelKey: 'modules.inventory.nav.movements', href: '/m/inventory/stock/movements' },
+          { labelKey: 'modules.inventory.nav.transfers', href: '/m/inventory/stock/transfers' },
+          { labelKey: 'modules.inventory.nav.reservations', href: '/m/inventory/stock/reservations' },
+        ],
+      },
     ],
   },
 ];
@@ -103,9 +113,41 @@ describe('Sidebar — grouped module navigation', () => {
     renderSidebar({ collapsed: true });
 
     // No dropdown parents in the collapsed rail — every page stays reachable
-    // as an icon link with a tooltip.
+    // as an icon link with a tooltip (nested stock children included).
     expect(screen.queryByRole('button', { name: 'CRM' })).not.toBeInTheDocument();
     expect(screen.getByTitle('Contacts')).toBeInTheDocument();
     expect(screen.getByTitle('Products')).toBeInTheDocument();
+    expect(screen.getByTitle('Reservations')).toBeInTheDocument();
+  });
+
+  it('nests stock sub-routes under Stock (reservations is not a sibling)', () => {
+    renderSidebar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }));
+
+    // Stock renders with its sub-routes nested beneath it — Movements,
+    // Transfers, and Reservations are children, not top-level items.
+    expect(screen.getByRole('link', { name: 'Stock' })).toHaveAttribute('href', '/en/m/inventory/stock');
+    expect(screen.getByRole('link', { name: 'Movements' })).toHaveAttribute('href', '/en/m/inventory/stock/movements');
+    expect(screen.getByRole('link', { name: 'Transfers' })).toHaveAttribute('href', '/en/m/inventory/stock/transfers');
+    expect(screen.getByRole('link', { name: 'Reservations' })).toHaveAttribute(
+      'href',
+      '/en/m/inventory/stock/reservations',
+    );
+  });
+
+  it('highlights the active stock sub-route (e.g. Reservations) nested under Stock', () => {
+    pathname = '/en/m/inventory/stock/reservations';
+    renderSidebar();
+
+    // The Inventory module auto-expands; the nested child highlights because
+    // it owns the active route (prefix match on its own href).
+    expect(screen.getByRole('link', { name: 'Reservations' })).toHaveClass('bg-accent');
+    // Stock still reads as the active section via the prefix match (like
+    // /m/crm/deals/table highlights Deals) — the hierarchy is what changed.
+    expect(screen.getByRole('link', { name: 'Stock' })).toHaveClass('bg-accent');
+    // Sibling top-level items do NOT highlight — the route belongs to the
+    // stock section, not to products or stock counts.
+    expect(screen.getByRole('link', { name: 'Products' })).not.toHaveClass('bg-accent');
   });
 });

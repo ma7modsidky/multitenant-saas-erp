@@ -38,6 +38,8 @@ interface NavItem {
   href: string;
   /** Only highlight on the exact path, not child routes (hubs with their own sub-items). */
   exact?: boolean;
+  /** Nested sub-routes — e.g. inventory Stock → Movements / Transfers / Reservations. */
+  children?: NavItem[];
 }
 
 /** One module's links — rendered as a collapsible parent in the Modules section. */
@@ -125,11 +127,24 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
         moduleKey: group.moduleKey,
         label: t(group.labelKey),
         icon: MODULE_ICONS[group.moduleKey] ?? Puzzle,
-        items: group.items.map((item) => ({
-          icon: (item.icon && NAV_ICONS[item.icon]) || MODULE_ICONS[group.moduleKey] || Puzzle,
-          label: t(item.labelKey),
-          href: `/${locale}${item.href}`,
-        })),
+        items: group.items.map((item) => {
+          const navItem: NavItem = {
+            icon: (item.icon && NAV_ICONS[item.icon]) || MODULE_ICONS[group.moduleKey] || Puzzle,
+            label: t(item.labelKey),
+            href: `/${locale}${item.href}`,
+          };
+          // exactOptionalPropertyTypes: only set children when the descriptor
+          // has them — a plain `children: item.children?.map(...)` would hand
+          // `undefined` into the optional property.
+          if (item.children && item.children.length > 0) {
+            navItem.children = item.children.map((child) => ({
+              icon: (child.icon && NAV_ICONS[child.icon]) || MODULE_ICONS[group.moduleKey] || Puzzle,
+              label: t(child.labelKey),
+              href: `/${locale}${child.href}`,
+            }));
+          }
+          return navItem;
+        }),
       })) ?? [];
 
   const navSections: NavSection[] = [{ label: t('nav.platform'), items: platformItems }];
@@ -183,8 +198,10 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                   );
                   if (collapsed) {
                     // Collapsed rail has no room for dropdowns — flatten each
-                    // module's links into icon-only shortcuts (tooltip = label).
-                    return group.items.map((item) => (
+                    // module's links (including nested children) into icon-only
+                    // shortcuts (tooltip = label).
+                    const flatItems = group.items.flatMap((item) => [item, ...(item.children ?? [])]);
+                    return flatItems.map((item) => (
                       <li key={item.href}>
                         <Link
                           href={item.href}
@@ -223,11 +240,12 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                       {isOpen && (
                         <ul id={`sidebar-module-${group.moduleKey}`} className="mt-0.5 space-y-0.5">
                           {group.items.map((item) => {
-                            // Child routes (e.g. /m/crm/deals/table) highlight
-                            // their parent page link via the prefix match.
+                            // Child routes (e.g. /m/crm/deals/table or
+                            // /m/inventory/stock/movements) highlight their
+                            // parent page link via the prefix match.
                             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                             return (
-                              <li key={item.href}>
+                              <li key={item.href} className="space-y-0.5">
                                 <Link
                                   href={item.href}
                                   className={cn(
@@ -241,6 +259,31 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
                                   <item.icon className="size-4 shrink-0" aria-hidden="true" />
                                   <span className="truncate">{item.label}</span>
                                 </Link>
+                                {item.children && item.children.length > 0 && (
+                                  <ul className="space-y-0.5">
+                                    {item.children.map((child) => {
+                                      const childActive =
+                                        pathname === child.href || pathname.startsWith(child.href + '/');
+                                      return (
+                                        <li key={child.href}>
+                                          <Link
+                                            href={child.href}
+                                            className={cn(
+                                              'ms-12 flex items-center gap-3 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                                              childActive
+                                                ? 'bg-accent text-accent-foreground'
+                                                : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+                                            )}
+                                            title={collapsed ? child.label : undefined}
+                                          >
+                                            <child.icon className="size-3.5 shrink-0" aria-hidden="true" />
+                                            <span className="truncate">{child.label}</span>
+                                          </Link>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
                               </li>
                             );
                           })}

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDownToLine, History, Lock, Repeat, Search, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
+import { ArrowDownToLine, BarChart3, Search, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -17,6 +17,7 @@ import { ModuleGate } from '@/lib/entitlements';
 
 import { inventoryErrorKey } from './errors';
 import { AdjustStockForm, ReceiveStockForm } from './forms';
+import { InventoryModuleNav, InventoryPageHeader, StockSectionTabs } from './module-nav';
 import {
   useCurrencies,
   useInventoryMutations,
@@ -209,43 +210,25 @@ export function StockView() {
   return (
     <ModuleGate moduleKey="inventory">
       <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{t('stock.title')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('stock.subtitle')}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => openForm('receive')}>
-              <ArrowDownToLine className="size-4" aria-hidden="true" />
-              <span className="ms-1">{t('receive.title')}</span>
-            </Button>
-            <Button variant="outline" onClick={() => openForm('adjust')}>
-              <SlidersHorizontal className="size-4" aria-hidden="true" />
-              <span className="ms-1">{t('adjust.title')}</span>
-            </Button>
-          </div>
-        </div>
-
-        <nav aria-label={t('stock.related')} className="flex flex-wrap gap-2">
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`/${locale}/m/inventory/stock/movements`}>
-              <History className="size-4" aria-hidden="true" />
-              <span className="ms-1">{t('movements.title')}</span>
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`/${locale}/m/inventory/stock/transfers`}>
-              <Repeat className="size-4" aria-hidden="true" />
-              <span className="ms-1">{t('transfers.title')}</span>
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`/${locale}/m/inventory/stock/reservations`}>
-              <Lock className="size-4" aria-hidden="true" />
-              <span className="ms-1">{t('reservations.title')}</span>
-            </Link>
-          </Button>
-        </nav>
+        <InventoryModuleNav />
+        <StockSectionTabs />
+        <InventoryPageHeader
+          icon={BarChart3}
+          title={t('stock.title')}
+          subtitle={t('stock.subtitle')}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => openForm('receive')}>
+                <ArrowDownToLine className="size-4" aria-hidden="true" />
+                <span className="ms-1">{t('receive.title')}</span>
+              </Button>
+              <Button variant="outline" onClick={() => openForm('adjust')}>
+                <SlidersHorizontal className="size-4" aria-hidden="true" />
+                <span className="ms-1">{t('adjust.title')}</span>
+              </Button>
+            </div>
+          }
+        />
 
         <StockToolbar
           searchInput={searchInput}

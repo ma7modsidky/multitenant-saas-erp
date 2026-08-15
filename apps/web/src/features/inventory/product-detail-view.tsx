@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRef, useState } from 'react';
 
+import { cn } from '@/components/cn';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +33,83 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
     <div className="space-y-1">
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
       <dd className="text-sm">{value}</dd>
+    </div>
+  );
+}
+
+/** The product detail page is split into tabs so a product with many
+    variants or movements never renders one very long page. */
+type ProductTab = 'details' | 'variants' | 'movements';
+
+function DetailTabs({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: Array<{ key: ProductTab; label: string; count?: number }>;
+  value: ProductTab;
+  onChange: (key: ProductTab) => void;
+}) {
+  const t = useTranslations('modules.inventory');
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    const index = tabs.findIndex((tab) => tab.key === value);
+    if (index < 0) return;
+    // RTL flips the visual order, so the arrow directions swap meaning.
+    const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+    const step = rtl ? -1 : 1;
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      const next = tabs[(index + step + tabs.length) % tabs.length];
+      if (next) onChange(next.key);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      const prev = tabs[(index - step + tabs.length) % tabs.length];
+      if (prev) onChange(prev.key);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      const first = tabs[0];
+      if (first) onChange(first.key);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      const last = tabs[tabs.length - 1];
+      if (last) onChange(last.key);
+    }
+  };
+  return (
+    <div
+      role="tablist"
+      aria-label={t('detail.sections')}
+      onKeyDown={handleKeyDown}
+      className="flex flex-wrap gap-1 rounded-lg border bg-muted/40 p-1"
+    >
+      {tabs.map((tab) => {
+        const active = tab.key === value;
+        return (
+          <button
+            key={tab.key}
+            id={`product-tab-${tab.key}`}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            aria-controls="product-panel"
+            onClick={() => onChange(tab.key)}
+            className={cn(
+              'inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              active
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
+          >
+            {tab.label}
+            {tab.count !== undefined && tab.count > 0 && (
+              <Badge variant={active ? 'secondary' : 'outline'} className="tabular-nums">
+                {tab.count}
+              </Badge>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -88,6 +167,7 @@ export function ProductDetailView({ id }: { id: string }) {
   const [unarchiveProductTarget, setUnarchiveProductTarget] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [tab, setTab] = useState<ProductTab>('details');
   const variantsRef = useRef<HTMLDivElement>(null);
 
   if (isPending && !data)
@@ -116,12 +196,21 @@ export function ProductDetailView({ id }: { id: string }) {
       }
     : undefined;
 
-  /** Opens the add-variant form and reveals it in the variants section. */
+  /** Opens the add-variant form, switches to the Variants tab, and reveals it. */
   const openVariantForm = () => {
     setShowVariantForm(true);
-    // The section button is already in view; the header one needs to scroll
-    // down so the newly rendered form is visible instead of hiding below.
+    setTab('variants');
+    // The tab panel is already in view; the header button needs to scroll so
+    // the newly rendered form is visible instead of hiding below.
     requestAnimationFrame(() => variantsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
+  /** Toggles product editing from the header — stays on the details tab. */
+  const toggleProductEdit = () => {
+    setShowVariantForm(false);
+    setEditingVariantId(null);
+    setTab('details');
+    setEditingProduct((current) => !current);
   };
 
   const handleAddVariant = async (values: VariantFormValues) => {
@@ -211,6 +300,12 @@ export function ProductDetailView({ id }: { id: string }) {
   };
 
   /** Save variant edits: PATCH one variant's sellable fields. */
+  const tabs: Array<{ key: ProductTab; label: string; count?: number }> = [
+    { key: 'details', label: t('detail.productDetails') },
+    { key: 'variants', label: t('variants.title'), count: variants.length },
+    { key: 'movements', label: t('movements.title'), count: data.movements.length },
+  ];
+
   const handleEditVariant = async (values: VariantFormValues) => {
     if (!editingVariantId) return;
     setError(null);
@@ -255,14 +350,7 @@ export function ProductDetailView({ id }: { id: string }) {
           {product.isActive ? (
             <div className="flex flex-wrap items-center gap-2">
               <Can permission="inventory:product:write">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowVariantForm(false);
-                    setEditingVariantId(null);
-                    setEditingProduct((current) => !current);
-                  }}
-                >
+                <Button variant="outline" onClick={toggleProductEdit}>
                   {editingProduct ? (
                     <X className="size-4" aria-hidden="true" />
                   ) : (
@@ -276,6 +364,7 @@ export function ProductDetailView({ id }: { id: string }) {
                   onClick={() => {
                     setEditingProduct(false);
                     setEditingVariantId(null);
+                    setTab('variants');
                     if (showVariantForm) setShowVariantForm(false);
                     else openVariantForm();
                   }}
@@ -313,272 +402,300 @@ export function ProductDetailView({ id }: { id: string }) {
           </p>
         )}
 
-        {editingProduct && headerEditInitialValues && (
-          <ProductForm
-            onSubmit={handleEditProduct}
-            pending={updateProduct.isPending || updateVariant.isPending}
-            initialValues={headerEditInitialValues}
-            submitLabel={global('common.save')}
-          />
-        )}
+        <DetailTabs tabs={tabs} value={tab} onChange={setTab} />
 
-        <DetailCard icon={Package} title={t('detail.productDetails')}>
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <DetailField label={t('detail.skuCount')} value={variants.length} />
-            <DetailField label={t('detail.variantCount')} value={activeVariants.length} />
-            <DetailField
-              label={t('detail.status')}
-              value={
-                <Badge variant={product.isActive ? 'default' : 'secondary'}>
-                  {product.isActive ? t('products.active') : t('products.archived')}
-                </Badge>
-              }
-            />
-            <DetailField label={t('detail.created')} value={formatDate(product.createdAt, locale)} />
-            <DetailField label={t('detail.updated')} value={formatDate(product.updatedAt, locale)} />
-            <DetailField label={t('detail.createdBy')} value={memberName(product.createdByUserId) ?? '—'} />
-            <DetailField label={t('detail.updatedBy')} value={memberName(product.updatedByUserId) ?? '—'} />
-          </dl>
-        </DetailCard>
+        <div role="tabpanel" id="product-panel" aria-labelledby={`product-tab-${tab}`} className="space-y-5">
+          {tab === 'details' && (
+            <>
+              {editingProduct && headerEditInitialValues && (
+                <ProductForm
+                  onSubmit={handleEditProduct}
+                  pending={updateProduct.isPending || updateVariant.isPending}
+                  initialValues={headerEditInitialValues}
+                  submitLabel={global('common.save')}
+                />
+              )}
 
-        <div ref={variantsRef}>
-          <DetailCard
-            icon={Tags}
-            title={t('variants.title')}
-            action={
-              product.isActive && (
-                <Can permission="inventory:product:write">
-                  <Button variant="outline" size="sm" onClick={() => setShowVariantForm((current) => !current)}>
-                    <PackagePlus className="size-4" aria-hidden="true" />
-                    <span className="ms-1">{showVariantForm ? t('detail.cancel') : t('variants.add')}</span>
-                  </Button>
-                </Can>
-              )
-            }
-          >
-            {/* The add form renders right under the section button — no more
+              <DetailCard icon={Package} title={t('detail.productDetails')}>
+                <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <DetailField label={t('detail.skuCount')} value={variants.length} />
+                  <DetailField label={t('detail.variantCount')} value={activeVariants.length} />
+                  <DetailField
+                    label={t('detail.status')}
+                    value={
+                      <Badge variant={product.isActive ? 'default' : 'secondary'}>
+                        {product.isActive ? t('products.active') : t('products.archived')}
+                      </Badge>
+                    }
+                  />
+                  <DetailField label={t('detail.created')} value={formatDate(product.createdAt, locale)} />
+                  <DetailField label={t('detail.updated')} value={formatDate(product.updatedAt, locale)} />
+                  <DetailField label={t('detail.createdBy')} value={memberName(product.createdByUserId) ?? '—'} />
+                  <DetailField label={t('detail.updatedBy')} value={memberName(product.updatedByUserId) ?? '—'} />
+                </dl>
+              </DetailCard>
+            </>
+          )}
+
+          {tab === 'variants' && (
+            <div ref={variantsRef}>
+              <DetailCard
+                icon={Tags}
+                title={t('variants.title')}
+                action={
+                  product.isActive && (
+                    <Can permission="inventory:product:write">
+                      <Button variant="outline" size="sm" onClick={() => setShowVariantForm((current) => !current)}>
+                        <PackagePlus className="size-4" aria-hidden="true" />
+                        <span className="ms-1">{showVariantForm ? t('detail.cancel') : t('variants.add')}</span>
+                      </Button>
+                    </Can>
+                  )
+                }
+              >
+                {/* The add form renders right under the section button — no more
                 scrolling up to a detached form at the top of the page. */}
-            {showVariantForm && (
-              <VariantForm
-                onSubmit={handleAddVariant}
-                pending={createVariant.isPending}
-                // INV-10 pre-check against SELLABLE variants only — archived SKUs
-                // are claimable (the unarchive use cases guard reclamation), so
-                // they must not block a new variant with the same SKU.
-                existingSkus={variants.filter((variant) => variant.isActive).map((variant) => variant.sku)}
-                submitLabel={t('variants.add')}
-              />
-            )}
-            {variants.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('variants.empty')}</p>
-            ) : (
-              <div className="space-y-3">
-                {variants.map((variant) => {
-                  const onHand = sumQuantities(variant.stock.map((row) => row.quantityOnHand));
-                  const available = sumQuantities(variant.stock.map((row) => row.quantityAvailable));
-                  return (
-                    <div
-                      key={variant.id}
-                      className="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/30"
-                    >
-                      {/* The edit form renders inside the variant's own card —
-                          the row menu no longer jumps the form to page top. */}
-                      {editingVariantId === variant.id && (
-                        <VariantForm
-                          onSubmit={handleEditVariant}
-                          pending={updateVariant.isPending}
-                          existingSkus={variants.filter((v) => v.id !== variant.id && v.isActive).map((v) => v.sku)}
-                          initialValues={{
-                            sku: variant.sku,
-                            barcode: variant.barcode ?? '',
-                            priceAmountMinor: variant.price.amountMinor,
-                            priceCurrency: variant.price.currency,
-                            costAmountMinor: variant.cost.amountMinor,
-                            costCurrency: variant.cost.currency,
-                            reorderPoint: variant.reorderPoint,
-                            reorderQuantity: variant.reorderQuantity,
-                          }}
-                          submitLabel={global('common.save')}
-                        />
-                      )}
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-sm font-semibold" dir="auto">
-                            {variant.sku}
-                          </span>
-                          {variant.barcode && (
-                            <span className="font-mono text-xs text-muted-foreground" dir="auto">
-                              {variant.barcode}
-                            </span>
-                          )}
-                          <Badge variant={variant.isActive ? 'default' : 'secondary'}>
-                            {variant.isActive ? t('products.active') : t('products.archived')}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground">
-                            {t('detail.onHand')}{' '}
-                            <span className="font-mono tabular-nums text-foreground">{onHand}</span>
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            {t('detail.available')}{' '}
-                            <span className="font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
-                              {available}
-                            </span>
-                          </span>
-                          <Can permission="inventory:product:write">
-                            {variant.isActive ? (
-                              <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => setEditingVariantId(variant.id)}>
-                                  <Pencil className="size-4" aria-hidden="true" />
-                                  <span className="ms-1">{t('variants.edit')}</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setArchiveTarget({ id: variant.id, name: variant.sku })}
-                                >
-                                  {t('variants.archive')}
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setUnarchiveTarget({ id: variant.id, name: variant.sku })}
-                              >
-                                <ArchiveRestore className="size-4" aria-hidden="true" />
-                                <span className="ms-1">{t('variants.unarchive')}</span>
-                              </Button>
-                            )}
-                          </Can>
-                        </div>
-                      </div>
-                      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-1">
-                          <dt className="text-xs font-medium text-muted-foreground">{t('fields.price')}</dt>
-                          <dd className="font-mono text-xs tabular-nums">
-                            {formatMinorAmount(variant.price.amountMinor, variant.price.currency, {
-                              locale,
-                              exponent: currencies?.find((c) => c.code === variant.price.currency)?.exponent ?? 2,
-                            })}
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-xs font-medium text-muted-foreground">{t('fields.cost')}</dt>
-                          <dd className="font-mono text-xs tabular-nums">
-                            {formatMinorAmount(variant.cost.amountMinor, variant.cost.currency, {
-                              locale,
-                              exponent: currencies?.find((c) => c.code === variant.cost.currency)?.exponent ?? 2,
-                            })}
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-xs font-medium text-muted-foreground">{t('fields.reorderPoint')}</dt>
-                          <dd className="font-mono text-xs tabular-nums">{variant.reorderPoint}</dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-xs font-medium text-muted-foreground">{t('fields.reorderQuantity')}</dt>
-                          <dd className="font-mono text-xs tabular-nums">{variant.reorderQuantity}</dd>
-                        </div>
-                      </dl>
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        <span>
-                          {t('detail.createdBy')} {memberName(variant.createdByUserId) ?? '—'}
-                        </span>
-                        <span aria-hidden="true" className="mx-1">
-                          ·
-                        </span>
-                        <span>
-                          {t('detail.updatedBy')} {memberName(variant.updatedByUserId) ?? '—'}
-                        </span>
-                      </p>
-                      {variant.stock.length > 0 && (
-                        <div className="mt-3 overflow-x-auto rounded-md border">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b text-muted-foreground">
-                                <th className="px-3 py-2 text-start font-medium">{t('detail.tableWarehouse')}</th>
-                                <th className="px-3 py-2 text-end font-medium">{t('detail.tableOnHand')}</th>
-                                <th className="px-3 py-2 text-end font-medium">{t('detail.tableReserved')}</th>
-                                <th className="px-3 py-2 text-end font-medium">{t('detail.tableAvailable')}</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {variant.stock.map((row) => (
-                                <tr key={row.warehouseId}>
-                                  <td className="px-3 py-2">
-                                    <Link
-                                      href={`/${locale}/m/inventory/warehouses/${row.warehouseId}`}
-                                      className="text-primary underline-offset-4 hover:underline"
-                                      dir="auto"
-                                    >
-                                      {row.warehouseName}
-                                    </Link>
-                                  </td>
-                                  <td className="px-3 py-2 text-end font-mono tabular-nums">{row.quantityOnHand}</td>
-                                  <td className="px-3 py-2 text-end font-mono tabular-nums">{row.quantityReserved}</td>
-                                  <td className="px-3 py-2 text-end font-mono tabular-nums">{row.quantityAvailable}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </DetailCard>
-        </div>
-
-        <DetailCard icon={History} title={t('movements.title')}>
-          {data.movements.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('movements.empty')}</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-start text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-2 text-start font-medium">{t('movements.tableDate')}</th>
-                    <th className="px-3 py-2 text-start font-medium">{t('movements.tableType')}</th>
-                    <th className="px-3 py-2 text-start font-medium">{t('movements.tableWarehouse')}</th>
-                    <th className="px-3 py-2 text-end font-medium">{t('movements.tableQuantity')}</th>
-                    <th className="px-3 py-2 text-start font-medium">{t('movements.tableReason')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {data.movements.map((movement) => {
-                    const incoming = compareQuantity(movement.quantity, '0') > 0;
-                    return (
-                      <tr key={movement.id} className="transition-colors hover:bg-accent/30">
-                        <td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums text-muted-foreground">
-                          {formatDate(movement.occurredAt, locale)}
-                        </td>
-                        <td className="px-3 py-2">{t(`movements.types.${movement.type}`)}</td>
-                        <td className="px-3 py-2 text-muted-foreground" dir="auto">
-                          {movement.warehouseName ?? '—'}
-                        </td>
-                        <td
-                          className={`px-3 py-2 text-end font-mono text-xs tabular-nums ${
-                            incoming ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'
-                          }`}
+                {showVariantForm && (
+                  <VariantForm
+                    onSubmit={handleAddVariant}
+                    pending={createVariant.isPending}
+                    // INV-10 pre-check against SELLABLE variants only — archived SKUs
+                    // are claimable (the unarchive use cases guard reclamation), so
+                    // they must not block a new variant with the same SKU.
+                    existingSkus={variants.filter((variant) => variant.isActive).map((variant) => variant.sku)}
+                    submitLabel={t('variants.add')}
+                  />
+                )}
+                {variants.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{t('variants.empty')}</p>
+                ) : (
+                  <div className="space-y-3">
+                    {variants.map((variant) => {
+                      const onHand = sumQuantities(variant.stock.map((row) => row.quantityOnHand));
+                      const available = sumQuantities(variant.stock.map((row) => row.quantityAvailable));
+                      return (
+                        <div
+                          key={variant.id}
+                          className="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/30"
                         >
-                          {incoming ? '+' : ''}
-                          {movement.quantity}
-                        </td>
-                        <td className="max-w-[12rem] truncate px-3 py-2 text-xs text-muted-foreground" dir="auto">
-                          {movement.reasonCode ?? '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          {/* The edit form renders inside the variant's own card —
+                          the row menu no longer jumps the form to page top. */}
+                          {editingVariantId === variant.id && (
+                            <VariantForm
+                              onSubmit={handleEditVariant}
+                              pending={updateVariant.isPending}
+                              existingSkus={variants.filter((v) => v.id !== variant.id && v.isActive).map((v) => v.sku)}
+                              initialValues={{
+                                sku: variant.sku,
+                                barcode: variant.barcode ?? '',
+                                priceAmountMinor: variant.price.amountMinor,
+                                priceCurrency: variant.price.currency,
+                                costAmountMinor: variant.cost.amountMinor,
+                                costCurrency: variant.cost.currency,
+                                reorderPoint: variant.reorderPoint,
+                                reorderQuantity: variant.reorderQuantity,
+                              }}
+                              submitLabel={global('common.save')}
+                            />
+                          )}
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-sm font-semibold" dir="auto">
+                                {variant.sku}
+                              </span>
+                              {variant.barcode && (
+                                <span className="font-mono text-xs text-muted-foreground" dir="auto">
+                                  {variant.barcode}
+                                </span>
+                              )}
+                              <Badge variant={variant.isActive ? 'default' : 'secondary'}>
+                                {variant.isActive ? t('products.active') : t('products.archived')}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-muted-foreground">
+                                {t('detail.onHand')}{' '}
+                                <span className="font-mono tabular-nums text-foreground">{onHand}</span>
+                              </span>
+                              <span className="text-sm text-muted-foreground">
+                                {t('detail.available')}{' '}
+                                <span className="font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
+                                  {available}
+                                </span>
+                              </span>
+                              <Can permission="inventory:product:write">
+                                {variant.isActive ? (
+                                  <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="sm" onClick={() => setEditingVariantId(variant.id)}>
+                                      <Pencil className="size-4" aria-hidden="true" />
+                                      <span className="ms-1">{t('variants.edit')}</span>
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setArchiveTarget({ id: variant.id, name: variant.sku })}
+                                    >
+                                      {t('variants.archive')}
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setUnarchiveTarget({ id: variant.id, name: variant.sku })}
+                                  >
+                                    <ArchiveRestore className="size-4" aria-hidden="true" />
+                                    <span className="ms-1">{t('variants.unarchive')}</span>
+                                  </Button>
+                                )}
+                              </Can>
+                            </div>
+                          </div>
+                          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="space-y-1">
+                              <dt className="text-xs font-medium text-muted-foreground">{t('fields.price')}</dt>
+                              <dd className="font-mono text-xs tabular-nums">
+                                {formatMinorAmount(variant.price.amountMinor, variant.price.currency, {
+                                  locale,
+                                  exponent: currencies?.find((c) => c.code === variant.price.currency)?.exponent ?? 2,
+                                })}
+                              </dd>
+                            </div>
+                            <div className="space-y-1">
+                              <dt className="text-xs font-medium text-muted-foreground">{t('fields.cost')}</dt>
+                              <dd className="font-mono text-xs tabular-nums">
+                                {formatMinorAmount(variant.cost.amountMinor, variant.cost.currency, {
+                                  locale,
+                                  exponent: currencies?.find((c) => c.code === variant.cost.currency)?.exponent ?? 2,
+                                })}
+                              </dd>
+                            </div>
+                            <div className="space-y-1">
+                              <dt className="text-xs font-medium text-muted-foreground">{t('fields.reorderPoint')}</dt>
+                              <dd className="font-mono text-xs tabular-nums">{variant.reorderPoint}</dd>
+                            </div>
+                            <div className="space-y-1">
+                              <dt className="text-xs font-medium text-muted-foreground">
+                                {t('fields.reorderQuantity')}
+                              </dt>
+                              <dd className="font-mono text-xs tabular-nums">{variant.reorderQuantity}</dd>
+                            </div>
+                          </dl>
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            <span>
+                              {t('detail.createdBy')} {memberName(variant.createdByUserId) ?? '—'}
+                            </span>
+                            <span aria-hidden="true" className="mx-1">
+                              ·
+                            </span>
+                            <span>
+                              {t('detail.updatedBy')} {memberName(variant.updatedByUserId) ?? '—'}
+                            </span>
+                          </p>
+                          {variant.stock.length > 0 && (
+                            <div className="mt-3 overflow-x-auto rounded-md border">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b text-muted-foreground">
+                                    <th className="px-3 py-2 text-start font-medium">{t('detail.tableWarehouse')}</th>
+                                    <th className="px-3 py-2 text-end font-medium">{t('detail.tableOnHand')}</th>
+                                    <th className="px-3 py-2 text-end font-medium">{t('detail.tableReserved')}</th>
+                                    <th className="px-3 py-2 text-end font-medium">{t('detail.tableAvailable')}</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {variant.stock.map((row) => (
+                                    <tr key={row.warehouseId}>
+                                      <td className="px-3 py-2">
+                                        <Link
+                                          href={`/${locale}/m/inventory/warehouses/${row.warehouseId}`}
+                                          className="text-primary underline-offset-4 hover:underline"
+                                          dir="auto"
+                                        >
+                                          {row.warehouseName}
+                                        </Link>
+                                      </td>
+                                      <td className="px-3 py-2 text-end font-mono tabular-nums">
+                                        {row.quantityOnHand}
+                                      </td>
+                                      <td className="px-3 py-2 text-end font-mono tabular-nums">
+                                        {row.quantityReserved}
+                                      </td>
+                                      <td className="px-3 py-2 text-end font-mono tabular-nums">
+                                        {row.quantityAvailable}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </DetailCard>
             </div>
           )}
-        </DetailCard>
+
+          {tab === 'movements' && (
+            <DetailCard icon={History} title={t('movements.title')}>
+              {data.movements.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('movements.empty')}</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-start text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="px-3 py-2 text-start font-medium">{t('movements.tableDate')}</th>
+                        {/* On a multi-variant product, the ledger shows WHICH
+                            variant each row belongs to (the movements list does
+                            the same) — the product name is the page itself. */}
+                        <th className="px-3 py-2 text-start font-medium">{t('movements.tableProduct')}</th>
+                        <th className="px-3 py-2 text-start font-medium">{t('movements.tableType')}</th>
+                        <th className="px-3 py-2 text-start font-medium">{t('movements.tableWarehouse')}</th>
+                        <th className="px-3 py-2 text-end font-medium">{t('movements.tableQuantity')}</th>
+                        <th className="px-3 py-2 text-start font-medium">{t('movements.tableReason')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {data.movements.map((movement) => {
+                        const incoming = compareQuantity(movement.quantity, '0') > 0;
+                        return (
+                          <tr key={movement.id} className="transition-colors hover:bg-accent/30">
+                            <td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums text-muted-foreground">
+                              {formatDate(movement.occurredAt, locale)}
+                            </td>
+                            <td className="px-3 py-2" dir="auto">
+                              <span className="block font-medium">{localizedLabel(movement.nameI18n, locale)}</span>
+                              <span className="block font-mono text-xs text-muted-foreground">{movement.sku}</span>
+                            </td>
+                            <td className="px-3 py-2">{t(`movements.types.${movement.type}`)}</td>
+                            <td className="px-3 py-2 text-muted-foreground" dir="auto">
+                              {movement.warehouseName ?? '—'}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-end font-mono text-xs tabular-nums ${
+                                incoming ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'
+                              }`}
+                            >
+                              {incoming ? '+' : ''}
+                              {movement.quantity}
+                            </td>
+                            <td className="max-w-[12rem] truncate px-3 py-2 text-xs text-muted-foreground" dir="auto">
+                              {movement.reasonCode ?? '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </DetailCard>
+          )}
+        </div>
 
         <ConfirmDialog
           open={archiveTarget !== null}

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArchiveRestore, PackagePlus, Pencil, Search, X } from 'lucide-react';
+import { ArchiveRestore, Package, PackagePlus, Pencil, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -18,6 +18,7 @@ import { ModuleGate } from '@/lib/entitlements';
 
 import { inventoryErrorKey } from './errors';
 import { ProductForm } from './forms';
+import { InventoryModuleNav, InventoryPageHeader } from './module-nav';
 import { useCurrencies, useInventoryMutations, useInventoryProduct, useInventoryProducts } from './hooks';
 import { localizedLabel } from './labels';
 import { formatMinorAmount } from './money';
@@ -252,16 +253,18 @@ export function ProductsView() {
   return (
     <ModuleGate moduleKey="inventory">
       <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{t('products.title')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('products.subtitle')}</p>
-          </div>
-          <Button onClick={() => setShowForm((current) => !current)}>
-            <PackagePlus className="size-4" aria-hidden="true" />
-            <span className="ms-1">{t('products.create')}</span>
-          </Button>
-        </div>
+        <InventoryModuleNav />
+        <InventoryPageHeader
+          icon={Package}
+          title={t('products.title')}
+          subtitle={t('products.subtitle')}
+          actions={
+            <Button onClick={() => setShowForm((current) => !current)}>
+              <PackagePlus className="size-4" aria-hidden="true" />
+              <span className="ms-1">{t('products.create')}</span>
+            </Button>
+          }
+        />
 
         {error && (
           <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

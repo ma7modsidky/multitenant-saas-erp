@@ -66,9 +66,11 @@ vi.mock('next/link', () => ({
 
 // useInventoryListUrlState reads/updates URL state; a fresh empty query +
 // a no-op router keep the view in its default (unfiltered, page 1) state.
+// usePathname feeds the module nav's active-tab highlight.
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => '/en/m/inventory/products',
 }));
 
 import { ProductsView } from '../products-view';

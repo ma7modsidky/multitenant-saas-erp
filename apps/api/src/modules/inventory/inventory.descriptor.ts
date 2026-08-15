@@ -39,16 +39,31 @@ export const inventoryDescriptor: ModuleDescriptor = defineModule({
       labelKey: 'modules.inventory.nav.stock',
       href: '/m/inventory/stock',
       icon: 'bar-chart',
+      // The stock section owns the movements / transfers / reservations
+      // sub-routes — nesting them here keeps the sidebar hierarchy correct
+      // (they used to float as a top-level "Reservations" item, PLT-8-era).
+      children: [
+        {
+          labelKey: 'modules.inventory.nav.movements',
+          href: '/m/inventory/stock/movements',
+          icon: 'history',
+        },
+        {
+          labelKey: 'modules.inventory.nav.transfers',
+          href: '/m/inventory/stock/transfers',
+          icon: 'repeat',
+        },
+        {
+          labelKey: 'modules.inventory.nav.reservations',
+          href: '/m/inventory/stock/reservations',
+          icon: 'lock',
+        },
+      ],
     },
     {
       labelKey: 'modules.inventory.nav.stockCounts',
       href: '/m/inventory/stock-counts',
       icon: 'clipboard-list',
-    },
-    {
-      labelKey: 'modules.inventory.nav.reservations',
-      href: '/m/inventory/stock/reservations',
-      icon: 'lock',
     },
   ],
   publishes: [

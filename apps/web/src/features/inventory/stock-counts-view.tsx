@@ -17,6 +17,7 @@ import { ModuleGate } from '@/lib/entitlements';
 
 import { inventoryErrorKey } from './errors';
 import { StockCountForm } from './forms';
+import { InventoryModuleNav, InventoryPageHeader } from './module-nav';
 import {
   useInventoryMutations,
   useInventoryStockCounts,
@@ -96,16 +97,18 @@ export function StockCountsView() {
   return (
     <ModuleGate moduleKey="inventory">
       <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{t('counts.title')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('counts.subtitle')}</p>
-          </div>
-          <Button onClick={() => setShowForm((current) => !current)}>
-            <ClipboardList className="size-4" aria-hidden="true" />
-            <span className="ms-1">{t('counts.create')}</span>
-          </Button>
-        </div>
+        <InventoryModuleNav />
+        <InventoryPageHeader
+          icon={ClipboardList}
+          title={t('counts.title')}
+          subtitle={t('counts.subtitle')}
+          actions={
+            <Button onClick={() => setShowForm((current) => !current)}>
+              <ClipboardList className="size-4" aria-hidden="true" />
+              <span className="ms-1">{t('counts.create')}</span>
+            </Button>
+          }
+        />
 
         {error && (
           <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
