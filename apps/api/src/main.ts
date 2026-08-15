@@ -45,9 +45,14 @@ async function bootstrap(): Promise<void> {
   // CORS — explicit allowlist only (see CODING_STANDARDS.md §12).
   // The web app runs on a different origin than the API in development,
   // so we allow the configured web base URL.
+  // NOTE: @fastify/cors defaults `methods` to `GET,HEAD,POST`, which silently
+  // CORS-blocks every PATCH/PUT/DELETE from the browser (the preflight fails
+  // before the request is sent) — the CRM contact-edit journey caught this.
+  // List the verbs the routes actually expose so the preflight matches them.
   app.enableCors({
     origin: [config.webBaseUrl],
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
 
   await app.listen(config.port, '0.0.0.0');
