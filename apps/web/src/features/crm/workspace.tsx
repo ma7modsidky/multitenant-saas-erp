@@ -49,16 +49,10 @@ import {
   type DealColumnDateFilter,
 } from './hooks';
 import { formatMinorAmount } from './money';
+import { MergeContactsDialog } from './merge-contacts-dialog';
 import { MoveDealDialog } from './move-deal-dialog';
 import { ViewToggle } from './table-shared';
-import {
-  companyFormSchema,
-  contactFormSchema,
-  mergeFormSchema,
-  type CompanyFormValues,
-  type ContactFormValues,
-  type MergeFormValues,
-} from './schemas';
+import { companyFormSchema, contactFormSchema, type CompanyFormValues, type ContactFormValues } from './schemas';
 import { StageMenu } from './stage-menu';
 
 export type CrmView = 'contacts' | 'companies' | 'deals' | 'activities';
@@ -234,6 +228,7 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
             )
           }
           pending={mutations.createContact.isPending}
+          onClose={() => setShowForm(false)}
         />
       )}
       {showForm && view === 'companies' && (
@@ -256,6 +251,7 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
             )
           }
           pending={mutations.createCompany.isPending}
+          onClose={() => setShowForm(false)}
         />
       )}
       {showForm && view === 'deals' && (
@@ -274,6 +270,7 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
             )
           }
           pending={mutations.createDeal.isPending}
+          onClose={() => setShowForm(false)}
         />
       )}
       {showForm && view === 'activities' && (
@@ -289,15 +286,10 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
             )
           }
           pending={mutations.createActivity.isPending}
+          onClose={() => setShowForm(false)}
         />
       )}
-      {showMerge && (
-        <MergeForm
-          contacts={data.contacts.data?.items ?? []}
-          onSubmit={(v) => submit(mutations.mergeContacts.mutateAsync(v), () => setShowMerge(false))}
-          pending={mutations.mergeContacts.isPending}
-        />
-      )}
+      <MergeContactsDialog open={showMerge} onOpenChange={setShowMerge} />
 
       {view === 'contacts' && (
         <ContactsSection
@@ -380,12 +372,15 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
   );
 }
 
-function ContactForm({
+export function ContactForm({
   onSubmit,
   pending,
+  onClose,
 }: {
   onSubmit: (v: ContactFormValues) => Promise<unknown>;
   pending: boolean;
+  /** Optional close button next to the submit action — closes the form. */
+  onClose?: () => void;
 }) {
   const t = useTranslations('modules.crm');
   const { data: currencies } = useCurrencies();
@@ -469,20 +464,28 @@ function ContactForm({
             ))}
           </Select>
         </Field>
-        <Button className="md:col-span-2 md:justify-self-start" loading={pending}>
-          {t('contacts.create')}
-        </Button>
+        <div className="flex flex-wrap gap-2 md:col-span-2 md:justify-self-start">
+          <Button loading={pending}>{t('contacts.create')}</Button>
+          {onClose && (
+            <Button type="button" variant="outline" onClick={onClose}>
+              {t('common.close')}
+            </Button>
+          )}
+        </div>
       </form>
     </FormCard>
   );
 }
 
-function CompanyForm({
+export function CompanyForm({
   onSubmit,
   pending,
+  onClose,
 }: {
   onSubmit: (v: CompanyFormValues) => Promise<unknown>;
   pending: boolean;
+  /** Optional close button next to the submit action — closes the form. */
+  onClose?: () => void;
 }) {
   const t = useTranslations('modules.crm');
   const form = useForm<CompanyFormValues>({
@@ -532,58 +535,14 @@ function CompanyForm({
             </Field>
           </div>
         </fieldset>
-        <Button className="justify-self-start" loading={pending}>
-          {t('companies.create')}
-        </Button>
-      </form>
-    </FormCard>
-  );
-}
-
-function MergeForm({
-  contacts,
-  onSubmit,
-  pending,
-}: {
-  contacts: Array<{ id: string; firstName: string; lastName: string }>;
-  onSubmit: (v: MergeFormValues) => Promise<unknown>;
-  pending: boolean;
-}) {
-  const t = useTranslations('modules.crm');
-  const form = useForm<MergeFormValues>({ resolver: zodResolver(mergeFormSchema) });
-  return (
-    <FormCard>
-      <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}>
-        <Field label={t('contacts.mergeSource')} error={undefined}>
-          <Select
-            value={form.watch('sourceContactId')}
-            onValueChange={(v) => form.setValue('sourceContactId', v)}
-            {...form.register('sourceContactId')}
-          >
-            {contacts.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.firstName} {c.lastName}
-              </SelectItem>
-            ))}
-          </Select>
-        </Field>
-        <Field label={t('contacts.mergeTarget')} error={undefined}>
-          <Select
-            value={form.watch('targetContactId')}
-            onValueChange={(v) => form.setValue('targetContactId', v)}
-            {...form.register('targetContactId')}
-          >
-            {contacts.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.firstName} {c.lastName}
-              </SelectItem>
-            ))}
-          </Select>
-        </Field>
-        <p className="text-sm text-muted-foreground md:col-span-2">{t('contacts.mergeHint')}</p>
-        <Button className="md:col-span-2 md:justify-self-start" loading={pending}>
-          {t('contacts.merge')}
-        </Button>
+        <div className="flex flex-wrap gap-2 justify-self-start">
+          <Button loading={pending}>{t('companies.create')}</Button>
+          {onClose && (
+            <Button type="button" variant="outline" onClick={onClose}>
+              {t('common.close')}
+            </Button>
+          )}
+        </div>
       </form>
     </FormCard>
   );
@@ -850,7 +809,9 @@ function ActivitiesSection({
   const activeMembers = (members ?? []).filter((m) => m.status === 'active');
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-2">
+      {/* Search + view toggle in their own row — filters sit below, matching
+          the other CRM list pages. */}
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-48 flex-1">
           <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -867,6 +828,9 @@ function ActivitiesSection({
           cardsLabel={t('activities.viewCards')}
           tableLabel={t('activities.viewTable')}
         />
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">{t('activities.assigneeFilter')}</Label>
           <Select
@@ -966,7 +930,16 @@ function ContactList({
           {items.map((item) => {
             const companyName = companies.find((c) => c.id === item.companyId)?.name;
             return (
-              <Link key={item.id} href={`/${locale}/m/crm/contacts/${item.id}`} className="group">
+              <Link
+                key={item.id}
+                href={`/${locale}/m/crm/contacts/${item.id}`}
+                className="group"
+                // Remember this list location so the detail page's Back button
+                // returns here (cards/table + filters), not a fixed default.
+                onClick={() =>
+                  sessionStorage.setItem('crm.contacts.back', `${window.location.pathname}${window.location.search}`)
+                }
+              >
                 <Card className="h-full transition-colors group-hover:border-primary/50 group-hover:bg-accent">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
@@ -1016,7 +989,16 @@ function CompanyList({
       {items.length ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((item) => (
-            <Link key={item.id} href={`/${locale}/m/crm/companies/${item.id}`} className="group">
+            <Link
+              key={item.id}
+              href={`/${locale}/m/crm/companies/${item.id}`}
+              className="group"
+              // Remember this list location so the detail page's Back button
+              // returns here (cards/table + filters), not a fixed default.
+              onClick={() =>
+                sessionStorage.setItem('crm.companies.back', `${window.location.pathname}${window.location.search}`)
+              }
+            >
               <Card className="h-full transition-colors group-hover:border-primary/50 group-hover:bg-accent">
                 <CardHeader>
                   <CardTitle dir="auto">{item.name}</CardTitle>
@@ -1163,7 +1145,15 @@ function PipelineBoard({
                   className="cursor-grab rounded-lg border bg-card p-3 shadow-sm transition-colors focus-within:ring-2 focus-within:ring-ring hover:border-primary/40"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <Link href={`/${locale}/m/crm/deals/${deal.id}`} className="block min-w-0 rounded hover:underline">
+                    <Link
+                      href={`/${locale}/m/crm/deals/${deal.id}`}
+                      className="block min-w-0 rounded hover:underline"
+                      // Remember this list location so the deal detail page's
+                      // Back button returns here (board/table + filters).
+                      onClick={() =>
+                        sessionStorage.setItem('crm.deals.back', `${window.location.pathname}${window.location.search}`)
+                      }
+                    >
                       <p className="truncate font-medium" dir="auto">
                         {deal.title}
                       </p>

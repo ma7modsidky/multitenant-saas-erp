@@ -50,15 +50,7 @@ export const activityFormSchema = z.object({
   dueAt: z.string(),
 });
 
-export const mergeFormSchema = z
-  .object({
-    sourceContactId: z.string().uuid(),
-    targetContactId: z.string().uuid(),
-  })
-  .refine((value) => value.sourceContactId !== value.targetContactId, { path: ['targetContactId'] });
-
 export type ContactFormValues = z.infer<typeof contactFormSchema>;
 export type CompanyFormValues = z.infer<typeof companyFormSchema>;
 export type DealFormValues = z.infer<typeof dealFormSchema>;
 export type ActivityFormValues = z.infer<typeof activityFormSchema>;
-export type MergeFormValues = z.infer<typeof mergeFormSchema>;

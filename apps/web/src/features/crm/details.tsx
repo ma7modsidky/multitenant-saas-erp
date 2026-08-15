@@ -4,9 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, Building2, Handshake, History, MapPin, Pencil, Plus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { cn } from '@/components/cn';
 import { Can } from '@/lib/permissions';
 
 import { Badge } from '@/components/ui/badge';
@@ -156,6 +157,93 @@ function RelatedRow({
   );
 }
 
+// ─── Section tabs (contact detail) ─────────────────────────────────────────
+
+/** The contact detail page is split into tabs so a contact with many deals,
+    activities, or notes never renders one very long page. */
+type ContactTab = 'details' | 'deals' | 'activities' | 'notes';
+
+/** Company detail tabs — details + address share one tab (one edit form). */
+type CompanyTab = 'details' | 'contacts' | 'deals' | 'notes';
+
+/** Deal detail tabs. */
+type DealTab = 'details' | 'history' | 'activities' | 'notes';
+
+function DetailTabs<T extends string>({
+  idPrefix,
+  tabs,
+  value,
+  onChange,
+}: {
+  idPrefix: string;
+  tabs: Array<{ key: T; label: string; count?: number }>;
+  value: T;
+  onChange: (key: T) => void;
+}) {
+  const t = useTranslations('modules.crm');
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    const index = tabs.findIndex((tab) => tab.key === value);
+    if (index < 0) return;
+    // RTL flips the visual order, so the arrow directions swap meaning.
+    const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+    const step = rtl ? -1 : 1;
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      const next = tabs[(index + step + tabs.length) % tabs.length];
+      if (next) onChange(next.key);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      const prev = tabs[(index - step + tabs.length) % tabs.length];
+      if (prev) onChange(prev.key);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      const first = tabs[0];
+      if (first) onChange(first.key);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      const last = tabs[tabs.length - 1];
+      if (last) onChange(last.key);
+    }
+  };
+  return (
+    <div
+      role="tablist"
+      aria-label={t('detail.sections')}
+      onKeyDown={handleKeyDown}
+      className="flex flex-wrap gap-1 rounded-lg border bg-muted/40 p-1"
+    >
+      {tabs.map((tab) => {
+        const active = tab.key === value;
+        return (
+          <button
+            key={tab.key}
+            id={`${idPrefix}-tab-${tab.key}`}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            aria-controls={`${idPrefix}-panel`}
+            onClick={() => onChange(tab.key)}
+            className={cn(
+              'inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              active
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
+          >
+            {tab.label}
+            {tab.count !== undefined && tab.count > 0 && (
+              <Badge variant={active ? 'secondary' : 'outline'} className="tabular-nums">
+                {tab.count}
+              </Badge>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Notes section ─────────────────────────────────────────────────────────
 
 function NotesSection({
@@ -251,6 +339,19 @@ export function ContactDetailView({ id }: { id: string }) {
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [showNewActivity, setShowNewActivity] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<ContactTab>('details');
+  // Fetched here so the Notes tab shows a count; NotesSection reuses the same
+  // query key, so react-query dedupes it into a single request.
+  const notes = useCrmNotes('contact', id);
+  const notesCount = notes.data?.items.length ?? 0;
+  // Back always returns to the contact list page — and to the exact list the
+  // user left (cards/table + filters), falling back to the plain list when
+  // they arrived from elsewhere (e.g. a related deal or activity).
+  const [backHref, setBackHref] = useState<string | null>(null);
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem('crm.contacts.back');
+    if (saved && saved.startsWith(`/${locale}/m/crm/contacts`)) setBackHref(saved);
+  }, [locale]);
 
   // Hoisted so every render calls the same hooks (rules-of-hooks). `values`
   // syncs the form once the record loads (deep-equal, so user edits survive).
@@ -276,6 +377,13 @@ export function ContactDetailView({ id }: { id: string }) {
   const relatedDeals = data.deals.data?.items.filter((deal) => deal.contactId === id) ?? [];
   const relatedActivities =
     data.activities.data?.items.filter((a) => a.relatedType === 'contact' && a.relatedId === id) ?? [];
+
+  const tabs: Array<{ key: ContactTab; label: string; count?: number }> = [
+    { key: 'details', label: t('detail.contactDetails') },
+    { key: 'deals', label: t('detail.relatedDeals'), count: relatedDeals.length },
+    { key: 'activities', label: t('detail.relatedActivities'), count: relatedActivities.length },
+    { key: 'notes', label: t('notes.title'), count: notesCount },
+  ];
 
   const submitEdit = (values: ContactFormValues) =>
     mutations.updateContact
@@ -333,7 +441,7 @@ export function ContactDetailView({ id }: { id: string }) {
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={`/${locale}/m/crm/contacts`}>
+          <Link href={backHref ?? `/${locale}/m/crm/contacts`}>
             {/* rtl:rotate-180 — the back arrow must point inline-start (right in Arabic). */}
             <ArrowLeft className="rtl:rotate-180" />
             {t('detail.back')}
@@ -346,196 +454,209 @@ export function ContactDetailView({ id }: { id: string }) {
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      <DetailCard
-        icon={Users}
-        title={t('detail.contactDetails')}
-        action={
-          !editing && (
-            <div className="flex flex-wrap gap-2">
-              <Can permission="crm:contact:write">
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                  <Pencil />
-                  {t('detail.edit')}
-                </Button>
-              </Can>
-            </div>
-          )
-        }
-      >
-        {editing ? (
-          <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void form.handleSubmit(submitEdit)(event)}>
-            <div className="space-y-2">
-              <Label>{t('fields.firstName')}</Label>
-              <Input dir="auto" {...form.register('firstName')} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('fields.lastName')}</Label>
-              <Input dir="auto" {...form.register('lastName')} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('fields.email')}</Label>
-              <Input type="email" {...form.register('email')} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('fields.phone')}</Label>
-              <Input {...form.register('phone')} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('fields.secondaryPhone')}</Label>
-              <Input {...form.register('secondaryPhone')} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('fields.company')}</Label>
-              <Select
-                value={form.watch('companyId')}
-                onValueChange={(v) => form.setValue('companyId', v)}
-                {...form.register('companyId')}
+      <DetailTabs tabs={tabs} value={tab} onChange={setTab} idPrefix="contact" />
+
+      <div role="tabpanel" id="contact-panel" aria-labelledby={`contact-tab-${tab}`} className="space-y-5">
+        {tab === 'details' && (
+          <DetailCard
+            icon={Users}
+            title={t('detail.contactDetails')}
+            action={
+              !editing && (
+                <div className="flex flex-wrap gap-2">
+                  <Can permission="crm:contact:write">
+                    <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                      <Pencil />
+                      {t('detail.edit')}
+                    </Button>
+                  </Can>
+                </div>
+              )
+            }
+          >
+            {editing ? (
+              <form
+                className="grid gap-4 md:grid-cols-2"
+                onSubmit={(event) => void form.handleSubmit(submitEdit)(event)}
               >
-                <SelectItem value="">{t('common.none')}</SelectItem>
-                {data.companies.data?.items?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('fields.preferredLocale')}</Label>
-              <Select
-                value={form.watch('preferredLocale')}
-                onValueChange={(v) => form.setValue('preferredLocale', v)}
-                {...form.register('preferredLocale')}
-              >
-                <SelectItem value="">{t('common.none')}</SelectItem>
-                {locales.map((code) => (
-                  <SelectItem key={code} value={code}>
-                    {code}
-                  </SelectItem>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('fields.preferredCurrency')}</Label>
-              <Select
-                value={form.watch('preferredCurrency')}
-                onValueChange={(v) => form.setValue('preferredCurrency', v)}
-                {...form.register('preferredCurrency')}
-              >
-                <SelectItem value="">{t('common.none')}</SelectItem>
-                {currencies?.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.code}
-                  </SelectItem>
-                ))}
-              </Select>
-            </div>
-            <div className="flex gap-2 md:col-span-2">
-              <Button loading={mutations.updateContact.isPending}>{t('detail.save')}</Button>
-              <Button variant="ghost" type="button" onClick={() => setEditing(false)}>
-                {t('detail.cancel')}
+                <div className="space-y-2">
+                  <Label>{t('fields.firstName')}</Label>
+                  <Input dir="auto" {...form.register('firstName')} />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('fields.lastName')}</Label>
+                  <Input dir="auto" {...form.register('lastName')} />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('fields.email')}</Label>
+                  <Input type="email" {...form.register('email')} />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('fields.phone')}</Label>
+                  <Input {...form.register('phone')} />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('fields.secondaryPhone')}</Label>
+                  <Input {...form.register('secondaryPhone')} />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('fields.company')}</Label>
+                  <Select
+                    value={form.watch('companyId')}
+                    onValueChange={(v) => form.setValue('companyId', v)}
+                    {...form.register('companyId')}
+                  >
+                    <SelectItem value="">{t('common.none')}</SelectItem>
+                    {data.companies.data?.items?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('fields.preferredLocale')}</Label>
+                  <Select
+                    value={form.watch('preferredLocale')}
+                    onValueChange={(v) => form.setValue('preferredLocale', v)}
+                    {...form.register('preferredLocale')}
+                  >
+                    <SelectItem value="">{t('common.none')}</SelectItem>
+                    {locales.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        {code}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('fields.preferredCurrency')}</Label>
+                  <Select
+                    value={form.watch('preferredCurrency')}
+                    onValueChange={(v) => form.setValue('preferredCurrency', v)}
+                    {...form.register('preferredCurrency')}
+                  >
+                    <SelectItem value="">{t('common.none')}</SelectItem>
+                    {currencies?.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.code}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                </div>
+                <div className="flex gap-2 md:col-span-2">
+                  <Button loading={mutations.updateContact.isPending}>{t('detail.save')}</Button>
+                  <Button variant="ghost" type="button" onClick={() => setEditing(false)}>
+                    {t('detail.cancel')}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <DetailField label={t('fields.email')} value={c.email ?? '—'} />
+                <DetailField label={t('fields.phone')} value={c.phone ?? '—'} />
+                <DetailField label={t('fields.secondaryPhone')} value={c.secondaryPhone ?? '—'} />
+                <DetailField label={t('fields.company')} value={companyName ?? '—'} />
+                <DetailField label={t('detail.preferredLocale')} value={c.preferredLocale ?? '—'} />
+                <DetailField label={t('detail.preferredCurrency')} value={c.preferredCurrency ?? '—'} />
+                <DetailField label={t('detail.created')} value={formatDate(c.createdAt, locale)} />
+                <DetailField label={t('detail.updated')} value={formatDate(c.updatedAt, locale)} />
+                <DetailField label={t('detail.createdBy')} value={memberName(c.createdByUserId) ?? '—'} />
+                <DetailField label={t('detail.updatedBy')} value={memberName(c.updatedByUserId) ?? '—'} />
+              </dl>
+            )}
+          </DetailCard>
+        )}
+
+        {tab === 'deals' && (
+          <DetailCard
+            icon={Handshake}
+            title={t('detail.relatedDeals')}
+            action={
+              <Button variant="outline" size="sm" onClick={() => setShowNewDeal(!showNewDeal)}>
+                {showNewDeal ? <X /> : <Plus />}
+                {showNewDeal ? t('detail.cancel') : t('detail.newDeal')}
               </Button>
-            </div>
-          </form>
-        ) : (
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <DetailField label={t('fields.email')} value={c.email ?? '—'} />
-            <DetailField label={t('fields.phone')} value={c.phone ?? '—'} />
-            <DetailField label={t('fields.secondaryPhone')} value={c.secondaryPhone ?? '—'} />
-            <DetailField label={t('fields.company')} value={companyName ?? '—'} />
-            <DetailField label={t('detail.preferredLocale')} value={c.preferredLocale ?? '—'} />
-            <DetailField label={t('detail.preferredCurrency')} value={c.preferredCurrency ?? '—'} />
-            <DetailField label={t('detail.created')} value={formatDate(c.createdAt, locale)} />
-            <DetailField label={t('detail.updated')} value={formatDate(c.updatedAt, locale)} />
-            <DetailField label={t('detail.createdBy')} value={memberName(c.createdByUserId) ?? '—'} />
-            <DetailField label={t('detail.updatedBy')} value={memberName(c.updatedByUserId) ?? '—'} />
-          </dl>
+            }
+          >
+            {showNewDeal && (
+              <div className="mb-4">
+                <DealForm
+                  contacts={[{ id: c.id, firstName: c.firstName, lastName: c.lastName }]}
+                  companies={data.companies.data?.items.map((item) => ({ id: item.id, name: item.name })) ?? []}
+                  initialContactId={c.id}
+                  {...(c.preferredCurrency ? { initialCurrency: c.preferredCurrency } : {})}
+                  onSubmit={submitDeal}
+                  pending={mutations.createDeal.isPending}
+                />
+              </div>
+            )}
+            {relatedDeals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
+            ) : (
+              <div className="space-y-2">
+                {relatedDeals.map((deal) => (
+                  <RelatedRow
+                    key={deal.id}
+                    href={`/${locale}/m/crm/deals/${deal.id}`}
+                    icon={Handshake}
+                    title={deal.title}
+                    meta={
+                      <>
+                        <Badge variant="secondary">{stageName(data.pipeline.data, deal.stageId, locale)}</Badge>
+                        <span className="font-mono tabular-nums">
+                          {formatMinorAmount(deal.value.amountMinor, deal.value.currency, { locale })}
+                        </span>
+                      </>
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </DetailCard>
         )}
-      </DetailCard>
 
-      <DetailCard
-        icon={Handshake}
-        title={t('detail.relatedDeals')}
-        action={
-          <Button variant="outline" size="sm" onClick={() => setShowNewDeal(!showNewDeal)}>
-            {showNewDeal ? <X /> : <Plus />}
-            {showNewDeal ? t('detail.cancel') : t('detail.newDeal')}
-          </Button>
-        }
-      >
-        {showNewDeal && (
-          <div className="mb-4">
-            <DealForm
-              contacts={[{ id: c.id, firstName: c.firstName, lastName: c.lastName }]}
-              companies={data.companies.data?.items.map((item) => ({ id: item.id, name: item.name })) ?? []}
-              initialContactId={c.id}
-              {...(c.preferredCurrency ? { initialCurrency: c.preferredCurrency } : {})}
-              onSubmit={submitDeal}
-              pending={mutations.createDeal.isPending}
-            />
-          </div>
+        {tab === 'activities' && (
+          <DetailCard
+            icon={History}
+            title={t('detail.relatedActivities')}
+            action={
+              <Button variant="outline" size="sm" onClick={() => setShowNewActivity(!showNewActivity)}>
+                {showNewActivity ? <X /> : <Plus />}
+                {showNewActivity ? t('detail.cancel') : t('detail.newActivity')}
+              </Button>
+            }
+          >
+            {showNewActivity && (
+              <div className="mb-4">
+                <ActivityForm onSubmit={submitActivity} pending={mutations.createActivity.isPending} />
+              </div>
+            )}
+            {relatedActivities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
+            ) : (
+              <div className="space-y-2">
+                {relatedActivities.map((activity) => (
+                  <RelatedRow
+                    key={activity.id}
+                    href={`/${locale}/m/crm/activities/${activity.id}`}
+                    icon={History}
+                    title={`${t(`activities.types.${activity.type}`)} — ${activity.subject}`}
+                    meta={
+                      <>
+                        <DueBadge dueAt={activity.dueAt} completedAt={activity.completedAt} />
+                        {activity.dueAt && <span>{formatDate(activity.dueAt, locale)}</span>}
+                      </>
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </DetailCard>
         )}
-        {relatedDeals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
-        ) : (
-          <div className="space-y-2">
-            {relatedDeals.map((deal) => (
-              <RelatedRow
-                key={deal.id}
-                href={`/${locale}/m/crm/deals/${deal.id}`}
-                icon={Handshake}
-                title={deal.title}
-                meta={
-                  <>
-                    <Badge variant="secondary">{stageName(data.pipeline.data, deal.stageId, locale)}</Badge>
-                    <span className="font-mono tabular-nums">
-                      {formatMinorAmount(deal.value.amountMinor, deal.value.currency, { locale })}
-                    </span>
-                  </>
-                }
-              />
-            ))}
-          </div>
-        )}
-      </DetailCard>
 
-      <DetailCard
-        icon={History}
-        title={t('detail.relatedActivities')}
-        action={
-          <Button variant="outline" size="sm" onClick={() => setShowNewActivity(!showNewActivity)}>
-            {showNewActivity ? <X /> : <Plus />}
-            {showNewActivity ? t('detail.cancel') : t('detail.newActivity')}
-          </Button>
-        }
-      >
-        {showNewActivity && (
-          <div className="mb-4">
-            <ActivityForm onSubmit={submitActivity} pending={mutations.createActivity.isPending} />
-          </div>
-        )}
-        {relatedActivities.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
-        ) : (
-          <div className="space-y-2">
-            {relatedActivities.map((activity) => (
-              <RelatedRow
-                key={activity.id}
-                href={`/${locale}/m/crm/activities/${activity.id}`}
-                icon={History}
-                title={`${t(`activities.types.${activity.type}`)} — ${activity.subject}`}
-                meta={
-                  <>
-                    <DueBadge dueAt={activity.dueAt} completedAt={activity.completedAt} />
-                    {activity.dueAt && <span>{formatDate(activity.dueAt, locale)}</span>}
-                  </>
-                }
-              />
-            ))}
-          </div>
-        )}
-      </DetailCard>
-
-      <NotesSection relatedType="contact" relatedId={id} />
+        {tab === 'notes' && <NotesSection relatedType="contact" relatedId={id} />}
+      </div>
     </div>
   );
 }
@@ -551,6 +672,19 @@ export function CompanyDetailView({ id }: { id: string }) {
   const memberName = useMemberName();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<CompanyTab>('details');
+  // Fetched here so the Notes tab shows a count; NotesSection reuses the same
+  // query key, so react-query dedupes it into a single request.
+  const notes = useCrmNotes('company', id);
+  const notesCount = notes.data?.items.length ?? 0;
+  // Back always returns to the company list page — and to the exact list the
+  // user left (cards/table + filters), falling back to the plain list when
+  // they arrived from elsewhere (e.g. a related deal or contact).
+  const [backHref, setBackHref] = useState<string | null>(null);
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem('crm.companies.back');
+    if (saved && saved.startsWith(`/${locale}/m/crm/companies`)) setBackHref(saved);
+  }, [locale]);
 
   // Hoisted so every render calls the same hooks (rules-of-hooks).
   const c = company.data;
@@ -574,6 +708,13 @@ export function CompanyDetailView({ id }: { id: string }) {
   const relatedContacts = data.contacts.data?.items.filter((contact) => contact.companyId === id) ?? [];
   const relatedDeals = data.deals.data?.items.filter((deal) => deal.companyId === id) ?? [];
   const addressEntries = c.address ? Object.entries(c.address).filter(([, v]) => v !== null && v !== '') : [];
+
+  const tabs: Array<{ key: CompanyTab; label: string; count?: number }> = [
+    { key: 'details', label: t('detail.companyDetails') },
+    { key: 'contacts', label: t('detail.relatedContacts'), count: relatedContacts.length },
+    { key: 'deals', label: t('detail.relatedDeals'), count: relatedDeals.length },
+    { key: 'notes', label: t('notes.title'), count: notesCount },
+  ];
 
   const submitEdit = (values: CompanyFormValues) =>
     mutations.updateCompany
@@ -602,7 +743,7 @@ export function CompanyDetailView({ id }: { id: string }) {
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={`/${locale}/m/crm/companies`}>
+          <Link href={backHref ?? `/${locale}/m/crm/companies`}>
             <ArrowLeft className="rtl:rotate-180" />
             {t('detail.back')}
           </Link>
@@ -614,137 +755,149 @@ export function CompanyDetailView({ id }: { id: string }) {
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      <DetailCard
-        icon={Building2}
-        title={t('detail.companyDetails')}
-        action={
-          !editing && (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <Pencil />
-              {t('detail.edit')}
-            </Button>
-          )
-        }
-      >
-        {editing ? (
-          <form className="grid gap-4" onSubmit={(event) => void form.handleSubmit(submitEdit)(event)}>
-            <div className="grid gap-4 md:grid-cols-3">
+      <DetailTabs tabs={tabs} value={tab} onChange={setTab} idPrefix="company" />
+
+      <div role="tabpanel" id="company-panel" aria-labelledby={`company-tab-${tab}`} className="space-y-5">
+        {tab === 'details' && (
+          <>
+            <DetailCard
+              icon={Building2}
+              title={t('detail.companyDetails')}
+              action={
+                !editing && (
+                  <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                    <Pencil />
+                    {t('detail.edit')}
+                  </Button>
+                )
+              }
+            >
+              {editing ? (
+                <form className="grid gap-4" onSubmit={(event) => void form.handleSubmit(submitEdit)(event)}>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>{t('fields.name')}</Label>
+                      <Input dir="auto" {...form.register('name')} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('fields.domain')}</Label>
+                      <Input {...form.register('domain')} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('fields.industry')}</Label>
+                      <Input dir="auto" {...form.register('industry')} />
+                    </div>
+                  </div>
+                  <fieldset className="rounded-lg border p-4">
+                    <legend className="text-sm font-medium text-muted-foreground">{t('fields.address')}</legend>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t('fields.addressStreet')}</Label>
+                        <Input dir="auto" {...form.register('addressStreet')} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('fields.addressCity')}</Label>
+                        <Input dir="auto" {...form.register('addressCity')} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('fields.addressState')}</Label>
+                        <Input dir="auto" {...form.register('addressState')} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('fields.addressPostalCode')}</Label>
+                        <Input {...form.register('addressPostalCode')} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('fields.addressCountry')}</Label>
+                        <Input dir="auto" {...form.register('addressCountry')} />
+                      </div>
+                    </div>
+                  </fieldset>
+                  <div className="flex gap-2">
+                    <Button loading={mutations.updateCompany.isPending}>{t('detail.save')}</Button>
+                    <Button variant="ghost" type="button" onClick={() => setEditing(false)}>
+                      {t('detail.cancel')}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <DetailField label={t('fields.domain')} value={c.domain ?? '—'} />
+                  <DetailField label={t('fields.industry')} value={c.industry ?? '—'} />
+                  <DetailField label={t('detail.created')} value={formatDate(c.createdAt, locale)} />
+                  <DetailField label={t('detail.updated')} value={formatDate(c.updatedAt, locale)} />
+                  <DetailField label={t('detail.createdBy')} value={memberName(c.createdByUserId) ?? '—'} />
+                  <DetailField label={t('detail.updatedBy')} value={memberName(c.updatedByUserId) ?? '—'} />
+                </dl>
+              )}
+            </DetailCard>
+
+            <DetailCard icon={MapPin} title={t('detail.address')}>
+              {addressEntries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">—</p>
+              ) : (
+                <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {addressEntries.map(([key, value]) => (
+                    <DetailField key={key} label={key} value={String(value)} />
+                  ))}
+                </dl>
+              )}
+            </DetailCard>
+          </>
+        )}
+
+        {tab === 'contacts' && (
+          <DetailCard icon={Users} title={t('detail.relatedContacts')}>
+            {relatedContacts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
+            ) : (
               <div className="space-y-2">
-                <Label>{t('fields.name')}</Label>
-                <Input dir="auto" {...form.register('name')} />
+                {relatedContacts.map((contact) => {
+                  const contactMeta = contact.email ?? contact.phone;
+                  return (
+                    <RelatedRow
+                      key={contact.id}
+                      href={`/${locale}/m/crm/contacts/${contact.id}`}
+                      icon={Users}
+                      title={`${contact.firstName} ${contact.lastName}`}
+                      {...(contactMeta ? { meta: contactMeta } : {})}
+                    />
+                  );
+                })}
               </div>
+            )}
+          </DetailCard>
+        )}
+
+        {tab === 'deals' && (
+          <DetailCard icon={Handshake} title={t('detail.relatedDeals')}>
+            {relatedDeals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
+            ) : (
               <div className="space-y-2">
-                <Label>{t('fields.domain')}</Label>
-                <Input {...form.register('domain')} />
+                {relatedDeals.map((deal) => (
+                  <RelatedRow
+                    key={deal.id}
+                    href={`/${locale}/m/crm/deals/${deal.id}`}
+                    icon={Handshake}
+                    title={deal.title}
+                    meta={
+                      <>
+                        <Badge variant="secondary">{stageName(data.pipeline.data, deal.stageId, locale)}</Badge>
+                        <span className="font-mono tabular-nums">
+                          {formatMinorAmount(deal.value.amountMinor, deal.value.currency, { locale })}
+                        </span>
+                      </>
+                    }
+                  />
+                ))}
               </div>
-              <div className="space-y-2">
-                <Label>{t('fields.industry')}</Label>
-                <Input dir="auto" {...form.register('industry')} />
-              </div>
-            </div>
-            <fieldset className="rounded-lg border p-4">
-              <legend className="text-sm font-medium text-muted-foreground">{t('fields.address')}</legend>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{t('fields.addressStreet')}</Label>
-                  <Input dir="auto" {...form.register('addressStreet')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('fields.addressCity')}</Label>
-                  <Input dir="auto" {...form.register('addressCity')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('fields.addressState')}</Label>
-                  <Input dir="auto" {...form.register('addressState')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('fields.addressPostalCode')}</Label>
-                  <Input {...form.register('addressPostalCode')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('fields.addressCountry')}</Label>
-                  <Input dir="auto" {...form.register('addressCountry')} />
-                </div>
-              </div>
-            </fieldset>
-            <div className="flex gap-2">
-              <Button loading={mutations.updateCompany.isPending}>{t('detail.save')}</Button>
-              <Button variant="ghost" type="button" onClick={() => setEditing(false)}>
-                {t('detail.cancel')}
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <DetailField label={t('fields.domain')} value={c.domain ?? '—'} />
-            <DetailField label={t('fields.industry')} value={c.industry ?? '—'} />
-            <DetailField label={t('detail.created')} value={formatDate(c.createdAt, locale)} />
-            <DetailField label={t('detail.updated')} value={formatDate(c.updatedAt, locale)} />
-            <DetailField label={t('detail.createdBy')} value={memberName(c.createdByUserId) ?? '—'} />
-            <DetailField label={t('detail.updatedBy')} value={memberName(c.updatedByUserId) ?? '—'} />
-          </dl>
+            )}
+          </DetailCard>
         )}
-      </DetailCard>
 
-      <DetailCard icon={MapPin} title={t('detail.address')}>
-        {addressEntries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">—</p>
-        ) : (
-          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {addressEntries.map(([key, value]) => (
-              <DetailField key={key} label={key} value={String(value)} />
-            ))}
-          </dl>
-        )}
-      </DetailCard>
-
-      <DetailCard icon={Users} title={t('detail.relatedContacts')}>
-        {relatedContacts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
-        ) : (
-          <div className="space-y-2">
-            {relatedContacts.map((contact) => {
-              const contactMeta = contact.email ?? contact.phone;
-              return (
-                <RelatedRow
-                  key={contact.id}
-                  href={`/${locale}/m/crm/contacts/${contact.id}`}
-                  icon={Users}
-                  title={`${contact.firstName} ${contact.lastName}`}
-                  {...(contactMeta ? { meta: contactMeta } : {})}
-                />
-              );
-            })}
-          </div>
-        )}
-      </DetailCard>
-
-      <DetailCard icon={Handshake} title={t('detail.relatedDeals')}>
-        {relatedDeals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
-        ) : (
-          <div className="space-y-2">
-            {relatedDeals.map((deal) => (
-              <RelatedRow
-                key={deal.id}
-                href={`/${locale}/m/crm/deals/${deal.id}`}
-                icon={Handshake}
-                title={deal.title}
-                meta={
-                  <>
-                    <Badge variant="secondary">{stageName(data.pipeline.data, deal.stageId, locale)}</Badge>
-                    <span className="font-mono tabular-nums">
-                      {formatMinorAmount(deal.value.amountMinor, deal.value.currency, { locale })}
-                    </span>
-                  </>
-                }
-              />
-            ))}
-          </div>
-        )}
-      </DetailCard>
-
-      <NotesSection relatedType="company" relatedId={id} />
+        {tab === 'notes' && <NotesSection relatedType="company" relatedId={id} />}
+      </div>
     </div>
   );
 }
@@ -765,6 +918,19 @@ export function DealDetailView({ id }: { id: string }) {
     toStage: { id: string; nameI18n: Record<string, string>; isLost: boolean };
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<DealTab>('details');
+  // Fetched here so the Notes tab shows a count; NotesSection reuses the same
+  // query key, so react-query dedupes it into a single request.
+  const notes = useCrmNotes('deal', id);
+  const notesCount = notes.data?.items.length ?? 0;
+  // Back always returns to the deals page — and to the exact view the user
+  // left (board/table + filters), falling back to the plain board when they
+  // arrived from elsewhere (e.g. a related contact or activity).
+  const [backHref, setBackHref] = useState<string | null>(null);
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem('crm.deals.back');
+    if (saved && saved.startsWith(`/${locale}/m/crm/deals`)) setBackHref(saved);
+  }, [locale]);
 
   if (deal.isPending || pipeline.isPending)
     return <p className="py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</p>;
@@ -776,6 +942,13 @@ export function DealDetailView({ id }: { id: string }) {
   const company = data.companies.data?.items.find((item) => item.id === d.companyId);
   const relatedActivities =
     data.activities.data?.items.filter((a) => a.relatedType === 'deal' && a.relatedId === id) ?? [];
+
+  const tabs: Array<{ key: DealTab; label: string; count?: number }> = [
+    { key: 'details', label: t('detail.dealDetails') },
+    { key: 'history', label: t('detail.stageHistory'), count: d.stageHistory.length },
+    { key: 'activities', label: t('detail.relatedActivities'), count: relatedActivities.length },
+    { key: 'notes', label: t('notes.title'), count: notesCount },
+  ];
 
   const submitActivity = (values: ActivityFormValues) =>
     mutations.createActivity
@@ -813,7 +986,7 @@ export function DealDetailView({ id }: { id: string }) {
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={`/${locale}/m/crm/deals`}>
+          <Link href={backHref ?? `/${locale}/m/crm/deals`}>
             <ArrowLeft className="rtl:rotate-180" />
             {t('detail.back')}
           </Link>
@@ -825,86 +998,160 @@ export function DealDetailView({ id }: { id: string }) {
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      <DetailCard icon={Handshake} title={t('detail.dealDetails')}>
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <DetailField
-            label={t('detail.value')}
-            value={
-              <span className="font-mono tabular-nums">
-                {formatMinorAmount(d.value.amountMinor, d.value.currency, {
-                  locale,
-                  ...(exponent !== undefined ? { exponent } : {}),
-                })}
-              </span>
+      <DetailTabs tabs={tabs} value={tab} onChange={setTab} idPrefix="deal" />
+
+      <div role="tabpanel" id="deal-panel" aria-labelledby={`deal-tab-${tab}`} className="space-y-5">
+        {tab === 'details' && (
+          <DetailCard icon={Handshake} title={t('detail.dealDetails')}>
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <DetailField
+                label={t('detail.value')}
+                value={
+                  <span className="font-mono tabular-nums">
+                    {formatMinorAmount(d.value.amountMinor, d.value.currency, {
+                      locale,
+                      ...(exponent !== undefined ? { exponent } : {}),
+                    })}
+                  </span>
+                }
+              />
+              <DetailField
+                label={t('detail.stage')}
+                value={
+                  <Can permission="crm:deal:write">
+                    <Select
+                      aria-label={t('deals.move')}
+                      value={d.stageId}
+                      onValueChange={(value) => {
+                        const stage = pipeline.data?.stages.find((s) => s.id === value);
+                        if (stage) requestMove(stage);
+                      }}
+                    >
+                      {pipeline.data.stages.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.nameI18n[locale] ?? s.nameI18n.en}
+                        </SelectItem>
+                      ))}
+                    </Select>
+                  </Can>
+                }
+              />
+              <DetailField
+                label={t('detail.status')}
+                value={
+                  <Badge variant={d.status === 'won' ? 'default' : d.status === 'lost' ? 'destructive' : 'secondary'}>
+                    {t(statusKey)}
+                  </Badge>
+                }
+              />
+              <DetailField
+                label={t('fields.contact')}
+                value={
+                  contact ? (
+                    <Link
+                      href={`/${locale}/m/crm/contacts/${contact.id}`}
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      {contact.firstName} {contact.lastName}
+                    </Link>
+                  ) : (
+                    '—'
+                  )
+                }
+              />
+              <DetailField
+                label={t('fields.company')}
+                value={
+                  company ? (
+                    <Link
+                      href={`/${locale}/m/crm/companies/${company.id}`}
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      {company.name}
+                    </Link>
+                  ) : (
+                    '—'
+                  )
+                }
+              />
+              <DetailField label={t('detail.expectedClose')} value={formatDate(d.expectedCloseDate, locale)} />
+              <DetailField label={t('detail.closed')} value={formatDate(d.closedAt, locale)} />
+              <DetailField label={t('detail.lostReason')} value={d.lostReasonCode ?? '—'} />
+              <DetailField label={t('detail.created')} value={formatDate(d.createdAt, locale)} />
+              <DetailField label={t('detail.createdBy')} value={memberName(d.createdByUserId) ?? '—'} />
+              <DetailField label={t('detail.updatedBy')} value={memberName(d.updatedByUserId) ?? '—'} />
+            </dl>
+          </DetailCard>
+        )}
+
+        {tab === 'history' && (
+          <DetailCard icon={History} title={t('detail.stageHistory')}>
+            {d.stageHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('detail.noHistory')}</p>
+            ) : (
+              <ol className="space-y-3">
+                {d.stageHistory.map((entry) => (
+                  <li key={entry.id} className="flex items-start gap-3 text-sm">
+                    <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p>
+                        {stageName(pipeline.data, entry.fromStageId, locale)}{' '}
+                        <span className="text-muted-foreground">→</span>{' '}
+                        {stageName(pipeline.data, entry.toStageId, locale)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(entry.movedAt, locale)} · {formatDuration(entry.durationSeconds)} ·{' '}
+                        {t('detail.movedBy', { name: memberName(entry.movedBy) ?? t('common.system') })}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </DetailCard>
+        )}
+
+        {tab === 'activities' && (
+          <DetailCard
+            icon={History}
+            title={t('detail.relatedActivities')}
+            action={
+              <Button variant="outline" size="sm" onClick={() => setShowNewActivity(!showNewActivity)}>
+                {showNewActivity ? <X /> : <Plus />}
+                {showNewActivity ? t('detail.cancel') : t('detail.newActivity')}
+              </Button>
             }
-          />
-          <DetailField
-            label={t('detail.stage')}
-            value={
-              <Can permission="crm:deal:write">
-                <Select
-                  aria-label={t('deals.move')}
-                  value={d.stageId}
-                  onValueChange={(value) => {
-                    const stage = pipeline.data?.stages.find((s) => s.id === value);
-                    if (stage) requestMove(stage);
-                  }}
-                >
-                  {pipeline.data.stages.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.nameI18n[locale] ?? s.nameI18n.en}
-                    </SelectItem>
-                  ))}
-                </Select>
-              </Can>
-            }
-          />
-          <DetailField
-            label={t('detail.status')}
-            value={
-              <Badge variant={d.status === 'won' ? 'default' : d.status === 'lost' ? 'destructive' : 'secondary'}>
-                {t(statusKey)}
-              </Badge>
-            }
-          />
-          <DetailField
-            label={t('fields.contact')}
-            value={
-              contact ? (
-                <Link
-                  href={`/${locale}/m/crm/contacts/${contact.id}`}
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  {contact.firstName} {contact.lastName}
-                </Link>
-              ) : (
-                '—'
-              )
-            }
-          />
-          <DetailField
-            label={t('fields.company')}
-            value={
-              company ? (
-                <Link
-                  href={`/${locale}/m/crm/companies/${company.id}`}
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  {company.name}
-                </Link>
-              ) : (
-                '—'
-              )
-            }
-          />
-          <DetailField label={t('detail.expectedClose')} value={formatDate(d.expectedCloseDate, locale)} />
-          <DetailField label={t('detail.closed')} value={formatDate(d.closedAt, locale)} />
-          <DetailField label={t('detail.lostReason')} value={d.lostReasonCode ?? '—'} />
-          <DetailField label={t('detail.created')} value={formatDate(d.createdAt, locale)} />
-          <DetailField label={t('detail.createdBy')} value={memberName(d.createdByUserId) ?? '—'} />
-          <DetailField label={t('detail.updatedBy')} value={memberName(d.updatedByUserId) ?? '—'} />
-        </dl>
-      </DetailCard>
+          >
+            {showNewActivity && (
+              <div className="mb-4">
+                <ActivityForm onSubmit={submitActivity} pending={mutations.createActivity.isPending} />
+              </div>
+            )}
+            {relatedActivities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
+            ) : (
+              <div className="space-y-2">
+                {relatedActivities.map((activity) => (
+                  <RelatedRow
+                    key={activity.id}
+                    href={`/${locale}/m/crm/activities/${activity.id}`}
+                    icon={History}
+                    title={`${t(`activities.types.${activity.type}`)} — ${activity.subject}`}
+                    meta={
+                      <>
+                        <DueBadge dueAt={activity.dueAt} completedAt={activity.completedAt} />
+                        {activity.dueAt && <span>{formatDate(activity.dueAt, locale)}</span>}
+                      </>
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </DetailCard>
+        )}
+
+        {tab === 'notes' && <NotesSection relatedType="deal" relatedId={id} />}
+      </div>
 
       <MoveDealDialog
         open={pendingMove !== null}
@@ -929,69 +1176,6 @@ export function DealDetailView({ id }: { id: string }) {
           if (!mutations.moveDeal.isPending) setPendingMove(null);
         }}
       />
-
-      <DetailCard icon={History} title={t('detail.stageHistory')}>
-        {d.stageHistory.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('detail.noHistory')}</p>
-        ) : (
-          <ol className="space-y-3">
-            {d.stageHistory.map((entry) => (
-              <li key={entry.id} className="flex items-start gap-3 text-sm">
-                <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p>
-                    {stageName(pipeline.data, entry.fromStageId, locale)}{' '}
-                    <span className="text-muted-foreground">→</span> {stageName(pipeline.data, entry.toStageId, locale)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(entry.movedAt, locale)} · {formatDuration(entry.durationSeconds)} ·{' '}
-                    {t('detail.movedBy', { name: memberName(entry.movedBy) ?? t('common.system') })}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </DetailCard>
-
-      <DetailCard
-        icon={History}
-        title={t('detail.relatedActivities')}
-        action={
-          <Button variant="outline" size="sm" onClick={() => setShowNewActivity(!showNewActivity)}>
-            {showNewActivity ? <X /> : <Plus />}
-            {showNewActivity ? t('detail.cancel') : t('detail.newActivity')}
-          </Button>
-        }
-      >
-        {showNewActivity && (
-          <div className="mb-4">
-            <ActivityForm onSubmit={submitActivity} pending={mutations.createActivity.isPending} />
-          </div>
-        )}
-        {relatedActivities.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('detail.noRelated')}</p>
-        ) : (
-          <div className="space-y-2">
-            {relatedActivities.map((activity) => (
-              <RelatedRow
-                key={activity.id}
-                href={`/${locale}/m/crm/activities/${activity.id}`}
-                icon={History}
-                title={`${t(`activities.types.${activity.type}`)} — ${activity.subject}`}
-                meta={
-                  <>
-                    <DueBadge dueAt={activity.dueAt} completedAt={activity.completedAt} />
-                    {activity.dueAt && <span>{formatDate(activity.dueAt, locale)}</span>}
-                  </>
-                }
-              />
-            ))}
-          </div>
-        )}
-      </DetailCard>
-
-      <NotesSection relatedType="deal" relatedId={id} />
     </div>
   );
 }
@@ -1017,6 +1201,14 @@ export function ActivityDetailView({ id }: { id: string }) {
   const [editType, setEditType] = useState<ActivityTypeValue>('task');
   const [editAssignee, setEditAssignee] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Back always returns to the activities page — and to the exact view the
+  // user left (cards/table + filters), falling back to the plain cards page
+  // when they arrived from elsewhere (e.g. a related contact or deal).
+  const [backHref, setBackHref] = useState<string | null>(null);
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem('crm.activities.back');
+    if (saved && saved.startsWith(`/${locale}/m/crm/activities`)) setBackHref(saved);
+  }, [locale]);
 
   const { data: members } = useOrgMembers();
   // Display names resolve from ALL members (a removed member still shows their
@@ -1107,7 +1299,7 @@ export function ActivityDetailView({ id }: { id: string }) {
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href={`/${locale}/m/crm/activities`}>
+          <Link href={backHref ?? `/${locale}/m/crm/activities`}>
             <ArrowLeft className="rtl:rotate-180" />
             {t('detail.back')}
           </Link>

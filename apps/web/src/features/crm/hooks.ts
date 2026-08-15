@@ -38,21 +38,33 @@ import { useSession } from '@/lib/auth/session-context';
 // inventory) can render audit stamps without importing CRM feature code.
 export { useMemberName, useOrgMembers } from '@/lib/hooks/use-member-name';
 
-/** Stable query key for a paginated contacts list (cache + invalidation). */
-function contactsKey(params: CrmContactListParams = {}): string[] {
+/** Stable query key for a paginated contacts list (cache + invalidation).
+    Exported for tests — the sort params MUST be part of the key, or react-query
+    serves the cached (unsorted) list when the user clicks a sort header. */
+export function contactsKey(params: CrmContactListParams = {}): string[] {
   return [
     'crm',
     'contacts',
     params.search ?? '',
     params.companyId ?? '',
+    keyPart(params.sortBy),
+    keyPart(params.sortDir),
     String(params.page ?? 1),
     String(params.pageSize ?? CRM_PAGE_SIZE),
   ];
 }
 
-/** Stable query key for a paginated companies list. */
-function companiesKey(params: CrmListParams = {}): string[] {
-  return ['crm', 'companies', params.search ?? '', String(params.page ?? 1), String(params.pageSize ?? CRM_PAGE_SIZE)];
+/** Stable query key for a paginated companies list. See contactsKey. */
+export function companiesKey(params: CrmListParams = {}): string[] {
+  return [
+    'crm',
+    'companies',
+    params.search ?? '',
+    keyPart(params.sortBy),
+    keyPart(params.sortDir),
+    String(params.page ?? 1),
+    String(params.pageSize ?? CRM_PAGE_SIZE),
+  ];
 }
 
 /** Key segment for an optional CRM list param ('' when absent). */
@@ -76,11 +88,14 @@ function dealsKey(params: CrmListParams = {}): string[] {
 }
 
 /** Stable query key for a paginated activities list. */
-function activitiesKey(params: CrmListParams = {}): string[] {
+/** Stable query key for a paginated activities list. See contactsKey. */
+export function activitiesKey(params: CrmListParams = {}): string[] {
   return [
     'crm',
     'activities',
     params.search ?? '',
+    keyPart(params.sortBy),
+    keyPart(params.sortDir),
     params.fromDate ?? '',
     params.toDate ?? '',
     params.assigneeUserId ?? '',

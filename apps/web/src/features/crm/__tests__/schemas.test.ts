@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { contactFormSchema, dealFormSchema, mergeFormSchema } from '../schemas';
+import { contactFormSchema, dealFormSchema } from '../schemas';
 
 function validContact(overrides: Record<string, unknown> = {}) {
   return {
@@ -51,10 +51,5 @@ describe('CRM frontend schemas', () => {
       dealFormSchema.safeParse({ title: 'Deal', contactId: '', companyId: '', amountMinor: '100', currency: 'USD' })
         .success,
     ).toBe(false);
-  });
-
-  it('CRM-12: rejects merging a contact into itself', () => {
-    const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-    expect(mergeFormSchema.safeParse({ sourceContactId: id, targetContactId: id }).success).toBe(false);
   });
 });

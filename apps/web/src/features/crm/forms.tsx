@@ -51,6 +51,7 @@ export function DealForm({
   initialCurrency,
   onSubmit,
   pending,
+  onClose,
 }: {
   contacts: Array<{ id: string; firstName: string; lastName: string }>;
   companies: Array<{ id: string; name: string }>;
@@ -60,6 +61,8 @@ export function DealForm({
   initialCurrency?: string;
   onSubmit: (v: DealFormValues) => Promise<unknown>;
   pending: boolean;
+  /** Optional close button next to the submit action — closes the form. */
+  onClose?: () => void;
 }) {
   const t = useTranslations('modules.crm');
   const locale = useLocale();
@@ -172,9 +175,14 @@ export function DealForm({
           )}
           <p className="text-xs text-muted-foreground">{t('deals.currencyHint', { currency: baseCurrency })}</p>
         </Field>
-        <Button className="md:col-span-2 md:justify-self-start" loading={pending}>
-          {t('deals.create')}
-        </Button>
+        <div className="flex flex-wrap gap-2 md:col-span-2 md:justify-self-start">
+          <Button loading={pending}>{t('deals.create')}</Button>
+          {onClose && (
+            <Button type="button" variant="outline" onClick={onClose}>
+              {t('common.close')}
+            </Button>
+          )}
+        </div>
       </form>
     </FormCard>
   );
@@ -189,9 +197,12 @@ const isActivityType = (value: string): value is ActivityFormValues['type'] =>
 export function ActivityForm({
   onSubmit,
   pending,
+  onClose,
 }: {
   onSubmit: (v: ActivityFormValues) => Promise<unknown>;
   pending: boolean;
+  /** Optional close button next to the submit action — closes the form. */
+  onClose?: () => void;
 }) {
   const t = useTranslations('modules.crm');
   const form = useForm<ActivityFormValues>({
@@ -221,9 +232,14 @@ export function ActivityForm({
         <Field label={t('fields.dueAt')} error={undefined}>
           <Input type="datetime-local" {...form.register('dueAt')} />
         </Field>
-        <Button className="md:col-span-3 md:justify-self-start" loading={pending}>
-          {t('activities.create')}
-        </Button>
+        <div className="flex flex-wrap gap-2 md:col-span-3 md:justify-self-start">
+          <Button loading={pending}>{t('activities.create')}</Button>
+          {onClose && (
+            <Button type="button" variant="outline" onClick={onClose}>
+              {t('common.close')}
+            </Button>
+          )}
+        </div>
       </form>
     </FormCard>
   );

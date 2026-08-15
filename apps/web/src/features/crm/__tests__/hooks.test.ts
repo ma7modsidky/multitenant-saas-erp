@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dealColumnDateRange } from '../hooks';
+import { activitiesKey, companiesKey, contactsKey, dealColumnDateRange } from '../hooks';
 
 /**
  * Board column date presets. Deals store `updated_at` as a UTC instant and
@@ -39,5 +39,33 @@ describe('dealColumnDateRange', () => {
 
   it('returns no date bounds for "all"', () => {
     expect(dealColumnDateRange('all', FIXED)).toEqual({});
+  });
+});
+
+describe('table list query keys include the sort (sort-header regression)', () => {
+  it('changes the contacts key when sortBy/sortDir change, so react-query refetches', () => {
+    const base = contactsKey({ page: 1 });
+    const byName = contactsKey({ page: 1, sortBy: 'name', sortDir: 'asc' });
+    const byEmailDesc = contactsKey({ page: 1, sortBy: 'email', sortDir: 'desc' });
+
+    expect(byName).not.toEqual(base);
+    expect(byEmailDesc).not.toEqual(byName);
+    // The URL-driven params are in the key, not just page/pageSize.
+    expect(byName).toContain('name');
+    expect(byName).toContain('asc');
+  });
+
+  it('changes the companies key when the sort changes', () => {
+    const base = companiesKey({ page: 1 });
+    const sorted = companiesKey({ page: 1, sortBy: 'industry', sortDir: 'asc' });
+    expect(sorted).not.toEqual(base);
+    expect(sorted).toContain('industry');
+  });
+
+  it('changes the activities key when the sort changes', () => {
+    const base = activitiesKey({ page: 1 });
+    const sorted = activitiesKey({ page: 1, sortBy: 'dueAt', sortDir: 'asc' });
+    expect(sorted).not.toEqual(base);
+    expect(sorted).toContain('dueAt');
   });
 });
