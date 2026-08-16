@@ -1,11 +1,33 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 72 — **RTL table alignment + docs to Phase 6**: in
-Arabic (RTL), `dir="auto"` table cells were aligned by their CONTENT direction
-instead of the column — an English product name sat left-aligned under a
-right-aligned RTL header (and vice versa). Fixed globally in `globals.css` for
-block containers (`td`/`th`/`p`/`h1–h6`/`div`/`dd`/`li`): `direction: inherit`
-keeps `text-align: start/end` resolving against the column, while
+**Last updated:** Session 74 — **dark theme aligned to spec, Arabic UI font,
+date-picker icon fix**: the `.dark` palette was the stock shadcn default
+(background `222.2 84% 4.9%`, near-black) even though UI_UX_GUIDELINES §2.1
+documents a softer dark navy — now aligned (`--background 222 47% 11%`, cards
+`222 47% 14%`, borders `217 33% 20%`, ring `212 95% 68%`). Native date-picker
+calendar icons were invisible in dark mode (browsers render native controls with
+light chrome unless told otherwise) — fixed with `color-scheme: light/dark` on
+`:root`/`.dark` in globals.css. Arabic text now renders in IBM Plex Sans Arabic
+(loaded via `next/font`, arabic subset only; Latin + Western numerals stay in
+Inter via per-character fallback) instead of system fonts.
+
+**Previous (Session 73):** offline POS black screen fixed — an offline relaunch
+with an expired access token (15-min lifetime) used to wipe the stored session,
+delete the `modubiz_authed` middleware cookie, and bounce to `/login` — which
+cannot load offline, leaving the dark shell + "Offline" badge.
+`refreshStoredSession()` now distinguishes an UNREACHABLE API (`'unreachable'`)
+from a genuinely invalid session (`'invalid'`); `SessionProvider` hydration
+keeps the stored session (and heals the cookie) when the API is unreachable, so
+the offline-first POS (POS-25/31) renders from its caches and the first 401 back
+online silently rotates the token. Unit tests for all three refresh outcomes;
+verified end-to-end against a seeded env and `pwa-offline-journey` e2e green.
+
+**Previous (Session 72):** RTL table alignment + docs to Phase 6 — in Arabic
+(RTL), `dir="auto"` table cells were aligned by their CONTENT direction instead
+of the column — an English product name sat left-aligned under a right-aligned
+RTL header (and vice versa). Fixed globally in `globals.css` for block
+containers (`td`/`th`/`p`/`h1–h6`/`div`/`dd`/`li`): `direction: inherit` keeps
+`text-align: start/end` resolving against the column, while
 `unicode-bidi: plaintext` keeps Arabic/English names and mixed strings rendering
 in their natural order (spec-backed: plaintext affects content ordering only,
 never alignment). Inline spans/links and form inputs are deliberately excluded.
@@ -663,6 +685,66 @@ errors · API/web typechecks clean.
 ---
 
 ## Session log
+
+### Session 74 — Dark theme aligned to spec, Arabic UI font, date-picker icon fix
+
+- **Date-picker icon invisible in dark mode (bug).** The date inputs are native
+  `<input type="date">`; browsers render native control chrome (calendar
+  indicator, dropdown arrows, number spinners) light-only unless the page opts
+  into `color-scheme`. So in dark mode the calendar icon stayed dark on a dark
+  input. Fixed in `globals.css`: `color-scheme: light` on `:root`,
+  `color-scheme: dark` on `.dark`. One rule fixes every date filter (CRM,
+  inventory, POS reports, audit, admin) and keeps native select dropdowns
+  consistent too.
+- **Dark theme aligned to the documented spec.** The `.dark` palette was the
+  stock shadcn/ui default (`--background 222.2 84% 4.9%` — near-black, cards
+  same as background) while UI_UX_GUIDELINES §2.1 documents a softer dark navy.
+  Updated the tokens to the spec: background `222 47% 11%`, cards `222 47% 14%`
+  (cards now lift off the page), secondary/muted/accent `217 33% 17%`,
+  borders/inputs `217 33% 20%`, ring `212 95% 68%`. Charts,
+  destructive/success/warning, and the light theme are unchanged (already
+  matching). Code and docs now agree.
+- **Arabic font.** Inter has no Arabic glyphs, so the `ar` locale rendered in OS
+  system fallbacks. Added **IBM Plex Sans Arabic** via `next/font/google`
+  (arabic subset only, weights 400–700, `--font-arabic`), placed after Inter in
+  the Tailwind `sans` stack so per-character fallback renders Arabic in IBM Plex
+  Sans Arabic and Latin text + Western-Arabic numerals in Inter (RTL §8.3). Docs
+  updated (UI_UX_GUIDELINES §2.2).
+
+### Session 73 — Offline POS black screen: expired token + offline refresh nuked the session
+
+- **Bug reported:** disconnecting the internet and relaunching the POS (PWA
+  start_url `/en/m/pos/checkout`) showed a black screen with an "Offline" badge;
+  back online, protected routes bounced to login "like a browser".
+- **Root cause (web session hydration).** The access token lives 15 minutes; the
+  middleware cookie 30 days. `SessionProvider` hydrate validated `exp` and, on
+  an expired token, called `refreshStoredSession()` — which returned a bare
+  `false` for ANY failure. Offline, the refresh fetch fails with
+  `NETWORK_ERROR`, so an expired-but-valid session was treated as logged out:
+  `sessionStore.clear()` wiped tokens + cached billing, `setAuthedCookie(false)`
+  deleted the middleware cookie, and `router.replace('/en/login')` fired. The SW
+  never caches `_rsc` payloads, so that login navigation cannot load offline →
+  blank/dark screen with the floating "Offline" badge. Back online, the deleted
+  cookie made the middleware bounce every protected route to login. Reproduced
+  against a real seeded session: offline relaunch with an expired token ended on
+  `/en/login` with session + cookie wiped.
+- **Fix.** `refreshStoredSession()` now returns
+  `'refreshed' | 'unreachable' | 'invalid'` — a `NETWORK_ERROR` is
+  `'unreachable'` (session still valid), a server rejection / missing refresh
+  token is `'invalid'`. Hydration keeps the stored session on `'unreachable'`
+  (user profile + org id from token claims, restores the middleware cookie so a
+  previously-deleted one is healed) and only clears + redirects on `'invalid'`.
+  This is the documented offline-first contract (POS-25/31, UI_UX_GUIDELINES
+  §9.2: the user is never blocked from selling offline); the first 401 once back
+  online silently rotates the token via the existing single-flight refresh in
+  `lib/api`.
+- **Tests.** `auth.test.ts` +4: success → `'refreshed'` (tokens rotated, cookie
+  set), network failure → `'unreachable'` (session untouched), server 401 →
+  `'invalid'`, missing refresh token → `'invalid'`. Web suite 334/334, typecheck
+  clean, lint 0 errors. E2E: `pwa-offline-journey` green against the seeded env;
+  manual before/after repro (seeded session → warm checkout → expire token →
+  offline relaunch) showed the bounce+wipe before and the full checkout
+  rendering offline, session intact, after.
 
 ### Session 72 — RTL-safe mixed-direction table cells, docs to Phase 6, first push
 

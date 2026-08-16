@@ -45,7 +45,9 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['var(--font-inter)'],
+        // Inter first, then the Arabic font — per-character fallback renders
+        // Latin in Inter and Arabic glyphs in IBM Plex Sans Arabic (RTL §8.3).
+        sans: ['var(--font-inter)', 'var(--font-arabic)'],
         mono: ['var(--font-mono)'],
       },
       keyframes: {

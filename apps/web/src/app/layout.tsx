@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { IBM_Plex_Sans_Arabic, Inter, JetBrains_Mono } from 'next/font/google';
 import { getLocale } from 'next-intl/server';
 
 import { SwRegister } from '@/components/pwa/sw-register';
@@ -14,6 +14,17 @@ const inter = Inter({
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
+  display: 'swap',
+});
+
+// Arabic UI font (UI_UX_GUIDELINES §2.2): Inter has no Arabic glyphs, so the
+// ar locale was falling back to system fonts. Only the arabic subset is
+// loaded — Latin text and Western-Arabic numerals keep rendering in Inter via
+// per-character font fallback (RTL §8.3).
+const ibmPlexSansArabic = IBM_Plex_Sans_Arabic({
+  subsets: ['arabic'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-arabic',
   display: 'swap',
 });
 
@@ -55,7 +66,12 @@ export default async function RootLayout({
   const dir = locale.startsWith('ar') ? 'rtl' : 'ltr';
 
   return (
-    <html lang={locale} dir={dir} className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html
+      lang={locale}
+      dir={dir}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${ibmPlexSansArabic.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Apply the persisted theme (light/dark/system) BEFORE first paint so
             a dark-mode user never sees a flash of light mode on reload. The

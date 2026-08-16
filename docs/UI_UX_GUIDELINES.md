@@ -116,8 +116,11 @@ via Tailwind classes. **Never use raw hex values in components.**
 
 ### 2.2 Typography scale
 
-Font stack: **Inter** (UI) + **JetBrains Mono** (code/numbers in tables). Both
-loaded via `next/font` for zero layout shift.
+Font stack: **Inter** (UI) + **JetBrains Mono** (code/numbers in tables) + **IBM
+Plex Sans Arabic** (Arabic UI text — Inter has no Arabic glyphs). All loaded via
+`next/font` for zero layout shift. Only the Arabic subset of IBM Plex Sans
+Arabic is loaded: per-character fallback keeps Latin text and Western-Arabic
+numerals in Inter (RTL §8.3) while Arabic glyphs render in IBM Plex Sans Arabic.
 
 | Token       | Size (rem) | Weight | Line height | Usage                                   |
 | ----------- | ---------- | ------ | ----------- | --------------------------------------- |
