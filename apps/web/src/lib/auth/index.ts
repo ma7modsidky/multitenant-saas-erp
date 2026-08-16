@@ -5,7 +5,7 @@
 // localStorage for now; Phase 2 moves to httpOnly cookies
 // (see CODING_STANDARDS.md §12).
 
-import { apiFetch } from '../api';
+import { ApiError, apiFetch } from '../api';
 
 import { decodeJwtPayload, setAuthedCookie, sessionStore } from './session';
 
@@ -99,6 +99,19 @@ export async function logout(): Promise<void> {
 }
 
 /**
+ * Result of a silent token-refresh attempt.
+ * - `'refreshed'`   — tokens rotated successfully.
+ * - `'unreachable'` — the API could not be reached (offline / dead network).
+ *                     The session itself is still valid; the caller keeps the
+ *                     stored session so the offline-first POS keeps working
+ *                     (POS-25/31).
+ * - `'invalid'`     — the server rejected the refresh (revoked/expired refresh
+ *                     token, or none stored). The caller clears the session
+ *                     and redirects to login.
+ */
+export type RefreshResult = 'refreshed' | 'unreachable' | 'invalid';
+
+/**
  * Attempt a silent token refresh with the STORED refresh token.
  *
  * Used at session hydration: a stored access token may already be expired
@@ -109,12 +122,13 @@ export async function logout(): Promise<void> {
  * shell renders — a stale `modubiz_authed` cookie can no longer cause the
  * flash because the loading gate stays up until the session is verified.
  *
- * Returns true when the tokens were rotated successfully. On failure the
- * caller clears the session (tokens + cookie) and redirects to login.
+ * The failure modes are distinguished so an UNREACHABLE API is never treated
+ * as a logged-out session: the offline POS must keep selling from its caches,
+ * and the first 401 once back online silently rotates the token instead.
  */
-export async function refreshStoredSession(): Promise<boolean> {
+export async function refreshStoredSession(): Promise<RefreshResult> {
   const refreshToken = sessionStore.getRefreshToken();
-  if (refreshToken === null) return false;
+  if (refreshToken === null) return 'invalid';
   try {
     const data = await apiFetch<{ accessToken: string; refreshToken: string }>(
       '/v1/auth/refresh',
@@ -129,9 +143,12 @@ export async function refreshStoredSession(): Promise<boolean> {
     );
     sessionStore.setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
     setAuthedCookie(true);
-    return true;
-  } catch {
-    return false;
+    return 'refreshed';
+  } catch (err) {
+    // A network failure means the API is unreachable — the session is fine.
+    // Only a server-side rejection (or a missing refresh token) is fatal.
+    if (err instanceof ApiError && err.code === 'NETWORK_ERROR') return 'unreachable';
+    return 'invalid';
   }
 }
 

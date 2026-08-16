@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { login, logout, switchOrg } from '../index';
+import { login, logout, refreshStoredSession, switchOrg } from '../index';
 import { AUTH_COOKIE, sessionStore } from '../session';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -53,6 +53,53 @@ describe('auth', () => {
     expect(sessionStore.getAccessToken()).toBe('scoped');
     expect(sessionStore.getRefreshToken()).toBe('scoped-r');
     expect(sessionStore.getUser()).toEqual(USER);
+  });
+
+  it('refreshStoredSession rotates tokens and returns refreshed on success', async () => {
+    sessionStore.setTokens({ accessToken: 'expired', refreshToken: 'r1' });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => jsonResponse(200, { data: { accessToken: 'a2', refreshToken: 'r2' } })),
+    );
+
+    expect(await refreshStoredSession()).toBe('refreshed');
+    expect(sessionStore.getAccessToken()).toBe('a2');
+    expect(sessionStore.getRefreshToken()).toBe('r2');
+    expect(document.cookie).toContain(`${AUTH_COOKIE}=1`);
+  });
+
+  it('refreshStoredSession returns unreachable (not invalid) when the API cannot be reached', async () => {
+    sessionStore.setTokens({ accessToken: 'expired', refreshToken: 'r1' });
+
+    // Offline / dead network — fetch rejects before any HTTP response.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+    );
+
+    expect(await refreshStoredSession()).toBe('unreachable');
+    // The stored session is untouched — the caller keeps it for offline use.
+    expect(sessionStore.getAccessToken()).toBe('expired');
+    expect(sessionStore.getRefreshToken()).toBe('r1');
+  });
+
+  it('refreshStoredSession returns invalid when the server rejects the refresh', async () => {
+    sessionStore.setTokens({ accessToken: 'expired', refreshToken: 'r1' });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => jsonResponse(401, { error: { code: 'INVALID_REFRESH_TOKEN', correlationId: 'c' } })),
+    );
+
+    expect(await refreshStoredSession()).toBe('invalid');
+    expect(sessionStore.getAccessToken()).toBe('expired');
+  });
+
+  it('refreshStoredSession returns invalid when no refresh token is stored', async () => {
+    window.localStorage.clear();
+    // No fetch is attempted — the missing refresh token short-circuits.
+    expect(await refreshStoredSession()).toBe('invalid');
   });
 
   it('logout revokes the session, clears storage and the cookie', async () => {

@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { clearPosOfflineCaches, wipePosOfflineData } from '@/features/pos/offline/outbox';
 
-import { authEvents, decodeJwtPayload, setAuthedCookie, sessionStore } from './session';
+import { authEvents, decodeJwtPayload, setAuthedCookie, sessionStore, type StoredUser } from './session';
 
 import {
   login as loginRequest,
@@ -58,6 +58,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setOrganizationId(sessionStore.getOrganizationId());
   }, []);
 
+  /**
+   * Restore the session from storage (user profile + org from token claims).
+   * `restoreCookie` additionally heals the middleware cookie — used when the
+   * API was unreachable and the stored session is kept for offline use.
+   */
+  const applyStoredSession = useCallback(
+    (storedUser: StoredUser | null, restoreCookie = false) => {
+      setUserState(storedUser ? toAuthUser(storedUser) : null);
+      setStatus('authenticated');
+      refreshOrgId();
+      if (restoreCookie) setAuthedCookie(true);
+    },
+    [refreshOrgId],
+  );
+
   // Initial hydrate from the stored session.
   //
   // The access token expires every 15 minutes while the `modubiz_authed`
@@ -91,9 +106,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const expired = exp !== undefined && exp * 1000 <= Date.now() + 5000;
 
       if (!expired) {
-        setUserState(storedUser ? toAuthUser(storedUser) : null);
-        setStatus('authenticated');
-        refreshOrgId();
+        applyStoredSession(storedUser);
         return;
       }
 
@@ -102,10 +115,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // tokens).
       const refreshed = await refreshStoredSession();
       if (cancelled) return;
-      if (refreshed) {
-        setUserState(storedUser ? toAuthUser(storedUser) : null);
-        setStatus('authenticated');
-        refreshOrgId();
+      if (refreshed === 'refreshed') {
+        applyStoredSession(storedUser);
+      } else if (refreshed === 'unreachable') {
+        // Offline-first (POS-25/31): the API is unreachable, not the session
+        // invalid. Keep the stored session so an offline launch with an
+        // expired access token still renders — every API call fails with
+        // NETWORK_ERROR and falls back to the offline caches, and the first
+        // 401 once back online silently rotates the token. Wiping the session
+        // here used to delete the middleware cookie and bounce to a login page
+        // that cannot load offline (blank screen + "Offline" badge).
+        applyStoredSession(storedUser, true);
       } else {
         sessionStore.clear();
         setAuthedCookie(false);
