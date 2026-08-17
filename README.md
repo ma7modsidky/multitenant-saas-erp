@@ -13,9 +13,11 @@ so that adding the tenth module is as cheap as adding the third.
 > and the full-stack CRM, Inventory, and POS modules are built. POS includes an
 > offline-first PWA (IndexedDB outbox, service-worker cache, installable shell,
 > offline receipt rendering) and all three business modules have committed e2e
-> journey specs that run in CI. Next up is Phase 7 — production hardening and
-> deployment. **AI agents and new contributors: read [AGENTS.md](./AGENTS.md)
-> first.**
+> journey specs that run in CI. Next up is Phase 7 — **Accounting & Invoicing**
+> (double-entry GL, AR invoice lifecycle, tax + e-invoicing), then Phase 8 —
+> **Purchasing & Suppliers** (purchase-to-pay, vendor ledger), then Phase 9 —
+> production hardening and deployment. **AI agents and new contributors: read
+> [AGENTS.md](./AGENTS.md) first.**
 
 ---
 
@@ -40,15 +42,17 @@ Full detail, including rejected alternatives:
 
 ## Modules
 
-| Module                                                  | Key         | Status  | Depends on         |
-| ------------------------------------------------------- | ----------- | ------- | ------------------ |
-| Platform core (orgs, users, RBAC, billing, audit, i18n) | —           | MVP     | —                  |
-| CRM                                                     | `crm`       | Beta    | —                  |
-| Inventory                                               | `inventory` | Beta    | —                  |
-| Point of Sale                                           | `pos`       | Beta    | `inventory`        |
-| E-commerce                                              | `ecommerce` | Planned | `inventory`        |
-| Food Ordering & Delivery                                | `food`      | Planned | `inventory`, `pos` |
-| HR                                                      | `hr`        | Planned | —                  |
+| Module                                                  | Key          | Status  | Depends on         |
+| ------------------------------------------------------- | ------------ | ------- | ------------------ |
+| Platform core (orgs, users, RBAC, billing, audit, i18n) | —            | MVP     | —                  |
+| CRM                                                     | `crm`        | Beta    | —                  |
+| Inventory                                               | `inventory`  | Beta    | —                  |
+| Point of Sale                                           | `pos`        | Beta    | `inventory`        |
+| Accounting & Invoicing                                  | `accounting` | Planned | —                  |
+| Purchasing & Suppliers                                  | `purchasing` | Planned | `inventory`        |
+| E-commerce                                              | `ecommerce`  | Planned | `inventory`        |
+| Food Ordering & Delivery                                | `food`       | Planned | `inventory`, `pos` |
+| HR                                                      | `hr`         | Planned | —                  |
 
 Modules are built with `pnpm generate:module <key>` — the module framework
 (descriptor system, registry wiring, port infrastructure, generator) is the

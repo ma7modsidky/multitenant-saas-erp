@@ -275,7 +275,74 @@ unenforced. Both must be true.
 
 ---
 
-## 13. Rule-to-test traceability
+## 13. Accounting and invoicing rules
+
+### Chart of accounts and journal entries
+
+| ID    | Rule                                                                                                                                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ACC-1 | Every journal entry is **balanced**: total debits = total credits. An unbalanced entry is rejected before persistence — enforced by a domain invariant **and** a DB trigger backstop. This is the core invariant of the double-entry system.                 |
+| ACC-2 | A **posted** journal entry is immutable — no `UPDATE`, no `DELETE` (append-only ledger). Corrections are **reversal entries** that reference the original; the original's status becomes `reversed`.                                                         |
+| ACC-3 | Journal entry numbers are sequential and gap-free per organization, allocated atomically. A failed post does not consume a number.                                                                                                                           |
+| ACC-4 | Every journal line references exactly one account from the organization's COA. A line sets exactly one of debit or credit (the other is zero), amounts are positive minor units, and all lines of one entry share a single currency.                         |
+| ACC-5 | The default SME chart of accounts (Assets, Liabilities, Equity, Revenue, Expenses) is seeded once per organization, lazily and idempotently. **System accounts cannot be deleted or renumbered.** With the `advanced_coa` feature off, the COA is read-only. |
+
+### Invoicing (AR) and tax
+
+| ID     | Rule                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ACC-6  | Issuing an invoice posts the AR journal entry **atomically** (Dr Accounts Receivable / Cr Revenue / Cr VAT Payable). An invoice may only be issued from `Draft`; issuance is the point of no return.                                                                                                                                                  |
+| ACC-7  | An **issued** invoice is immutable. Corrections require a **credit note** that reverses the original and references it; voiding an issued invoice is a credit note + status change, never an edit. Only an unissued (`Draft`) invoice may be cancelled directly.                                                                                      |
+| ACC-8  | Invoice status lifecycle: `Draft → Issued → Partially Paid → Paid → Overdue → Void`. `Overdue` is computed from the due date and unpaid balance and set by a nightly job. No transition skips a legal step; illegal transitions are rejected with a stable error code.                                                                                |
+| ACC-9  | AR payments may be partial. The sum of applied allocations can never exceed the invoice total; when allocations equal the total the invoice becomes `Paid` and the receipt entry (Dr Bank/Cash, Cr AR) posts atomically. Overpayment is rejected or held as an on-account credit — never silently absorbed.                                           |
+| ACC-10 | A credit note reverses a referenced invoice; cumulative credit-note amounts per invoice never exceed the invoice's net total. Credit notes are numbered sequentially per organization and are themselves immutable once issued.                                                                                                                       |
+| ACC-11 | Tax is calculated **per line** from the line's tax rate in basis points, supporting standard, reduced, zero-rated, and exempt types. The invoice tax total equals the sum of line taxes, and line rounding is authoritative (CUR-8).                                                                                                                  |
+| ACC-12 | E-invoice metadata (UUID, hash, IRN, QR, status) is generated and validated by the configured compliance provider (ZATCA Phase 2 / Egyptian ETA adapters behind a provider port). An invoice marked compliant must carry a valid hash. Adapters are isolated per region; a missing provider does not block invoice issuance, only compliance marking. |
+
+### Subledger integration and features
+
+| ID     | Rule                                                                                                                                                                                                                                                                                                           |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ACC-13 | Auto-invoicing from a completed POS sale is idempotent: exactly **one** invoice per sale, keyed on the sale's idempotency key. The invoice references the sale id without a foreign key (hard rule #1).                                                                                                        |
+| ACC-14 | Issuing a **goods** invoice deducts stock through the inventory movement port **inside the same transaction**; if the stock operation fails, issuance fails. Goods lines require inventory entitlement — without it, accounting operates in service-invoice-only mode (POS-18 pattern).                        |
+| ACC-15 | GL entries for subledger events (stock movements, purchase bills, supplier payments, supplier returns, POS sales) are posted by **idempotent handlers** keyed on the source event id. A nightly reconciliation asserts `acc_account_balances` = GL line sums and the GL = subledger totals, alerting on drift. |
+| ACC-16 | Plan-gated features (`advanced_coa`, `e_invoicing`) are enforced **server-side** from the entitlement's feature set; a feature that is not enabled behaves as absent (OPS-8). Client-side gating is UX only. Feature-flag changes are audited (AUD-1).                                                         |
+
+---
+
+## 14. Purchasing and suppliers rules
+
+### Supplier directory and vendor ledger
+
+| ID    | Rule                                                                                                                                                                                                                                                           |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PUR-1 | A supplier requires a name and, when provided, a tax id unique per organization. The directory records payment terms, tax id, contact details, default billing currency, and address.                                                                          |
+| PUR-2 | `pur_vendor_ledger` is **append-only** and the source of truth for accounts payable. A supplier's balance is the signed sum of its entries (bills +, payments −, supplier returns / debit notes −, opening balance ±) — always derived, never edited directly. |
+
+### Purchase workflow
+
+| ID     | Rule                                                                                                                                                                                                                                                |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PUR-3  | Purchase order lifecycle: `Draft → Pending Approval → Approved → Partially Received → Received → Closed`. A PO with any receipt cannot be cancelled; every status transition is audited.                                                            |
+| PUR-4  | A GRN receipt increases warehouse stock **atomically** through the inventory movement port, in the same transaction as the GRN. A GRN line can never exceed the PO line's remaining quantity (no overshoot under concurrency).                      |
+| PUR-5  | A **received** GRN is immutable. Corrections are a supplier return or a new adjusting GRN — never an edit.                                                                                                                                          |
+| PUR-6  | A bill can be approved only when every goods line has a received GRN (service bills are exempt). Approval records the AP vendor-ledger entry and publishes `purchasing.bill.approved.v1` so the GL can post Dr Inventory/Expense, Cr AP.            |
+| PUR-7  | Bill lifecycle: `Draft → Approved → Partially Paid → Paid → Void`. Supplier payments allocate across bills; cumulative allocations per bill never exceed its total; recording a payment reduces the vendor balance and publishes the payment event. |
+| PUR-8  | Purchase-order lines reference inventory variants **by id without a FK**, or are service lines without a variant. Line data (name, unit cost) is snapshotted so historical documents stay reproducible.                                             |
+| PUR-9  | Bill cost variance vs the GRN cost posts a `cost_adjustment` stock movement; historical cost is never rewritten (INV-12).                                                                                                                           |
+| PUR-10 | Bill due dates derive from the supplier's payment terms. Overdue bills trigger an alert to managers; business-day boundaries use the organization's timezone.                                                                                       |
+
+### Supplier returns and approvals
+
+| ID     | Rule                                                                                                                                                                                                                            |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PUR-11 | A supplier return requires a reason code and a reference (bill or GRN line). Approval reduces AP (debit note) **and** removes stock through the inventory movement port, in one transaction.                                    |
+| PUR-12 | Purchase approval is **plan-gated** (`purchasing.purchase_approval`): feature off ⇒ authorized users approve inline; feature on ⇒ a multi-step approval chain. Enforcement is server-side (OPS-8); all transitions are audited. |
+| PUR-13 | Mutating purchase operations (GRN receipt, bill approval, payment, supplier return) accept an `Idempotency-Key` header and guarantee at-most-once effect (OPS-1). Replays return the original result, never a duplicate.        |
+
+---
+
+## 15. Rule-to-test traceability
 
 Every rule in this document must be traceable to a test.
 
@@ -283,14 +350,14 @@ Every rule in this document must be traceable to a test.
   `it('INV-6: rejects an online sale exceeding available stock', ...)`.
 - A CI report lists rule ids with no matching test and fails the build if a rule
   marked **critical** (all of TEN-_, AUTH-_, CUR-*, BILL-4, INV-1, INV-2,
-  POS-26) is uncovered.
+  POS-26, ACC-1, ACC-2, PUR-4) is uncovered.
 - Adding a rule here without a test in the same PR is not allowed.
 - Changing behaviour that contradicts a rule requires updating this document
   **in the same PR** as the code.
 
 ---
 
-## 14. Related documents
+## 16. Related documents
 
 [PRD.md](./PRD.md) · [TECH_STACK.md](./TECH_STACK.md) ·
 [ARCHITECTURE.md](./ARCHITECTURE.md) · [MODULE_GUIDE.md](./MODULE_GUIDE.md) ·

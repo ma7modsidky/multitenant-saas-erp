@@ -133,19 +133,19 @@ casting `::uuid` on the next org-less query served by that pooled connection
 
 ### Naming rules
 
-| Thing            | Convention                                   | Example                                |
-| ---------------- | -------------------------------------------- | -------------------------------------- |
-| Table            | `<module_prefix>_<plural_snake>`             | `inv_stock_movements`                  |
-| Table prefixes   | `core_` (platform), `crm_`, `inv_`, `pos_`   | one prefix per module, globally unique |
-| Column           | `snake_case`                                 | `reorder_point`                        |
-| FK column        | `<singular_referenced>_id`                   | `warehouse_id`                         |
-| Index            | `idx_<table>_<cols>`                         | `idx_inv_products_org_sku`             |
-| Unique index     | `uq_<table>_<cols>`                          | `uq_inv_products_org_sku`              |
-| Check constraint | `ck_<table>_<rule>`                          | `ck_pos_sales_total_non_negative`      |
-| Enum             | Postgres `enum` type named `<prefix>_<name>` | `pos_payment_method`                   |
-| Money pair       | `<name>_amount_minor` + `<name>_currency`    | `total_amount_minor`, `total_currency` |
-| Boolean          | `is_` / `has_` prefix                        | `is_active`                            |
-| Timestamp        | `_at` suffix                                 | `closed_at`                            |
+| Thing            | Convention                                                 | Example                                |
+| ---------------- | ---------------------------------------------------------- | -------------------------------------- |
+| Table            | `<module_prefix>_<plural_snake>`                           | `inv_stock_movements`                  |
+| Table prefixes   | `core_` (platform), `crm_`, `inv_`, `pos_`, `acc_`, `pur_` | one prefix per module, globally unique |
+| Column           | `snake_case`                                               | `reorder_point`                        |
+| FK column        | `<singular_referenced>_id`                                 | `warehouse_id`                         |
+| Index            | `idx_<table>_<cols>`                                       | `idx_inv_products_org_sku`             |
+| Unique index     | `uq_<table>_<cols>`                                        | `uq_inv_products_org_sku`              |
+| Check constraint | `ck_<table>_<rule>`                                        | `ck_pos_sales_total_non_negative`      |
+| Enum             | Postgres `enum` type named `<prefix>_<name>`               | `pos_payment_method`                   |
+| Money pair       | `<name>_amount_minor` + `<name>_currency`                  | `total_amount_minor`, `total_currency` |
+| Boolean          | `is_` / `has_` prefix                                      | `is_active`                            |
+| Timestamp        | `_at` suffix                                               | `closed_at`                            |
 
 ### Hard schema rules
 
@@ -158,9 +158,10 @@ casting `::uuid` on the next org-less query served by that pooled connection
 4. Enumerations that the tenant can extend are tables, not Postgres enums. Fixed
    technical enumerations are Postgres enums.
 5. Append-only ledgers (`inv_stock_movements`, `core_audit_log`,
-   `core_platform_audit_log`, `pos_payments`) have **no** `UPDATE`/`DELETE`
-   path. Corrections are new compensating rows. Enforced by a rule/trigger plus
-   repository design.
+   `core_platform_audit_log`, `pos_payments`, `pur_vendor_ledger`, and
+   `acc_journal_entries`/`acc_journal_lines` **once posted**) have **no**
+   `UPDATE`/`DELETE` path. Corrections are new compensating rows (reversals,
+   debit/credit notes). Enforced by a rule/trigger plus repository design.
 6. `jsonb` is allowed for translations, flexible metadata, and event payloads —
    never for data that must be queried relationally or constrained.
 7. Timestamps are always `timestamptz` stored in UTC. Display timezone comes
@@ -390,7 +391,16 @@ Key indexes: `uq_crm_contacts_org_email` (partial,
 | `inv_low_stock_alerts`                      | Alert state (to avoid duplicate notifications) | `variant_id`, `warehouse_id`, `triggered_at`, `resolved_at`                                                                                                                                                |
 
 Movement types: `receipt` · `sale` · `return` · `transfer_in` · `transfer_out` ·
-`adjustment` · `count_correction` · `write_off`.
+`adjustment` · `count_correction` · `write_off` · `supplier_return` ·
+`cost_adjustment`. The last two are added by a forward
+`ALTER TYPE ... ADD VALUE` migration (Phase 7/8): `supplier_return` removes
+stock on a supplier return (PUR-11), `cost_adjustment` records a bill cost
+variance without rewriting history (PUR-9, INV-12).
+
+**Inventory also provides `INVENTORY_MOVEMENT_PORT`** (Phase 7, Level 3 —
+`receive`, `issue`, `returnToSupplier`, `adjustCost`) and publishes
+`inventory.stock.movement_recorded.v1` (full movement payload for GL posting,
+ACC-15) alongside the reservation-oriented `INVENTORY_STOCK_PORT`.
 
 Critical rules:
 
@@ -440,7 +450,84 @@ Critical rules:
 
 ---
 
-## 10. Migrations
+## 10. Accounting & Invoicing schema (`acc_`)
+
+| Table                     | Purpose                       | Notable columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `acc_accounts`            | Chart of accounts (COA)       | `code text`, `name_i18n jsonb`, `type` (`asset`\|`liability`\|`equity`\|`revenue`\|`expense`), `parent_id`, `is_system bool`, `is_active bool` — `UNIQUE (organization_id, code)`                                                                                                                                                                                                                                                                                                                                                                   |
+| `acc_tax_rates`           | Org tax rates                 | `code`, `name_i18n`, `rate_bp int`, `type` (`standard`\|`reduced`\|`zero`\|`exempt`), `effective_from date`, `is_active` — `UNIQUE (organization_id, code)`                                                                                                                                                                                                                                                                                                                                                                                         |
+| `acc_journal_entries`     | **GL entry headers**          | `entry_number bigint`, `entry_date`, `description`, `currency`, `status` (`draft`\|`posted`\|`reversed`), `source_type`, `source_id`, `posted_at`, `posted_by`, `reversed_by_entry_id`, `idempotency_key` — `UNIQUE (organization_id, entry_number)`, `UNIQUE (organization_id, idempotency_key)`                                                                                                                                                                                                                                                   |
+| `acc_journal_lines`       | **GL entry lines**            | `entry_id`, `account_id`, `debit_amount_minor`, `credit_amount_minor`, `memo` — CHECK: exactly one side non-zero, both positive; balanced-entry trigger on the entry (ACC-1)                                                                                                                                                                                                                                                                                                                                                                        |
+| `acc_invoices`            | AR invoices                   | `invoice_number`, `customer_contact_id` / `customer_company_id` (CRM ids, **no FK**), `customer_name_snapshot`, `customer_tax_id_snapshot`, `seller_tax_id`, `status` (`draft`\|`issued`\|`partially_paid`\|`paid`\|`overdue`\|`void`), `invoice_date`, `due_date`, `currency`, `exchange_rate`, `base_total_amount_minor`, `subtotal_*`, `discount_*`, `tax_*`, `total_*`, `locale`, `source_type` (`manual`\|`pos_sale`), `source_id`, `idempotency_key`, `e_invoice_uuid`, `e_invoice_hash`, `e_invoice_irn`, `e_invoice_qr`, `e_invoice_status` |
+| `acc_invoice_lines`       | Invoice lines                 | `invoice_id`, `variant_id` (Inventory id, no FK), `item_name_snapshot`, `description`, `quantity numeric(18,4)`, `unit_price_*`, `discount_*`, `tax_rate_id`, `tax_rate_bp_snapshot`, `tax_type_snapshot`, `tax_*`, `line_total_*`, `is_goods bool`                                                                                                                                                                                                                                                                                                 |
+| `acc_payments`            | AR receipts                   | `method` (`cash`\|`bank_transfer`\|`card`\|`cheque`\|`other`), `amount_*`, `currency`, `received_at`, `reference`, `idempotency_key`                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `acc_payment_allocations` | Payment → invoice allocations | `payment_id`, `invoice_id`, `amount_*` — cumulative per invoice ≤ invoice total (ACC-9)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `acc_credit_notes`        | AR credit notes (reversals)   | `invoice_id`, `credit_note_number`, `status` (`draft`\|`issued`\|`void`), `reason_code`, `amount_*`, `currency`, `issued_at` — `UNIQUE (organization_id, credit_note_number)`                                                                                                                                                                                                                                                                                                                                                                       |
+| `acc_credit_note_lines`   | Reversed line amounts         | `credit_note_id`, `invoice_line_id`, `quantity`, `unit_price_*`, `tax_*`, `line_total_*` — cumulative ≤ invoice net (ACC-10)                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `acc_account_balances`    | **Derived projection**        | `account_id`, `period` (yyyy-mm), `opening_amount_minor`, `debit_total_minor`, `credit_total_minor`, `closing_amount_minor`, `currency` — reconcilable to GL line sums (ACC-15); used by reports, never a full ledger scan on the request path (DATA_MODEL §13.4)                                                                                                                                                                                                                                                                                   |
+| `acc_org_settings`        | Per-org accounting settings   | `fiscal_year_start date`, `tax_registration_number`, `e_invoice_provider` (`none`\|`zatca`\|`eta`), `features jsonb` (`advanced_coa`, `e_invoicing`) — `UNIQUE (organization_id)`                                                                                                                                                                                                                                                                                                                                                                   |
+
+Critical rules:
+
+- `acc_journal_entries` / `acc_journal_lines` are **append-only once posted**
+  (ACC-2): drafts are editable, posted rows have no `UPDATE`/`DELETE` path, and
+  corrections are reversal entries. A trigger + repository design enforce it.
+- Balanced entries (ACC-1) and the one-side-per-line rule (ACC-4) are enforced
+  by domain invariants **and** DB CHECK/trigger backstops.
+- Entry numbers and invoice numbers are sequential and gap-free per organization
+  (ACC-3); idempotency keys make auto-invoicing (ACC-13) and event-driven GL
+  posting (ACC-15) replay-safe.
+- E-invoice metadata columns (UUID, hash, IRN, QR, status) exist from day one so
+  ZATCA Phase 2 / Egyptian ETA adapters (ACC-12) plug in behind a provider port
+  without a schema rewrite.
+- No foreign keys across module prefixes: CRM customer ids and Inventory
+  `variant_id` are stored by id and validated through ports (hard rule #1).
+- Money pairs everywhere; non-base-currency invoices carry the FX snapshot
+  (CUR-5) and `base_total_amount_minor`.
+
+---
+
+## 11. Purchasing & Suppliers schema (`pur_`)
+
+| Table                       | Purpose                            | Notable columns                                                                                                                                                                                                                                                                                                                    |
+| --------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pur_suppliers`             | Supplier master                    | `name`, `code`, `tax_id`, `payment_terms jsonb` (`net_days`, `discount_days`, `discount_rate_bp`), `currency`, `contact_name`, `contact_email`, `contact_phone`, `address jsonb`, `bank_account jsonb` (redacted in audit), `is_active` — partial `uq_pur_suppliers_org_tax_id` (PUR-1)                                            |
+| `pur_vendor_ledger`         | **Append-only AP ledger**          | `supplier_id`, `type` (`opening_balance`\|`bill`\|`payment`\|`debit_note`), `amount_*` (signed: bills +, payments −, debit notes −), `currency`, `reference_type`, `reference_id`, `entry_date`, `idempotency_key` — `UNIQUE (organization_id, idempotency_key)`; balance is the signed sum (PUR-2)                                |
+| `pur_requisitions`          | Purchase requisitions (optional)   | `number`, `status` (`draft`\|`submitted`\|`approved`\|`rejected`\|`cancelled`), `requested_by`, `required_by_date`, `notes`, `approval_chain jsonb` — `UNIQUE (organization_id, number)`                                                                                                                                           |
+| `pur_requisition_lines`     | Requisition lines                  | `requisition_id`, `variant_id` (no FK) or service, `item_name_snapshot`, `quantity`, `estimated_unit_cost_*`                                                                                                                                                                                                                       |
+| `pur_purchase_orders`       | POs                                | `number`, `supplier_id`, `status` (`draft`\|`pending_approval`\|`approved`\|`partially_received`\|`received`\|`closed`\|`cancelled`), `order_date`, `expected_date`, `currency`, `subtotal_*`, `discount_*`, `tax_*`, `total_*`, `notes` — `UNIQUE (organization_id, number)`                                                      |
+| `pur_po_lines`              | PO lines                           | `po_id`, `variant_id` (no FK), `item_name_snapshot`, `quantity`, `received_quantity numeric(18,4)`, `unit_cost_*`, `discount_*`, `tax_rate_bp_snapshot`, `line_total_*` (PUR-8 snapshots)                                                                                                                                          |
+| `pur_grns`                  | Goods received notes               | `number`, `po_id`, `supplier_id`, `warehouse_id` (Inventory id, no FK), `status` (`draft`\|`received`), `received_at`, `received_by` — `UNIQUE (organization_id, number)`                                                                                                                                                          |
+| `pur_grn_lines`             | GRN lines                          | `grn_id`, `po_line_id`, `variant_id`, `quantity`, `unit_cost_*` (snapshot from PO), `accepted bool` — `received_quantity` never exceeds PO remaining (PUR-4)                                                                                                                                                                       |
+| `pur_bills`                 | Purchase bills (supplier invoices) | `number`, `supplier_id`, `po_id`, `grn_id`, `status` (`draft`\|`approved`\|`partially_paid`\|`paid`\|`void`), `bill_date`, `due_date`, `currency`, `subtotal_*`, `discount_*`, `tax_*`, `total_*`, `supplier_tax_id_snapshot`, `idempotency_key` — `UNIQUE (organization_id, number)`, `UNIQUE (organization_id, idempotency_key)` |
+| `pur_bill_lines`            | Bill lines                         | `bill_id`, `po_line_id`, `grn_line_id`, `variant_id`, `quantity`, `unit_cost_*`, `tax_rate_bp_snapshot`, `tax_*`, `line_total_*`                                                                                                                                                                                                   |
+| `pur_supplier_payments`     | Cash disbursements                 | `number`, `supplier_id`, `method` (`cash`\|`bank_transfer`\|`card`\|`cheque`\|`other`), `amount_*`, `currency`, `paid_at`, `reference`, `idempotency_key` — `UNIQUE (organization_id, number)`                                                                                                                                     |
+| `pur_payment_allocations`   | Payment → bill allocations         | `payment_id`, `bill_id`, `amount_*` — cumulative per bill ≤ bill total (PUR-7)                                                                                                                                                                                                                                                     |
+| `pur_supplier_returns`      | Supplier returns / debit notes     | `number`, `supplier_id`, `bill_id`, `grn_line_id`, `reason_code`, `status` (`draft`\|`approved`\|`void`), `amount_*`, `currency`, `returned_at` — `UNIQUE (organization_id, number)`                                                                                                                                               |
+| `pur_supplier_return_lines` | Returned lines                     | `return_id`, `variant_id`, `quantity`, `unit_cost_*` — stock removed via `INVENTORY_MOVEMENT_PORT.returnToSupplier` (PUR-11)                                                                                                                                                                                                       |
+| `pur_org_settings`          | Per-org purchasing settings        | `approval_required bool`, `default_payment_terms jsonb`, `features jsonb` (`purchase_approval`) — `UNIQUE (organization_id)`                                                                                                                                                                                                       |
+
+Critical rules:
+
+- `pur_vendor_ledger` is **append-only** (PUR-2): a supplier's balance is always
+  the signed sum of its entries, never a stored, editable number.
+- GRN receiving increases stock **atomically** through
+  `INVENTORY_MOVEMENT_PORT.receive` in the same transaction as the GRN (PUR-4);
+  a received GRN is immutable (PUR-5).
+- Bill approval enforces the three-way match (PUR-6) and posts a
+  `cost_adjustment` movement for cost variance (PUR-9) — historical cost is
+  never rewritten (INV-12).
+- No foreign keys across module prefixes: Inventory `variant_id` and
+  `warehouse_id` are stored by id without FKs (hard rule #1).
+- PO/GRN/bill/payment numbers are sequential and unique per organization;
+  idempotency keys make GRN, bill, and payment operations replay-safe
+  (PUR-13/OPS-1).
+- Money pairs everywhere; bills in a non-base currency carry the FX snapshot
+  (CUR-5).
+
+---
+
+## 12. Migrations
 
 | Rule                | Detail                                                                                                                                                                                                               |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -457,7 +544,7 @@ Critical rules:
 
 ---
 
-## 11. Query and performance rules
+## 13. Query and performance rules
 
 1. **Index `organization_id` first** in composite indexes — it is in the
    predicate of every tenant query via RLS.
@@ -480,7 +567,7 @@ Critical rules:
 
 ---
 
-## 12. Data retention and deletion
+## 14. Data retention and deletion
 
 | Scenario                        | Behaviour                                                                                                                                                                       |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -493,7 +580,7 @@ Critical rules:
 
 ---
 
-## 13. Related documents
+## 15. Related documents
 
 [PRD.md](./PRD.md) · [TECH_STACK.md](./TECH_STACK.md) ·
 [ARCHITECTURE.md](./ARCHITECTURE.md) · [MODULE_GUIDE.md](./MODULE_GUIDE.md) ·

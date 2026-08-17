@@ -368,6 +368,34 @@ export interface InventoryStockPort {
 }
 ```
 
+**Second canonical case — `INVENTORY_MOVEMENT_PORT` (Phase 7/8).** Inventory
+provides a second Level 3 port for operations that must mutate stock atomically
+with another module's document: `receive` (GRN receiving, Purchasing), `issue`
+(goods-invoice issuance, Accounting), `returnToSupplier` (supplier returns,
+Purchasing), `adjustCost` (bill cost variance, Purchasing). The providing module
+enforces its own invariants — moving-average cost (INV-12), append-only
+movements (INV-1), no overshoot — so consumers cannot bypass inventory rules.
+
+**Subledger-to-GL flow.** Accounting (Phase 7) is the module that owns the
+general ledger and posts journal entries **reactively**: it consumes subledger
+events (`pos.sale.completed.v1`, `inventory.stock.movement_recorded.v1`, and
+Phase 8's `purchasing.bill.approved.v1` / `purchasing.payment.recorded.v1` /
+`purchasing.supplier_return.approved.v1`) through idempotent handlers keyed on
+the source id (ACC-15). Purchasing and POS never write journal entries — they
+publish events; Accounting converts them into balanced, immutable GL entries.
+
+```typescript
+// packages/contracts/src/ports/inventory-movement.port.ts
+export const INVENTORY_MOVEMENT_PORT = Symbol('INVENTORY_MOVEMENT_PORT');
+
+export interface InventoryMovementPort {
+  receive(input: ReceiveStockInput, tx: TransactionRef): Promise<void>;
+  issue(input: IssueStockInput, tx: TransactionRef): Promise<void>;
+  returnToSupplier(input: ReturnStockInput, tx: TransactionRef): Promise<void>;
+  adjustCost(input: AdjustCostInput, tx: TransactionRef): Promise<void>;
+}
+```
+
 ### Federated search — the `register()` pattern
 
 Search is a platform capability that business modules **contribute to**: each

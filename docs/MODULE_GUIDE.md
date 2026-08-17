@@ -232,6 +232,13 @@ ready to build.
   **why is eventual consistency insufficient**?
 - Does another module need to change to accommodate it? (If yes, stop —
   redesign; that is a boundary smell.)
+- Does it own a **ledger** or **financial document**? If yes, which tables are
+  append-only once posted, and how are corrections represented (reversals,
+  debit/credit notes)? See the Accounting (Phase 7) and Purchasing (Phase 8)
+  modules for the canonical pattern.
+- Which features are **plan-gated** (per-org feature toggles)? Declare them in
+  `MODULE_FEATURES`, enforce server-side (OPS-8), and never gate on client
+  state.
 - What happens to its data when the module is disabled?
 
 ### Step 1 — Declare the contract first
@@ -519,18 +526,19 @@ Copy this into the module's PR description.
 
 ## 6. Anti-patterns (reject in review)
 
-| Anti-pattern                                                                  | Why it is fatal                                                          | Do instead                                                                           |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `import { InventoryService } from '../inventory/...'`                         | Destroys the boundary and the extraction path                            | Event, or a declared port                                                            |
-| Joining `pos_sales` to `crm_contacts` in SQL                                  | Couples schemas permanently                                              | Store `customerContactId` and resolve via a port/read model                          |
-| Adding a field to `core/` "just for this module"                              | Core becomes a dumping ground; every module change becomes a core change | Keep it in the module, or generalize deliberately via a core abstraction with an ADR |
-| Business logic in a controller                                                | Untestable, unreusable, bypassed by jobs and event handlers              | Move to a use case                                                                   |
-| Manual `where organizationId = ...`                                           | Signals that tenant context was bypassed; RLS is the real defence        | Rely on `TransactionManager`                                                         |
-| `float`/`number` money, or `toFixed(2)`                                       | Silent financial corruption                                              | `@modubiz/money`                                                                     |
-| Hardcoded English string                                                      | Blocks all non-English markets                                           | i18n key                                                                             |
-| A module that only works if another is enabled, without declaring `dependsOn` | Runtime failure for tenants                                              | Declare the dependency                                                               |
-| Publishing an event nobody listens to "for later"                             | Dead contract that must be maintained forever                            | Add it when a consumer exists                                                        |
-| Renaming a published event in place                                           | Breaks every consumer silently                                           | Publish `.v2` alongside `.v1`, migrate, then retire                                  |
+| Anti-pattern                                                                  | Why it is fatal                                                            | Do instead                                                                                |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `import { InventoryService } from '../inventory/...'`                         | Destroys the boundary and the extraction path                              | Event, or a declared port                                                                 |
+| Joining `pos_sales` to `crm_contacts` in SQL                                  | Couples schemas permanently                                                | Store `customerContactId` and resolve via a port/read model                               |
+| Adding a field to `core/` "just for this module"                              | Core becomes a dumping ground; every module change becomes a core change   | Keep it in the module, or generalize deliberately via a core abstraction with an ADR      |
+| Business logic in a controller                                                | Untestable, unreusable, bypassed by jobs and event handlers                | Move to a use case                                                                        |
+| Manual `where organizationId = ...`                                           | Signals that tenant context was bypassed; RLS is the real defence          | Rely on `TransactionManager`                                                              |
+| `float`/`number` money, or `toFixed(2)`                                       | Silent financial corruption                                                | `@modubiz/money`                                                                          |
+| Hardcoded English string                                                      | Blocks all non-English markets                                             | i18n key                                                                                  |
+| A module that only works if another is enabled, without declaring `dependsOn` | Runtime failure for tenants                                                | Declare the dependency                                                                    |
+| Publishing an event nobody listens to "for later"                             | Dead contract that must be maintained forever                              | Add it when a consumer exists                                                             |
+| Module A writing journal entries for module B (financial coupling)            | Two modules own one ledger; reversals and reconciliation become impossible | The ledger owner (Accounting) consumes B's events and posts entries idempotently (ACC-15) |
+| Renaming a published event in place                                           | Breaks every consumer silently                                             | Publish `.v2` alongside `.v1`, migrate, then retire                                       |
 
 ---
 

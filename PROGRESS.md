@@ -1,7 +1,35 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 74 — **dark theme aligned to spec, Arabic UI font,
-date-picker icon fix**: the `.dark` palette was the stock shadcn default
+**Last updated:** Session 75 — **architecture, domain planning & documentation
+for Accounting & Invoicing + Purchasing & Suppliers**: PLAN.md gains **Phase 7
+(Accounting & Invoicing**, key `accounting`, prefix `acc_`) and **Phase 8
+(Purchasing & Suppliers**, key `purchasing`, prefix `pur_`) before production
+hardening, which is renumbered **Phase 9** (diagram, phase table, milestones
+v0.6/v0.7, post-MVP roadmap, risk register, testing matrix updated; total
+estimate 26–35 weeks). BUSINESS_RULES.md adds **§13 ACC-1..16** (double-entry
+balance, posting immutability, invoice lifecycle Draft→Issued→Partially
+Paid→Paid→Overdue→Void, per-line tax, e-invoice fields, idempotent subledger GL
+posting, plan-gated features) and **§14 PUR-1..13** (supplier directory +
+append-only vendor ledger, PO→GRN→bill→payment workflow, atomic GRN stock
+receiving, cost-variance movements, supplier returns, plan-gated purchase
+approval). DATA_MODEL.md adds **§10 `acc_` schema** (COA, tax rates, journal +
+append-only GL, invoices with e-invoice metadata columns, payments/allocations,
+credit notes, account-balance projection) and **§11 `pur_` schema** (suppliers,
+vendor ledger, requisitions, POs, GRNs, bills, payments, returns, settings).
+Inventory gains **`INVENTORY_MOVEMENT_PORT`**
+(receive/issue/returnToSupplier/adjustCost) +
+`inventory.stock.movement_recorded.v1`
+
+- `supplier_return`/`cost_adjustment` movement types — documented extensions,
+  not yet implemented. PRD §5.4 restructured into next-release modules, README
+  module table + status updated, ARCHITECTURE §6 documents the movement port and
+  subledger-to-GL flow, MODULE_GUIDE Step 0 gains ledger/feature-gate
+  questions + a financial-coupling anti-pattern. Module keys follow the
+  generator constraint (no hyphens): `accounting`/`purchasing`. **Docs only — no
+  code changed.**
+
+**Previous (Session 74):** dark theme aligned to spec, Arabic UI font,
+date-picker icon fix: the `.dark` palette was the stock shadcn default
 (background `222.2 84% 4.9%`, near-black) even though UI_UX_GUIDELINES §2.1
 documents a softer dark navy — now aligned (`--background 222 47% 11%`, cards
 `222 47% 14%`, borders `217 33% 20%`, ring `212 95% 68%`). Native date-picker
@@ -82,7 +110,9 @@ troubleshooting table. Prettier-clean. **Current phase:** Phase 6 — POS Module
 | 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified               |
 | 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                               |
 | 6 — POS Module                        | 🚧 Full stack  | 6.1–6.6 + 6.9 done; 6.7 offline engine + PWA shell (Sessions 64–65, 69) |
-| 7 — Production Hardening & Deployment | ⬜ Not started |                                                                         |
+| 7 — Accounting & Invoicing            | ⬜ Not started | Planned (Session 75): double-entry GL, AR invoicing, tax + e-invoicing  |
+| 8 — Purchasing & Suppliers            | ⬜ Not started | Planned (Session 75): purchase-to-pay, vendor ledger, GRN→stock         |
+| 9 — Production Hardening & Deployment | ⬜ Not started |                                                                         |
 
 ---
 

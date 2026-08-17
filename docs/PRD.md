@@ -190,15 +190,55 @@ graph LR
 - Deducts stock through `InventoryStockPort` inside the checkout transaction
 - Emits: sale completed, sale refunded, shift opened, shift closed
 
-### 5.4 Planned future modules (not MVP)
+### 5.4 Next release modules (post-MVP, pre-hardening)
 
-E-commerce storefront · Food Ordering & Delivery (real-time) · HR & Payroll-lite
-· Project Management · Accounting-lite · Purchasing & Suppliers.
+**Accounting & Invoicing** (Phase 7) and **Purchasing & Suppliers** (Phase 8)
+are the first modules after MVP — planned explicitly in [PLAN.md](./PLAN.md)
+before production hardening.
 
-Each must be addable per [MODULE_GUIDE.md](./MODULE_GUIDE.md) with **no core
+#### Accounting & Invoicing
+
+- **Double-entry bookkeeping**: balanced journal entries (total debits = total
+  credits), a default SME chart of accounts, sequential entry numbering, and an
+  append-only general ledger — posted entries are immutable and corrected only
+  by reversal entries.
+- **Tax & e-invoicing ready**: multi-tax-rate support (VAT, zero-rated, exempt)
+  per line item, plus e-invoice metadata fields (UUID, hash, IRN, QR, status)
+  ready for ZATCA Phase 2 / Egyptian ETA compliance adapters behind a provider
+  port.
+- **Accounts receivable**: invoice lifecycle
+  `Draft → Issued → Partially Paid → Paid → Overdue → Void`, credit notes,
+  payment application with partial allocations, AR aging.
+- **Subledger integration**: automatic invoice generation from completed POS
+  sales (idempotent), GL posting from inventory movements and — from Phase 8 —
+  purchase bills and supplier payments; goods invoices deduct stock through
+  Inventory's movement port in the same transaction.
+- **Plan-gated features**: `advanced_coa`, `e_invoicing` toggled per
+  organization subscription plan, enforced server-side.
+
+#### Purchasing & Suppliers
+
+- **Supplier directory** with payment terms, tax ids, contact details, and a
+  current vendor balance derived from an append-only **vendor ledger** (AP).
+- **Purchase workflow**:
+  `Purchase Requisition (optional) → Purchase Order → Goods Received Note → Purchase Bill → Payment`.
+- **Inventory & cost-basis sync**: GRN receiving increases warehouse stock
+  atomically through Inventory's movement port; average-cost/FIFO valuation
+  updates on bill approval without rewriting history (cost-variance movement).
+- **Supplier returns & debit notes**: return damaged items to suppliers,
+  reducing both accounts payable and stock in one transaction.
+- **Plan-gated feature**: `purchase_approval` (multi-step approval chain),
+  enforced server-side.
+
+Both must be addable per [MODULE_GUIDE.md](./MODULE_GUIDE.md) with **no core
 changes**.
 
-### 5.5 Platform Admin Console (back-office)
+### 5.5 Planned future modules (later)
+
+E-commerce storefront · Food Ordering & Delivery (real-time) · HR & Payroll-lite
+· Project Management.
+
+### 5.6 Platform Admin Console (back-office)
 
 An internal back-office for ModuBiz staff (the **Platform Admin** persona) to
 operate the SaaS itself — separate from tenant-facing dashboards and reached at
@@ -366,7 +406,8 @@ resolved at runtime.
 
 ## 12. Out of scope for MVP
 
-- Full double-entry accounting and tax filing
+- Full double-entry accounting and tax filing (planned as Phase 7 — Accounting &
+  Invoicing)
 - Manufacturing / MRP / bill of materials
 - Native mobile applications (the POS is a responsive, installable PWA)
 - Third-party module marketplace and external developer SDK

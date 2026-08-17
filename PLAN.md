@@ -44,23 +44,30 @@ graph LR
     P3 --> P5["Phase 5<br/>Inventory Module"]
     P5 --> P6["Phase 6<br/>POS Module"]
     P4 --> P6
-    P6 --> P7["Phase 7<br/>Production Hardening & Deployment"]
+    P6 --> P7["Phase 7<br/>Accounting & Invoicing"]
     P5 --> P7
-    P4 --> P7
+    P7 --> P8["Phase 8<br/>Purchasing & Suppliers"]
+    P8 --> P9["Phase 9<br/>Production Hardening & Deployment"]
 ```
 
-| Phase | Goal                                           | Duration estimate | Exit criterion                                                                   |
-| ----- | ---------------------------------------------- | ----------------- | -------------------------------------------------------------------------------- |
-| 0     | Runnable monorepo with all quality gates green | 1 week            | `pnpm install && pnpm lint && pnpm typecheck` pass on an empty workspace         |
-| 1     | Core shared kernel with full test coverage     | 3–4 weeks         | All `core/` unit + integration tests green; RLS proven by isolation tests        |
-| 2     | Platform capabilities + frontend shell         | 3–4 weeks         | A user can sign up, create an org, log in, manage members, enable a module trial |
-| 3     | Module framework + generator                   | 1–2 weeks         | `pnpm generate:module demo` produces a valid module with zero `core/` changes    |
-| 4     | CRM module (full stack)                        | 2–3 weeks         | CRM DoD checklist complete; all CRM-* rules tested                               |
-| 5     | Inventory module (full stack)                  | 3–4 weeks         | Inventory DoD complete; `InventoryStockPort` provided; INV-* rules tested        |
-| 6     | POS module (full stack, offline-first PWA)     | 4–5 weeks         | POS DoD complete; offline sync proven; POS-* rules tested                        |
-| 7     | Production hardening & deployment              | 2–3 weeks         | v1.0 deployed to production; all NFRs verified                                   |
+> Data flows not drawn: Phase 8 purchasing events (bills, payments, supplier
+> returns) feed Phase 7 accounting's AP journal entries; Phase 7 goods invoices
+> and Phase 8 GRNs call Inventory's movement port (Level 3, same transaction).
 
-**Total estimate:** 19–26 weeks (one developer). Parallelization on phases 4–5
+| Phase | Goal                                           | Duration estimate | Exit criterion                                                                                    |
+| ----- | ---------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| 0     | Runnable monorepo with all quality gates green | 1 week            | `pnpm install && pnpm lint && pnpm typecheck` pass on an empty workspace                          |
+| 1     | Core shared kernel with full test coverage     | 3–4 weeks         | All `core/` unit + integration tests green; RLS proven by isolation tests                         |
+| 2     | Platform capabilities + frontend shell         | 3–4 weeks         | A user can sign up, create an org, log in, manage members, enable a module trial                  |
+| 3     | Module framework + generator                   | 1–2 weeks         | `pnpm generate:module demo` produces a valid module with zero `core/` changes                     |
+| 4     | CRM module (full stack)                        | 2–3 weeks         | CRM DoD checklist complete; all CRM-* rules tested                                                |
+| 5     | Inventory module (full stack)                  | 3–4 weeks         | Inventory DoD complete; `InventoryStockPort` provided; INV-* rules tested                         |
+| 6     | POS module (full stack, offline-first PWA)     | 4–5 weeks         | POS DoD complete; offline sync proven; POS-* rules tested                                         |
+| 7     | Accounting & Invoicing (full stack)            | 4–5 weeks         | Accounting DoD complete; double-entry, AR lifecycle, tax + e-invoicing fields; ACC-* rules tested |
+| 8     | Purchasing & Suppliers (full stack)            | 3–4 weeks         | Purchasing DoD complete; purchase-to-pay, vendor ledger, GRN→stock atomicity; PUR-* rules tested  |
+| 9     | Production hardening & deployment              | 2–3 weeks         | v1.0 deployed to production; all NFRs verified                                                    |
+
+**Total estimate:** 26–35 weeks (one developer). Parallelization on phases 4–5
 can reduce this.
 
 ---
@@ -1304,13 +1311,476 @@ limit (**OPS-6**). All mutating endpoints accept `Idempotency-Key` (**OPS-1**).
 
 ---
 
-## Phase 7 — Production Hardening & Deployment
+## Phase 7 — Accounting & Invoicing Module (Full Stack)
 
-**Goal:** Take the fully built and tested system from Phase 6 and harden it for
+**Goal:** Build the Accounting & Invoicing module — double-entry bookkeeping
+(general ledger), customer invoicing with a full accounts-receivable lifecycle,
+tax and regional e-invoicing readiness (ZATCA Phase 2 / Egyptian ETA), and
+automatic GL posting from subledger events (POS sales, inventory movements, and
+— from Phase 8 — purchasing bills and payments). The books are immutable from
+day one: posted entries are only ever reversed, never edited.
+
+**Prerequisites:** Phase 6 complete (POS sales are the first subledger source).
+Inventory (Phase 5) must be registered because accounting consumes its movement
+port and stock-movement events — but it is **not** a hard dependency: when
+inventory is unentitled, accounting operates in service-invoice-only mode
+(mirrors the POS-18 pattern).
+
+**Governing documents:** [MODULE_GUIDE.md](./docs/MODULE_GUIDE.md) (follow
+literally) · [DATA_MODEL.md §10](./docs/DATA_MODEL.md) (acc_ schema) ·
+[BUSINESS_RULES.md §13](./docs/BUSINESS_RULES.md) (ACC-* rules) ·
+[ARCHITECTURE.md §6](./docs/ARCHITECTURE.md#6-cross-module-communication) (Level
+3 port)
+
+### 7.0 Prerequisite platform + inventory extensions (build once, unblock Phase 8)
+
+**7.0.1 Plan-gated feature mechanism.** The platform gains the ability to carry
+a plan's feature set so "Advanced Chart of Accounts" and similar features are
+toggleable per organization subscription plan:
+
+1. Add an optional `features jsonb` column to `core_module_entitlements`
+   (platform forward migration): the plan tier's enabled feature keys
+   (`advanced_coa`, `e_invoicing`, `purchase_approval`, …). Billing computes the
+   set at enable and on plan change; the entitlement row remains the runtime
+   authority (BILL-4 semantics).
+2. Declare the feature catalog in `@modubiz/contracts` (`MODULE_FEATURES`:
+   `moduleKey`, `featureKey`, `defaultEnabled`).
+3. Enforcement is **server-side in use cases** (OPS-8) — client-side gating is
+   UX only. Feature-flag changes are audited (AUD-1).
+
+This is a platform extension, not a `core/` change — same justification as the
+Phase 4.0.2 OpenAPI pipeline and Phase 5.6 `TransactionRef` completions.
+
+**7.0.2 Inventory: movement port + movement-recorded event.** Accounting needs
+two inventory-side capabilities, both implemented **inside the inventory
+module** (zero core changes):
+
+1. **`INVENTORY_MOVEMENT_PORT`** (Level 3, `TransactionRef`) — inventory's
+   second provided port. Methods: `issue` (deduct stock for goods-invoice
+   issuance, used by accounting), `receive` (increase stock + moving-average
+   cost for GRN receiving, used by Phase 8), `returnToSupplier` (remove stock on
+   supplier returns, used by Phase 8), `adjustCost` (cost-variance movement on
+   bill approval, used by Phase 8). Implemented as
+   `ports/inventory-movement.port.impl.ts`.
+2. **`inventory.stock.movement_recorded.v1`** — new published event carrying the
+   full movement payload (type, signed quantity, unit cost, currency, reference
+   type/id, occurred_at) so accounting can post the GL entry idempotently, keyed
+   on the movement id. The existing `level_changed` event is for availability
+   UIs, not the ledger.
+3. New movement types `supplier_return` and `cost_adjustment` — added to the
+   `inv_stock_movement_type` enum by a forward `ALTER TYPE ... ADD VALUE`
+   migration. Historical rules INV-1/INV-2/INV-12 are unchanged: cost is never
+   rewritten retroactively; a variance is a new compensating movement.
+
+**Tests:** port methods enforce inventory invariants inside a tenant-bound
+transaction; `movement_recorded.v1` payload validates against its schema;
+movement-type enum migration applies forward.
+
+### 7.1 Declare contracts first
+
+In `packages/contracts` (before any implementation —
+[MODULE_GUIDE.md Step 1](./docs/MODULE_GUIDE.md#step-1--declare-the-contract-first)):
+
+1. `MODULE_KEYS.ACCOUNTING = 'accounting'`, `dependsOn: []` (inventory and POS
+   are optional at runtime, entitlement-gated).
+2. Permissions: `accounting:coa:manage`, `accounting:tax:manage`,
+   `accounting:journal:post`, `accounting:invoice:read`,
+   `accounting:invoice:write`, `accounting:payment:apply`,
+   `accounting:credit-note:issue`, `accounting:report:view`,
+   `accounting:settings:manage`.
+3. Events **published**: `accounting.invoice.issued.v1`,
+   `accounting.invoice.paid.v1`, `accounting.credit_note.issued.v1`,
+   `accounting.journal.posted.v1`, `accounting.payment.received.v1`.
+4. Events **consumed** (idempotent handlers): `pos.sale.completed.v1`
+   (auto-invoice — POS-25/26 idempotency),
+   `inventory.stock.movement_recorded.v1` (GL for stock), and the Phase 8
+   contracts co-declared here so consumers can be written in parallel
+   (MODULE_GUIDE Step 1): `purchasing.bill.approved.v1`,
+   `purchasing.payment.recorded.v1`, `purchasing.supplier_return.approved.v1`
+   (AP journal entries).
+5. **Port consumed**: `INVENTORY_MOVEMENT_PORT` (`issue` — Level 3, stock
+   deduction inside the issuance transaction).
+6. `MODULE_FEATURES`: `accounting.advanced_coa` (default on),
+   `accounting.e_invoicing` (default on).
+
+### 7.2 Scaffold
+
+```bash
+pnpm generate:module accounting
+```
+
+### 7.3 Schema & migrations
+
+Follow [DATA_MODEL.md §10](./docs/DATA_MODEL.md):
+
+1. `0001_init.sql` — `acc_accounts` (COA), `acc_tax_rates`,
+   `acc_journal_entries`, `acc_journal_lines`, `acc_invoices`,
+   `acc_invoice_lines`, `acc_payments`, `acc_payment_allocations`,
+   `acc_credit_notes`, `acc_credit_note_lines`, `acc_account_balances` (derived
+   projection), `acc_org_settings`. All with mandatory base columns; money pairs
+   everywhere; e-invoice columns on `acc_invoices` (UUID, hash, IRN, QR,
+   status).
+2. `0002_rls.sql` — standard RLS block on every table.
+3. `0003_append_only.sql` — `acc_journal_entries` / `acc_journal_lines` are
+   append-only once posted (no UPDATE/DELETE — ACC-2, hard rule #8 pattern).
+4. `0004_gl_invariants.sql` — DB-level backstops for the core invariants:
+   balanced-entry CHECK/trigger (ACC-1), line CHECK (exactly one of
+   debit/credit > 0, ACC-4), `UNIQUE (organization_id, entry_number)` (ACC-3),
+   `UNIQUE (organization_id, invoice_number)`, partial unique on journal
+   `idempotency_key` (ACC-15), partial unique `uq_acc_invoices_reversed` for
+   open credit notes (ACC-10).
+
+### 7.4 Domain layer
+
+Pure TypeScript. Enforce
+[BUSINESS_RULES.md §13](./docs/BUSINESS_RULES.md#13-accounting-and-invoicing-rules):
+
+1. `Account` + `ChartOfAccounts` — ACC-5 (system accounts immutable), ACC-16
+   (advanced COA feature gate).
+2. `JournalEntry` + `JournalLine` — ACC-1 (balanced), ACC-2 (posted immutable,
+   reversal only), ACC-3 (numbers), ACC-4 (one account, one side, single
+   currency, positive minor units).
+3. `TaxRate` — ACC-11 (per-line bp tax; zero/exempt types).
+4. `Invoice` + `InvoiceLine` — ACC-6 (issue posts AR entry), ACC-7 (issued is
+   immutable; credit note reversal), ACC-8 (status machine
+   Draft→Issued→Partially Paid→Paid→Overdue→Void), ACC-9 (payment application),
+   ACC-10 (credit notes ≤ net), ACC-12 (e-invoice fields), ACC-14 (goods lines
+   deduct stock via the port).
+5. `CreditNote` — ACC-10.
+
+**Tests (unit, rule-cited):**
+
+- `it('ACC-1: rejects a journal entry whose debits do not equal credits')`
+- `it('ACC-2: a posted entry can only be reversed, never edited')`
+- `it('ACC-3: entry numbers are sequential and gap-free per organization')`
+- `it('ACC-4: rejects a line with both debit and credit, or a zero amount')`
+- `it('ACC-5: system accounts cannot be deleted or renumbered')`
+- `it('ACC-6: issuing an invoice posts the AR entry atomically')`
+- `it('ACC-8: rejects an illegal invoice status transition')`
+- `it('ACC-9: payment application cannot exceed the invoice total')`
+- `it('ACC-11: invoice tax total equals the sum of line taxes')`
+- `it('ACC-14: goods lines require inventory entitlement and deduct stock in the same transaction')`
+
+### 7.5 Application layer
+
+One use case per operation, each owning its transaction:
+
+1. `EnsureDefaultChartOfAccountsUseCase` — **ACC-5 via lazy idempotent ensure**
+   (CRM-3 pattern): the first COA read / journal write seeds the default SME
+   chart if none exists; `onEnableSeed` stays declared-but-unused, and the
+   generated `db/seed-on-enable.ts` scaffold is deleted (no dead code per DoD).
+2. `PostJournalEntryUseCase` (ACC-1/3/4), `ReverseJournalEntryUseCase` (ACC-2).
+3. `IssueInvoiceUseCase` — validates state (ACC-8), posts the AR entry (ACC-6),
+   calls `INVENTORY_MOVEMENT_PORT.issue` for goods lines **inside the same
+   transaction** (ACC-14 — if stock fails, issuance fails).
+4. `ApplyPaymentUseCase` — partial allocations (ACC-9), posts the receipt entry
+   (Dr Bank/Cash, Cr AR).
+5. `IssueCreditNoteUseCase` — ACC-10, posts the reversal.
+6. `GenerateInvoiceFromPosSaleUseCase` — ACC-13: idempotent per
+   `pos.sale.completed.v1` payload (sale idempotency key → one invoice).
+7. GL event handlers — `PosSaleCompletedHandler`,
+   `InventoryMovementRecordedHandler`, `PurchasingBillApprovedHandler`,
+   `PurchasingPaymentRecordedHandler`,
+   `PurchasingSupplierReturnApprovedHandler`: validate the payload at the
+   boundary, dedupe by source id (ACC-15), delegate to the post-entry use case.
+   The purchasing handlers are wired in Phase 7 and exercised end-to-end in
+   Phase 8.
+8. Jobs: `OverdueInvoiceJob` (ACC-8), `GlReconciliationJob` (ACC-15 — nightly,
+   asserts `acc_account_balances` projection = GL line sums and GL = subledger
+   totals; alerts on drift), `EInvoiceStatusJob` (provider status polling).
+9. All mutating use cases write audit entries (AUD-1) and collect events for
+   after-commit publishing.
+
+**Tests (integration, Testcontainers + RLS):**
+
+- `it('ACC-1: a use case can never persist an unbalanced entry')`
+- `it('ACC-6: issuance posts Dr AR / Cr Revenue / Cr VAT in one transaction')`
+- `it('ACC-13: a replayed pos.sale.completed.v1 creates exactly one invoice')`
+- `it('ACC-14: goods-invoice issuance deducts stock atomically; stock failure fails the invoice')`
+- `it('ACC-15: GL vs subledger reconciliation reports zero drift after event replay')`
+- `it('publishes accounting.invoice.issued.v1 only after commit')`
+
+### 7.6 API layer
+
+Controllers under `v1/accounting/...`, annotated with
+`@RequiresModule(MODULE_KEYS.ACCOUNTING)` + `@RequiresPermission(...)`. No
+business logic. Money via `Money`/DTO serialization (CUR-9). Reports (trial
+balance, income statement, balance sheet, AR aging) are read-only and paginated;
+ledger reports use the `acc_account_balances` projection (DATA_MODEL §11.4),
+never a full ledger scan.
+
+### 7.7 Events
+
+Publish the 5 declared events after commit; consume the declared subledger
+events idempotently. Event contract tests validate payloads against schemas;
+handler idempotency is tested by replay (OPS-2).
+
+### 7.8 Frontend
+
+1. Routes under `app/[locale]/(dashboard)/m/accounting/` — chart of accounts,
+   journal, invoices (list + editor with multi-tax lines), credit notes, AR
+   aging, reports.
+2. Feature code in `features/accounting/`; `<ModuleGate module="accounting">`
+   everywhere; `<Can permission="...">` on mutating controls.
+3. Message catalogs `modules.accounting.*` for `en`, `ar`, `fr`, `es`.
+4. Plan-gated features render only when entitled (UX mirror of ACC-16).
+5. Invoices show tax breakdown, payment history, credit-note trail, and
+   e-invoice status (QR preview where the provider supplies one).
+
+**Tests:**
+
+- E2E: Accounting journey — ensure COA → issue invoice → partial payment →
+  credit note (`accounting-journey.e2e.spec.ts`).
+- i18n: all accounting keys present in all locales.
+
+### 7.9 Mandatory isolation & architecture tests
+
+`__tests__/isolation/accounting.isolation.spec.ts` — all required cases from
+[TESTING.md §6](./docs/TESTING.md#6-tenant-isolation-tests-mandatory-per-module)
+(cross-org read/update/delete/list on accounts, entries, invoices, payments;
+injected `organizationId` ignored; no-context zero rows; entitlement and
+permission denials).
+
+### 7.10 Register & document
+
+1. Add to `registered-modules.ts` and `app.module.ts`; register feature keys in
+   the billing/entitlement mapping (7.0.1).
+2. Update `README.md` module table; regenerate OpenAPI + `@modubiz/api-client`.
+3. Update [docs/DATA_MODEL.md §10](./docs/DATA_MODEL.md) and
+   [docs/BUSINESS_RULES.md §13](./docs/BUSINESS_RULES.md) with any
+   implementation-learned corrections (docs are the law — same PR).
+
+### Phase 7 — Definition of Done
+
+- [ ] Full MODULE_GUIDE DoD checklist complete
+- [ ] All **ACC-1** through **ACC-16** rules tested
+- [ ] Posted journal entries are immutable; reversal is the only correction path
+      (trigger + test)
+- [ ] Default SME COA seeds lazily and idempotently; system accounts protected
+- [ ] Invoice lifecycle Draft→Issued→Partially Paid→Paid→Overdue→Void tested;
+      overdue job green
+- [ ] Multi-tax lines (VAT/zero/exempt) and e-invoice metadata columns present
+      and validated
+- [ ] Auto-invoice from `pos.sale.completed.v1` idempotent; GL entries posted
+      for inventory movements
+- [ ] `INVENTORY_MOVEMENT_PORT.issue` is transactional with invoice issuance
+- [ ] Nightly GL reconciliation job tested (ACC-15)
+- [ ] Plan-gated features enforced server-side (ACC-16); toggles audited
+- [ ] Tenant isolation test passing; event contract tests passing
+- [ ] E2E: accounting journey committed (`accounting-journey.e2e.spec.ts`)
+- [ ] Zero `core/` changes; module folder self-contained
+
+---
+
+## Phase 8 — Purchasing & Suppliers Module (Full Stack)
+
+**Goal:** Build the Purchasing & Suppliers module — the complete purchase-to-pay
+cycle (requisition → PO → GRN → bill → payment), a supplier directory with a
+vendor ledger (accounts payable), and supplier returns/debit notes — with GRN
+receiving increasing warehouse stock **atomically** through Inventory's movement
+port and cost-basis sync on bill approval.
+
+**Prerequisites:** Phase 5 complete — inventory is a **hard dependency**
+(`dependsOn: ['inventory']`). Phase 7 (accounting) is **not** a dependency:
+purchasing owns the vendor subledger and publishes events; accounting consumes
+them to post AP journal entries. The cross-module integration tests for that
+path land here (8.8), once both modules exist.
+
+**Governing documents:** [MODULE_GUIDE.md](./docs/MODULE_GUIDE.md) ·
+[DATA_MODEL.md §11](./docs/DATA_MODEL.md) (pur_ schema) ·
+[BUSINESS_RULES.md §14](./docs/BUSINESS_RULES.md#14-purchasing-and-suppliers-rules)
+(PUR-* rules) ·
+[ARCHITECTURE.md §6](./docs/ARCHITECTURE.md#6-cross-module-communication)
+
+### 8.1 Declare contracts first
+
+1. `MODULE_KEYS.PURCHASING = 'purchasing'`, `dependsOn: ['inventory']`.
+2. Permissions: `purchasing:supplier:read/write`,
+   `purchasing:requisition:write`, `purchasing:po:write`,
+   `purchasing:grn:receive`, `purchasing:bill:approve`,
+   `purchasing:payment:record`, `purchasing:return:create`,
+   `purchasing:report:view`.
+3. Events **published**: `purchasing.supplier.created.v1`,
+   `purchasing.po.approved.v1`, `purchasing.grn.received.v1`,
+   `purchasing.bill.approved.v1`, `purchasing.payment.recorded.v1`,
+   `purchasing.supplier_return.approved.v1`.
+4. **Port consumed**: `INVENTORY_MOVEMENT_PORT` (Level 3 — `receive` for GRN,
+   `returnToSupplier` for supplier returns, `adjustCost` for bill cost
+   variance).
+5. `MODULE_FEATURES`: `purchasing.purchase_approval` (default off — see 8.4 for
+   the behaviour split).
+
+### 8.2 Scaffold
+
+```bash
+pnpm generate:module purchasing
+```
+
+### 8.3 Schema & migrations
+
+Follow [DATA_MODEL.md §11](./docs/DATA_MODEL.md):
+
+1. `0001_init.sql` — `pur_suppliers`, `pur_vendor_ledger`, `pur_requisitions`,
+   `pur_requisition_lines`, `pur_purchase_orders`, `pur_po_lines`, `pur_grns`,
+   `pur_grn_lines`, `pur_bills`, `pur_bill_lines`, `pur_supplier_payments`,
+   `pur_payment_allocations`, `pur_supplier_returns`,
+   `pur_supplier_return_lines`, `pur_org_settings`. Mandatory base columns;
+   money pairs everywhere; inventory ids stored **without FK** (hard rule #1).
+2. `0002_rls.sql` — standard RLS block on every table.
+3. `0003_append_only.sql` — `pur_vendor_ledger` append-only (no UPDATE/DELETE —
+   PUR-2).
+4. Critical constraints: `UNIQUE (organization_id, idempotency_key)` on
+   `pur_vendor_ledger` and `pur_bills` (PUR-13/OPS-1); sequential unique numbers
+   on PO/GRN/bill/payment (`UNIQUE (organization_id, number)`, PUR-3/6/7);
+   `ck_pur_grn_lines_quantity` (`received <= remaining PO quantity`, PUR-4);
+   partial unique `uq_pur_bills_open_credit` (PUR-11, supplier returns).
+
+### 8.4 Domain layer
+
+Enforce
+[BUSINESS_RULES.md §14](./docs/BUSINESS_RULES.md#14-purchasing-and-suppliers-rules):
+
+1. `Supplier` — PUR-1 (directory, payment terms, tax ids, contact details).
+2. `PurchaseOrder` + `PoLine` — PUR-2 (variant refs without FK, service lines),
+   PUR-3 (status machine, cancel rules).
+3. `Grn` + `GrnLine` — PUR-4 (stock increase atomic via the port, ≤ remaining PO
+   quantity), PUR-5 (received is immutable).
+4. `Bill` + `BillLine` — PUR-6 (approval requires received GRN or service
+   justification; posts AP via event), PUR-7 (partially_paid/paid/void), PUR-9
+   (cost variance → `cost_adjustment` movement).
+5. `VendorLedgerEntry` — PUR-2 (append-only, signed amounts).
+6. `SupplierReturn` — PUR-11 (reason code; reduces AP + stock atomically).
+7. `ApprovalWorkflow` — PUR-12 (plan-gated purchase approval).
+
+**Tests (unit, rule-cited):**
+
+- `it('PUR-1: rejects a supplier without a name or tax id')`
+- `it('PUR-3: rejects cancelling a PO that has receipts')`
+- `it('PUR-4: rejects a GRN line exceeding the PO remaining quantity')`
+- `it('PUR-5: a received GRN is immutable')`
+- `it('PUR-7: payment application cannot exceed the bill total')`
+- `it('PUR-11: a supplier return requires a reason code')`
+- `it('PUR-2: vendor balance equals the signed sum of ledger entries')`
+- `it('PUR-12: without the purchase_approval feature a requisition approves inline')`
+
+### 8.5 Application layer
+
+1. `CreateSupplierUseCase`, `UpdateSupplierUseCase`.
+2. `SubmitRequisitionUseCase` / `ApproveRequisitionUseCase` — PUR-12 (feature
+   off ⇒ authorized user approves inline; on ⇒ approval chain, audited).
+3. `CreatePurchaseOrderUseCase`, `ApprovePurchaseOrderUseCase` — PUR-3.
+4. `ReceiveGrnUseCase` — PUR-4: creates GRN lines and calls
+   `INVENTORY_MOVEMENT_PORT.receive` **inside the same transaction** at PO cost
+   (moving average recalculates — INV-12); publishes `grn.received.v1` after
+   commit. **PUR-5** locks the GRN.
+5. `ApproveBillUseCase` — PUR-6/7/10: validates three-way match (bill ≤
+   received), posts cost variance via `adjustCost`, records the AP vendor ledger
+   entry, publishes `bill.approved.v1` (accounting posts Dr Inventory / Cr AP).
+6. `RecordSupplierPaymentUseCase` — PUR-7: allocations across bills, vendor
+   ledger debit, publishes `payment.recorded.v1`.
+7. `ApproveSupplierReturnUseCase` — PUR-11: debit note + stock removal via
+   `returnToSupplier` in one transaction; publishes
+   `supplier_return.approved.v1`.
+8. All mutating use cases write audit entries and collect events for
+   after-commit publishing; idempotency keys accepted (PUR-13/OPS-1).
+
+**Tests (integration):**
+
+- `it('PUR-4: GRN receiving increases warehouse stock in the same transaction as the GRN')`
+- `it('PUR-6: approving a bill without a received GRN is rejected')`
+- `it('PUR-11: a supplier return removes stock and reduces AP atomically')`
+- `it('PUR-9: bill cost variance creates a cost_adjustment movement, never rewrites history')`
+- `it('PUR-13: a retried bill approval with the same idempotency_key is a no-op')`
+- `it('publishes purchasing.bill.approved.v1 only after commit')`
+
+### 8.6 API layer
+
+Controllers under `v1/purchasing/...` with
+`@RequiresModule(MODULE_KEYS.PURCHASING)`
+
+- `@RequiresPermission(...)`. No business logic.
+
+### 8.7 Events
+
+Publish the 6 declared events after commit. No handlers needed in this phase
+(purchasing reacts to nothing); accounting's handlers (Phase 7) are exercised
+end-to-end in 8.8.
+
+### 8.8 Cross-module integration (with accounting)
+
+1. **Three-way match to GL**: approve a bill → assert accounting posts the AP
+   journal entry (Dr Inventory/Expense, Cr AP, Cr VAT) via the idempotent
+   `purchasing.bill.approved.v1` handler.
+2. **Payment to GL**: record a supplier payment → accounting posts Dr AP, Cr
+   Bank.
+3. **Supplier return to GL**: approve a return → accounting posts the debit-note
+   reversal (Cr Inventory, Dr AP).
+4. **GRN to inventory**: `INVENTORY_MOVEMENT_PORT.receive` atomicity under
+   concurrent GRNs for the same PO line (no overshoot — PUR-4).
+
+**Tests:** integration tests against real Postgres with RLS + the accounting
+module enabled; event contract tests validate payloads.
+
+### 8.9 Frontend
+
+1. Routes under `app/[locale]/(dashboard)/m/purchasing/` — suppliers,
+   requisitions, purchase orders, GRNs, bills, supplier payments, supplier
+   returns, vendor balances.
+2. `<ModuleGate module="purchasing">` + `<Can permission="...">`; feature code
+   in `features/purchasing/`; message catalogs in all four locales.
+3. Plan-gated approval UI renders only when the feature is entitled (PUR-12).
+4. Vendor balance view reads the derived balance; ledger view is append-only (no
+   edit/delete buttons — PUR-2).
+
+**Tests:**
+
+- E2E: Purchasing journey — create supplier → PO → GRN (stock rises) → bill →
+  payment (`purchasing-journey.e2e.spec.ts`).
+- i18n: all purchasing keys in all locales.
+
+### 8.10 Mandatory isolation & architecture tests
+
+`__tests__/isolation/purchasing.isolation.spec.ts` — all required cases
+(cross-org read/update/delete/list on suppliers, POs, GRNs, bills, vendor
+ledger; injected `organizationId` ignored; no-context zero rows; entitlement and
+permission denials).
+
+### 8.11 Register & document
+
+1. Add to `registered-modules.ts` and `app.module.ts`.
+2. Update `README.md` module table; regenerate OpenAPI + `@modubiz/api-client`.
+3. Update [docs/DATA_MODEL.md §11](./docs/DATA_MODEL.md) and
+   [docs/BUSINESS_RULES.md §14](./docs/BUSINESS_RULES.md) with any
+   implementation-learned corrections.
+
+### Phase 8 — Definition of Done
+
+- [ ] Full MODULE_GUIDE DoD checklist complete
+- [ ] All **PUR-1** through **PUR-13** rules tested
+- [ ] `pur_vendor_ledger` is append-only (trigger + test)
+- [ ] GRN receiving increases stock atomically via the Level 3 movement port;
+      concurrency-safe against overshoot (PUR-4)
+- [ ] Three-way match enforced; bill cost variance → `cost_adjustment` movement
+      (PUR-9), never retroactive cost rewrite (INV-12)
+- [ ] Supplier returns reduce AP and stock in one transaction (PUR-11)
+- [ ] Vendor balance = signed ledger sum; reconciliation tested (PUR-2)
+- [ ] Purchase-approval feature plan-gated and server-enforced (PUR-12)
+- [ ] Accounting integration green: bill/payment/return events post correct AP
+      journal entries idempotently
+- [ ] Tenant isolation test passing; event contract tests passing
+- [ ] E2E: purchasing journey committed (`purchasing-journey.e2e.spec.ts`)
+- [ ] Zero `core/` changes; module folder self-contained
+
+---
+
+## Phase 9 — Production Hardening & Deployment
+
+**Goal:** Take the fully built and tested system from Phase 8 and harden it for
 production — security audit, performance validation, observability dashboards,
 deployment pipelines, and a staged rollout.
 
-**Prerequisites:** Phases 0–6 complete. All MVP modules functional and tested.
+**Prerequisites:** Phases 0–8 complete. All business modules functional and
+tested.
 
 **Governing documents:**
 [PRD.md §9](./docs/PRD.md#9-non-functional-requirements) ·
@@ -1318,7 +1788,7 @@ deployment pipelines, and a staged rollout.
 [CODING_STANDARDS.md §11](./docs/CODING_STANDARDS.md#11-security-requirements) ·
 [CODE_QUALITY.md](./docs/CODE_QUALITY.md)
 
-### 7.1 Security hardening
+### 9.1 Security hardening
 
 1. **OWASP Top 10 review** — go through each item with a checklist; document
    mitigations.
@@ -1341,7 +1811,7 @@ deployment pipelines, and a staged rollout.
   refresh-token reuse, rate limiting, last-owner protection, role escalation,
   webhook tampering, SQL injection.
 
-### 7.2 Performance validation
+### 9.2 Performance validation
 
 1. **k6 load test** — nightly run against a seeded dataset (1,000 orgs, 1M
    movements):
@@ -1360,7 +1830,7 @@ deployment pipelines, and a staged rollout.
 - Performance suite from
   [TESTING.md §7](./docs/TESTING.md#7-specialized-suites).
 
-### 7.3 Observability
+### 9.3 Observability
 
 1. **Grafana dashboards** — API latency, error rate, tenant count, job queue
    depth, RLS denial count.
@@ -1371,13 +1841,13 @@ deployment pipelines, and a staged rollout.
 5. **Alerting** — RLS denial spike, error budget burn, sync failure rate, queue
    depth.
 
-### 7.4 Data durability & backups
+### 9.4 Data durability & backups
 
 1. **Point-in-time recovery** — ≥ 7 days (NFR).
 2. **Nightly logical backup** — verified by a monthly restore drill.
 3. **Backup automation** — documented and tested.
 
-### 7.5 Deployment pipeline
+### 9.5 Deployment pipeline
 
 1. **Environments** — `development` → `staging` → `production`.
 2. **API deployment** — Docker multi-stage build (distroless); deploy to
@@ -1391,7 +1861,7 @@ deployment pipelines, and a staged rollout.
 7. **Rollback plan** — documented per release; migrations include rollback
    plans.
 
-### 7.6 Staged rollout
+### 9.6 Staged rollout
 
 1. **Internal dogfooding** — the team uses the platform with real data.
 2. **Closed beta** — 5–10 friendly SMBs; gather feedback on time-to-value and
@@ -1399,7 +1869,7 @@ deployment pipelines, and a staged rollout.
 3. **Open beta** — broader signup; monitor error budget and performance.
 4. **Production v1.0** — general availability.
 
-### 7.7 Documentation & runbooks
+### 9.7 Documentation & runbooks
 
 1. **Operational runbook** — incident response, RLS denial investigation,
    entitlement drift reconciliation, offline sync failure handling.
@@ -1408,7 +1878,7 @@ deployment pipelines, and a staged rollout.
 3. **API documentation** — OpenAPI published; `@modubiz/api-client` regenerated.
 4. **User-facing help** — in-app onboarding tooltips (i18n keys).
 
-### Phase 7 — Definition of Done
+### Phase 9 — Definition of Done
 
 - [ ] OWASP Top 10 reviewed and documented
 - [ ] RLS coverage 100% on tenant tables (automated check)
@@ -1433,28 +1903,30 @@ deployment pipelines, and a staged rollout.
 
 ### Test levels and when they apply
 
-| Level                           | When                  | What                                                                 | Runner                      |
-| ------------------------------- | --------------------- | -------------------------------------------------------------------- | --------------------------- |
-| Unit                            | Every phase           | Domain invariants, pure logic, money, value objects                  | Vitest                      |
-| Integration                     | Phases 1–6            | Use cases → repositories → real Postgres with RLS                    | Vitest + Testcontainers     |
-| Architecture                    | Every phase           | Import boundaries, RLS coverage, money column types, FK prefix check | Vitest + dependency-cruiser |
-| Isolation                       | Phases 2, 4, 5, 6     | Cross-tenant access attempts                                         | Vitest + Testcontainers     |
-| Event contract                  | Phases 4, 5, 6        | Published payloads validate against schemas; handler idempotency     | Vitest                      |
-| Entitlement lifecycle           | Phase 2               | Full state machine with simulated Stripe webhooks                    | Vitest                      |
-| POS offline/idempotency         | Phase 6               | Idempotency keys, receipt sequencing, batch sync, oversell           | Vitest + E2E                |
-| Money/currency (property-based) | Phase 1               | Allocation, rounding, conversion round-trips                         | Vitest + fast-check         |
-| i18n                            | Phases 2, 4, 5, 6     | Key completeness, no orphans, error code mapping, RTL snapshot       | Custom script               |
-| Security                        | Phase 7 (and ongoing) | Token reuse, rate limiting, role escalation, webhook tampering, SQLi | Vitest                      |
-| Performance                     | Phase 7 (nightly)     | p95/p99 latency, POS checkout, regression detection                  | k6                          |
-| E2E                             | Phases 2, 4, 5, 6, 7  | Critical user journeys through the browser                           | Playwright                  |
+| Level                           | When                       | What                                                                                            | Runner                      |
+| ------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------- |
+| Unit                            | Every phase                | Domain invariants, pure logic, money, value objects                                             | Vitest                      |
+| Integration                     | Phases 1–8                 | Use cases → repositories → real Postgres with RLS                                               | Vitest + Testcontainers     |
+| Architecture                    | Every phase                | Import boundaries, RLS coverage, money column types, FK prefix check                            | Vitest + dependency-cruiser |
+| Isolation                       | Phases 2, 4, 5, 6, 7, 8    | Cross-tenant access attempts                                                                    | Vitest + Testcontainers     |
+| Event contract                  | Phases 4, 5, 6, 7, 8       | Published payloads validate against schemas; handler idempotency                                | Vitest                      |
+| Entitlement lifecycle           | Phase 2                    | Full state machine with simulated Stripe webhooks                                               | Vitest                      |
+| POS offline/idempotency         | Phase 6                    | Idempotency keys, receipt sequencing, batch sync, oversell                                      | Vitest + E2E                |
+| Money/currency (property-based) | Phase 1                    | Allocation, rounding, conversion round-trips                                                    | Vitest + fast-check         |
+| Double-entry & GL               | Phase 7                    | Balanced entries (ACC-1), posting immutability (ACC-2), GL vs subledger reconciliation (ACC-15) | Vitest + Testcontainers     |
+| Purchase-to-pay / AP            | Phase 8                    | Three-way match, GRN→stock atomicity (PUR-4), vendor ledger (PUR-2)                             | Vitest + Testcontainers     |
+| i18n                            | Phases 2, 4, 5, 6, 7, 8    | Key completeness, no orphans, error code mapping, RTL snapshot                                  | Custom script               |
+| Security                        | Phase 9 (and ongoing)      | Token reuse, rate limiting, role escalation, webhook tampering, SQLi                            | Vitest                      |
+| Performance                     | Phase 9 (nightly)          | p95/p99 latency, POS checkout, regression detection                                             | k6                          |
+| E2E                             | Phases 2, 4, 5, 6, 7, 8, 9 | Critical user journeys through the browser                                                      | Playwright                  |
 
 ### Rule-to-test traceability
 
 Every rule in [BUSINESS_RULES.md](./docs/BUSINESS_RULES.md) must appear in at
 least one test name. A CI report lists uncovered rule ids and **fails the
 build** if a critical rule (`TEN-*`, `AUTH-*`, `CUR-*`, `BILL-4`, `INV-1`,
-`INV-2`, `POS-26`) is uncovered. The plan's testing steps cite the specific rule
-ids for each phase.
+`INV-2`, `POS-26`, `ACC-1`, `ACC-2`, `PUR-4`) is uncovered. The plan's testing
+steps cite the specific rule ids for each phase.
 
 ### CI gates (enforced on every PR)
 
@@ -1544,18 +2016,22 @@ Per [TESTING.md §8](./docs/TESTING.md#8-ci-pipeline-and-merge-gates):
 
 ## Risk Register
 
-| Risk                                        | Impact   | Likelihood | Mitigation                                                                             | Phase     |
-| ------------------------------------------- | -------- | ---------- | -------------------------------------------------------------------------------------- | --------- |
-| RLS misconfiguration leaks data             | Critical | Low        | App connects as non-owner; `FORCE RLS`; per-module isolation tests; RLS coverage in CI | 1, 2, 4–6 |
-| Module boundaries erode under pressure      | High     | Medium     | Architecture tests fail the build on cross-module imports; ESLint boundary rules       | 3+        |
-| POS offline sync corrupts stock             | High     | Medium     | Append-only ledger; idempotency keys; explicit conflict rules (**POS-26**, **POS-28**) | 6         |
-| Stripe webhook loss desyncs entitlements    | Medium   | Low        | Idempotent webhook handling; nightly reconciliation (**BILL-4**)                       | 2         |
-| Multi-currency added late becomes a rewrite | High     | Low        | `Money` primitive + FX snapshot from the first migration (Phase 1)                     | 1         |
-| Monolith becomes a deployment bottleneck    | Medium   | Low        | Ports + events keep modules extractable; review at 2,500 orgs                          | 7+        |
-| Performance degrades at scale               | High     | Medium     | Nightly k6 load tests; query count assertions; `organization_id`-first indexing        | 7         |
-| Offline PWA complexity delays POS           | High     | Medium     | Build the offline shell early in Phase 6; test sync idempotency first                  | 6         |
-| i18n/RTL regressions                        | Medium   | Medium     | RTL lint rules; `ar` locale snapshot tests; i18n completeness in CI                    | 2+        |
-| Developer onboarding friction               | Medium   | Low        | AGENTS.md + PLAN.md + MODULE_GUIDE.md provide a clear path                             | 0         |
+| Risk                                          | Impact   | Likelihood | Mitigation                                                                                                                               | Phase     |
+| --------------------------------------------- | -------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| RLS misconfiguration leaks data               | Critical | Low        | App connects as non-owner; `FORCE RLS`; per-module isolation tests; RLS coverage in CI                                                   | 1, 2, 4–6 |
+| Module boundaries erode under pressure        | High     | Medium     | Architecture tests fail the build on cross-module imports; ESLint boundary rules                                                         | 3+        |
+| POS offline sync corrupts stock               | High     | Medium     | Append-only ledger; idempotency keys; explicit conflict rules (**POS-26**, **POS-28**)                                                   | 6         |
+| Double-entry imbalance / GL drift             | Critical | Medium     | Balanced-entry invariant (**ACC-1**); posted entries immutable (**ACC-2**); nightly GL-vs-subledger reconciliation (**ACC-15**)          | 7         |
+| Regional e-invoicing schema churn (ZATCA/ETA) | High     | Medium     | E-invoice metadata columns from day one; compliance-provider port isolates adapters per region (**ACC-12**)                              | 7         |
+| GRN/PO overshoot or cost-basis drift          | High     | Medium     | Level 3 movement port keeps GRN→stock atomic (**PUR-4**); three-way match + `cost_adjustment` never rewrites history (**PUR-9**, INV-12) | 8         |
+| Purchase-approval bypass                      | Medium   | Medium     | Server-side plan-gated feature enforcement (**PUR-12**, OPS-8); every transition audited                                                 | 8         |
+| Stripe webhook loss desyncs entitlements      | Medium   | Low        | Idempotent webhook handling; nightly reconciliation (**BILL-4**)                                                                         | 2         |
+| Multi-currency added late becomes a rewrite   | High     | Low        | `Money` primitive + FX snapshot from the first migration (Phase 1)                                                                       | 1         |
+| Monolith becomes a deployment bottleneck      | Medium   | Low        | Ports + events keep modules extractable; review at 2,500 orgs                                                                            | 7+        |
+| Performance degrades at scale                 | High     | Medium     | Nightly k6 load tests; query count assertions; `organization_id`-first indexing                                                          | 7         |
+| Offline PWA complexity delays POS             | High     | Medium     | Build the offline shell early in Phase 6; test sync idempotency first                                                                    | 6         |
+| i18n/RTL regressions                          | Medium   | Medium     | RTL lint rules; `ar` locale snapshot tests; i18n completeness in CI                                                                      | 2+        |
+| Developer onboarding friction                 | Medium   | Low        | AGENTS.md + PLAN.md + MODULE_GUIDE.md provide a clear path                                                                               | 0         |
 
 ---
 
@@ -1590,10 +2066,24 @@ Per [TESTING.md §8](./docs/TESTING.md#8-ci-pipeline-and-merge-gates):
 - **Release criterion:** POS DoD complete; offline sync proven; all MVP E2E
   journeys green.
 
-### v1.0 — Production Release (end of Phase 7)
+### v0.6 — Accounting & Invoicing Beta (end of Phase 7)
+
+- Double-entry general ledger, AR invoice lifecycle, tax + e-invoicing fields,
+  GL posting from subledger events.
+- **Release criterion:** Accounting DoD complete; ACC-1..ACC-16 tested; GL
+  reconciliation green.
+
+### v0.7 — Purchasing & Suppliers Beta (end of Phase 8)
+
+- Purchase-to-pay cycle, supplier directory, vendor ledger (AP), GRN→stock
+  atomicity, supplier returns.
+- **Release criterion:** Purchasing DoD complete; PUR-1..PUR-13 tested;
+  accounting AP-integration green.
+
+### v1.0 — Production Release (end of Phase 9)
 
 - All NFRs met; security audited; performance validated; deployed.
-- **Release criterion:** closed beta completed; all Phase 7 DoD items checked.
+- **Release criterion:** closed beta completed; all Phase 9 DoD items checked.
 
 ---
 
@@ -1602,14 +2092,17 @@ Per [TESTING.md §8](./docs/TESTING.md#8-ci-pipeline-and-merge-gates):
 Once v1.0 is stable, additional modules follow the same
 [MODULE_GUIDE.md](./docs/MODULE_GUIDE.md) process with zero core changes:
 
-| Module                   | Key          | Depends on         | Notes                                                                |
-| ------------------------ | ------------ | ------------------ | -------------------------------------------------------------------- |
-| E-commerce               | `ecommerce`  | `inventory`        | Storefront + online orders; consumes `InventoryStockPort`            |
-| Food Ordering & Delivery | `food`       | `inventory`, `pos` | Real-time fan-out; Socket.IO; may trigger extraction reconsideration |
-| HR & Payroll-lite        | `hr`         | —                  | Employees, attendance, leave                                         |
-| Project Management       | `projects`   | —                  | Tasks, time tracking                                                 |
-| Accounting-lite          | `accounting` | —                  | Chart of accounts, journal entries                                   |
-| Purchasing & Suppliers   | `purchasing` | `inventory`        | POs, supplier management                                             |
+| Module                   | Key         | Depends on         | Notes                                                                |
+| ------------------------ | ----------- | ------------------ | -------------------------------------------------------------------- |
+| E-commerce               | `ecommerce` | `inventory`        | Storefront + online orders; consumes `InventoryStockPort`            |
+| Food Ordering & Delivery | `food`      | `inventory`, `pos` | Real-time fan-out; Socket.IO; may trigger extraction reconsideration |
+| HR & Payroll-lite        | `hr`        | —                  | Employees, attendance, leave                                         |
+| Project Management       | `projects`  | —                  | Tasks, time tracking                                                 |
+
+> **Promoted (2026-08-16):** _Accounting & Invoicing_ and _Purchasing &
+> Suppliers_ moved out of this roadmap — they are now **Phase 7** and **Phase
+> 8** of the master plan (before production hardening). Future modules still
+> follow the same MODULE_GUIDE process with zero core changes.
 
 ### Extraction path (when triggered)
 
