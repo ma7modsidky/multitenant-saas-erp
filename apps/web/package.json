@@ -14,7 +14,7 @@
     "test:e2e:journeys": "playwright test --config=playwright.journey.config.ts"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.1",
+    "@hookform/resolvers": "^5.8.0",
     "@modubiz/i18n": "workspace:*",
     "@tanstack/react-query": "^5.62.8",
     "lucide-react": "^0.468.0",
