@@ -11,6 +11,10 @@ export const MOVEMENT_TYPE = {
   ADJUSTMENT: 'adjustment',
   COUNT_CORRECTION: 'count_correction',
   WRITE_OFF: 'write_off',
+  /** Phase 7.0 — goods returned to a supplier (PUR-11). */
+  SUPPLIER_RETURN: 'supplier_return',
+  /** Phase 7.0 — bill cost variance; quantity 0, value only (PUR-9). */
+  COST_ADJUSTMENT: 'cost_adjustment',
 } as const;
 
 export type MovementType = (typeof MOVEMENT_TYPE)[keyof typeof MOVEMENT_TYPE];
@@ -39,8 +43,11 @@ export interface StockMovementData {
  * stock (INV-1).
  *
  * Rules enforced here:
- * - INV-3: non-zero signed quantity, a type, and a reference to what caused it.
+ * - INV-3: non-zero signed quantity, a type, and a reference to what caused it
+ *   (exception: `cost_adjustment` carries quantity 0 — it adjusts value, not
+ *   quantity — and still requires the reference).
  * - INV-4: manual adjustments require a reason code.
+ * - PUR-11: supplier returns require a reason code.
  */
 export class StockMovement {
   private constructor(private readonly data: StockMovementData) {}
@@ -100,13 +107,16 @@ export class StockMovement {
 }
 
 /**
- * INV-3 + INV-4: validates the movement invariants at creation.
+ * INV-3 + INV-4 + PUR-11: validates the movement invariants at creation.
  */
 function assertMovement(data: StockMovementData): void {
-  if (isZeroQuantity(data.quantity)) {
+  // INV-3: a non-zero signed quantity — except `cost_adjustment`, which is a
+  // value-only movement (quantity 0) that adjusts the moving average without
+  // changing on-hand stock (PUR-9, INV-12).
+  if (isZeroQuantity(data.quantity) && data.type !== MOVEMENT_TYPE.COST_ADJUSTMENT) {
     throw new InventoryError(
       INVENTORY_ERROR_CODE.MOVEMENT_ZERO_QUANTITY,
-      'A stock movement must have a non-zero quantity.',
+      'A stock movement must have a non-zero quantity (cost_adjustment is the only zero-quantity type).',
     );
   }
   if (!data.referenceType.trim() || !data.referenceId) {
@@ -120,6 +130,13 @@ function assertMovement(data: StockMovementData): void {
     throw new InventoryError(
       INVENTORY_ERROR_CODE.ADJUSTMENT_REQUIRES_REASON,
       'A manual adjustment requires a reason code.',
+    );
+  }
+  // PUR-11: supplier returns always require a reason code.
+  if (data.type === MOVEMENT_TYPE.SUPPLIER_RETURN && !data.reasonCode?.trim()) {
+    throw new InventoryError(
+      INVENTORY_ERROR_CODE.SUPPLIER_RETURN_REQUIRES_REASON,
+      'A supplier return requires a reason code.',
     );
   }
 }

@@ -13,6 +13,10 @@ export const INVENTORY_ERROR_CODE = {
   MOVEMENT_REFERENCE_REQUIRED: 'INVENTORY_MOVEMENT_REFERENCE_REQUIRED',
   /** INV-4 — manual adjustments require a reason code. */
   ADJUSTMENT_REQUIRES_REASON: 'INVENTORY_ADJUSTMENT_REQUIRES_REASON',
+  /** PUR-11 — supplier returns require a reason code. */
+  SUPPLIER_RETURN_REQUIRES_REASON: 'INVENTORY_SUPPLIER_RETURN_REQUIRES_REASON',
+  /** PUR-9 — a cost adjustment on a pair with zero on-hand stock is rejected. */
+  COST_ADJUSTMENT_EMPTY_STOCK: 'INVENTORY_COST_ADJUSTMENT_EMPTY_STOCK',
   /** INV-5 — sales/reservations validate against available, never on-hand. */
   INSUFFICIENT_STOCK: 'INVENTORY_INSUFFICIENT_STOCK',
   /** INV-8 — an illegal reservation state transition. */

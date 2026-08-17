@@ -13,6 +13,7 @@ import {
   StockLevel,
   StockMovement,
   addQuantity,
+  adjustMovingAverageCost,
   compareQuantity,
   isQuantityShort,
   movingAverageCost,
@@ -65,6 +66,21 @@ describe('quantity helpers (INV-15: no floating-point comparisons)', () => {
   it('INV-12: never rounds through floats — fractional on-hand is exact', () => {
     // (1.5 × 1000 + 0.5 × 2000) / 2.0 = 1250 — no float drift.
     expect(movingAverageCost('1.5', '1000', '0.5', '2000')).toBe('1250');
+  });
+
+  it('PUR-9: a positive cost delta lifts the moving average without changing quantity', () => {
+    // 10 on-hand @ 4.00, bill prices the receipt 5.00 higher in total →
+    // (10 × 400 + 500) / 10 = 450.
+    expect(adjustMovingAverageCost('10', '400', '500')).toBe('450');
+  });
+
+  it('PUR-9: a negative cost delta (bill below GRN cost) lowers the average', () => {
+    // (10 × 400 − 500) / 10 = 350.
+    expect(adjustMovingAverageCost('10', '400', '-500')).toBe('350');
+  });
+
+  it('PUR-9: rejects adjusting a zero on-hand pair (nothing to revalue)', () => {
+    expect(() => adjustMovingAverageCost('0', '400', '500')).toThrow(/on-hand must be positive/);
   });
 });
 
@@ -122,6 +138,49 @@ describe('StockMovement', () => {
       movementData({ type: MOVEMENT_TYPE.ADJUSTMENT, quantity: '-1', reasonCode: 'SHRINKAGE' }),
     );
     expect(movement.reasonCode).toBe('SHRINKAGE');
+  });
+
+  it('INV-3 (Phase 7.0): cost_adjustment is the only zero-quantity movement type', () => {
+    // A cost adjustment revalues on-hand stock without moving it (PUR-9).
+    const movement = StockMovement.create(
+      movementData({ type: MOVEMENT_TYPE.COST_ADJUSTMENT, quantity: '0', unitCostAmountMinor: '-500' }),
+    );
+    expect(movement.type).toBe('cost_adjustment');
+    expect(movement.quantity).toBe('0');
+  });
+
+  it('INV-3 (Phase 7.0): zero quantity is still rejected for every other type', () => {
+    expectInventoryError(
+      () => StockMovement.create(movementData({ type: MOVEMENT_TYPE.SUPPLIER_RETURN, quantity: '0' })),
+      INVENTORY_ERROR_CODE.MOVEMENT_ZERO_QUANTITY,
+    );
+  });
+
+  it('PUR-11: a supplier return requires a reason code', () => {
+    expectInventoryError(
+      () =>
+        StockMovement.create(
+          movementData({
+            type: MOVEMENT_TYPE.SUPPLIER_RETURN,
+            quantity: '-3',
+            referenceType: 'supplier_return',
+          }),
+        ),
+      INVENTORY_ERROR_CODE.SUPPLIER_RETURN_REQUIRES_REASON,
+    );
+  });
+
+  it('PUR-11: accepts a supplier return carrying a reason code', () => {
+    const movement = StockMovement.create(
+      movementData({
+        type: MOVEMENT_TYPE.SUPPLIER_RETURN,
+        quantity: '-3',
+        referenceType: 'supplier_return',
+        reasonCode: 'DAMAGED_GOODS',
+      }),
+    );
+    expect(movement.reasonCode).toBe('DAMAGED_GOODS');
+    expect(movement.isInbound).toBe(false);
   });
 });
 

@@ -165,6 +165,9 @@ export class ProcessRefundUseCase {
             referenceId: refund.id,
           },
           txRef,
+          // Same collector contract as checkout (ACC-15): inventory registers
+          // movement_recorded on our unit of work, published after commit.
+          this.unitOfWork,
         );
       }
 

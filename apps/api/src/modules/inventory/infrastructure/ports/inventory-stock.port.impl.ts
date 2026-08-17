@@ -1,6 +1,7 @@
 import {
   type AvailabilitySnapshot,
   type InventoryStockPort,
+  type MovementEventCollector,
   type ReservationRef,
   type ReserveStockInput,
   type RestockInput,
@@ -17,10 +18,12 @@ import {
   Reservation,
   StockLevel,
   StockMovement,
+  type StockMovementData,
   addQuantity,
   subtractQuantity,
 } from '../../domain/index.js';
 import { INVENTORY_REPOSITORY, type InventoryRepository } from '../../application/ports/index.js';
+import { buildMovementRecordedEvent } from '../../application/movement-recorded.event.js';
 
 /**
  * InventoryStockPortImpl — the Level 3 transactional stock port (INV-5/7/8).
@@ -124,7 +127,11 @@ export class InventoryStockPortImpl implements InventoryStockPort {
     return { reservationId: reservation.id, expiresAt: expiresAt.toISOString() };
   }
 
-  async commitReservation(reservationId: string, txRef: TransactionRef): Promise<void> {
+  async commitReservation(
+    reservationId: string,
+    txRef: TransactionRef,
+    movementEvents?: MovementEventCollector,
+  ): Promise<void> {
     const tx = this.txManager.resolveRef(txRef);
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.getUserId() ?? null;
@@ -168,6 +175,8 @@ export class InventoryStockPortImpl implements InventoryStockPort {
       tx,
     );
     await this.repo.updateReservationState(reservation.id, RESERVATION_STATE.COMMITTED, now, tx);
+
+    this.emitMovementRecorded(movementEvents, persisted, organizationId, now);
   }
 
   async releaseReservation(reservationId: string, txRef: TransactionRef): Promise<void> {
@@ -196,7 +205,7 @@ export class InventoryStockPortImpl implements InventoryStockPort {
     await this.repo.updateReservationState(reservation.id, RESERVATION_STATE.RELEASED, now, tx);
   }
 
-  async restock(input: RestockInput, txRef: TransactionRef): Promise<void> {
+  async restock(input: RestockInput, txRef: TransactionRef, movementEvents?: MovementEventCollector): Promise<void> {
     const tx = this.txManager.resolveRef(txRef);
     const organizationId = TenantContext.requireOrganizationId();
     const userId = TenantContext.getUserId() ?? null;
@@ -239,5 +248,22 @@ export class InventoryStockPortImpl implements InventoryStockPort {
       persisted.id,
       tx,
     );
+
+    this.emitMovementRecorded(movementEvents, persisted, organizationId, now);
+  }
+
+  /**
+   * Emit `inventory.stock.movement_recorded.v1` on the caller's unit of work
+   * (published after the caller's commit — OPS-3), keyed on the movement id so
+   * the GL handler is idempotent (ACC-15).
+   */
+  private emitMovementRecorded(
+    collector: MovementEventCollector | undefined,
+    movement: StockMovementData,
+    organizationId: string,
+    occurredAt: Date,
+  ): void {
+    if (!collector) return;
+    collector.addEvent(buildMovementRecordedEvent(movement, organizationId, occurredAt));
   }
 }

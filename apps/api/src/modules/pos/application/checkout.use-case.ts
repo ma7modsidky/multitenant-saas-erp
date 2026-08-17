@@ -133,7 +133,10 @@ export class CheckoutUseCase {
           },
           txRef,
         );
-        await this.getStockPort().commitReservation(reservation.reservationId, txRef);
+        // Pass our UnitOfWork as the movement-event collector: inventory
+        // registers inventory.stock.movement_recorded.v1 on it, so the GL gets
+        // the sale movement AFTER our commit (ACC-15) — alongside pos.sale.completed.
+        await this.getStockPort().commitReservation(reservation.reservationId, txRef, this.unitOfWork);
       }
 
       await this.repo.insertSale(sale.toJSON(), tx);

@@ -28,3 +28,12 @@ export const currencyCode = z.string().regex(/^[A-Z]{3}$/, 'currency must be an 
 export const decimalString = z
   .string()
   .regex(/^\d+(\.\d+)?$/, 'decimal must be a plain decimal string (no floats, no exponents)');
+
+/**
+ * Fixed-point decimal that may be negative (e.g. "-3.5") — the JSON-safe form
+ * of a signed `numeric(18,4)` column (signed stock-movement quantities, INV-3;
+ * shift cash variance, POS-5).
+ */
+export const signedDecimalString = z
+  .string()
+  .regex(/^-?\d+(\.\d+)?$/, 'decimal must be a plain decimal string (may be negative; no floats, no exponents)');

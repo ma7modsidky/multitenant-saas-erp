@@ -9,11 +9,13 @@ import {
   MOVEMENT_TYPE,
   StockLevel,
   StockMovement,
+  type StockMovementData,
   addQuantity,
   compareQuantity,
   movingAverageCost,
 } from '../domain/index.js';
 
+import { buildMovementRecordedEvent } from './movement-recorded.event.js';
 import { INVENTORY_REPOSITORY, type InventoryRepository } from './ports/index.js';
 
 export interface ReceiveStockInput {
@@ -111,15 +113,7 @@ export class ReceiveStockUseCase {
       }
 
       const stockLevel = StockLevel.of(input.variantId, warehouse.id, newOnHand, level?.quantityReserved ?? '0');
-      const events = this.stockEvents(
-        stockLevel,
-        persisted.id,
-        persisted.type,
-        input.quantity,
-        newOnHand,
-        now,
-        organizationId,
-      );
+      const events = this.stockEvents(stockLevel, persisted, newOnHand, now, organizationId);
 
       return { movementId: persisted.id, events };
     });
@@ -132,28 +126,27 @@ export class ReceiveStockUseCase {
   /** Stock-level events shared by every movement use case. */
   private stockEvents(
     stockLevel: StockLevel,
-    movementId: string,
-    movementType: StockMovement['type'],
-    quantity: string,
+    movement: StockMovementData,
     quantityOnHand: string,
     occurredAt: Date,
     organizationId: string,
   ): Array<Parameters<UnitOfWork['addEvent']>[0]> {
-    const base = {
+    const changed: InventoryStockLevelChangedV1 = {
       organizationId,
       variantId: stockLevel.variantId,
       warehouseId: stockLevel.warehouseId,
-      movementId,
-      movementType,
-      quantity,
+      movementId: movement.id,
+      movementType: movement.type,
+      quantity: movement.quantity,
       quantityOnHand,
       quantityReserved: stockLevel.quantityReserved,
       occurredAt: occurredAt.toISOString(),
-    } satisfies InventoryStockLevelChangedV1;
+    };
 
-    const events: Array<Parameters<UnitOfWork['addEvent']>[0]> = [
-      { name: INVENTORY_EVENTS.STOCK_LEVEL_CHANGED_V1, payload: base, aggregateId: stockLevel.variantId },
+    return [
+      { name: INVENTORY_EVENTS.STOCK_LEVEL_CHANGED_V1, payload: changed, aggregateId: stockLevel.variantId },
+      // Phase 7.0 (ACC-15): the full-movement event the GL posts from.
+      buildMovementRecordedEvent(movement, organizationId, occurredAt),
     ];
-    return events;
   }
 }

@@ -9,9 +9,9 @@
 // context) and `occurredAt` (ISO 8601) per MODULE_GUIDE.md Step 1.
 import { z } from 'zod';
 
-// Import the primitive directly (not via ./index.js) so the module never
+// Import the primitives directly (not via ./index.js) so the module never
 // participates in an import cycle with its own barrel (depcruise no-circular).
-import { decimalString } from './primitives.js';
+import { currencyCode, decimalString, signedDecimalString, signedMinorUnitsString } from './primitives.js';
 
 /** Stable inventory event names. Consumed by the module descriptor (`publishes`). */
 export const INVENTORY_EVENTS = {
@@ -21,7 +21,31 @@ export const INVENTORY_EVENTS = {
   STOCK_LEVEL_CHANGED_V1: 'inventory.stock.level_changed.v1',
   STOCK_DEPLETED_V1: 'inventory.stock.depleted.v1',
   REORDER_POINT_REACHED_V1: 'inventory.reorder_point.reached.v1',
+  /**
+   * Full-movement ledger event (Phase 7): emitted for EVERY movement so the
+   * GL (accounting module) can post the inventory-side journal entry
+   * idempotently, keyed on the movement id (ACC-15).
+   */
+  MOVEMENT_RECORDED_V1: 'inventory.stock.movement_recorded.v1',
 } as const;
+
+/**
+ * The full stock-movement vocabulary (DATA_MODEL §8) shared by the level-
+ * changed and movement-recorded payloads. `supplier_return` and
+ * `cost_adjustment` were added in Phase 7.0 via a forward migration.
+ */
+export const STOCK_MOVEMENT_TYPES = [
+  'receipt',
+  'sale',
+  'return',
+  'transfer_in',
+  'transfer_out',
+  'adjustment',
+  'count_correction',
+  'write_off',
+  'supplier_return',
+  'cost_adjustment',
+] as const;
 
 /** Payload of `inventory.product.created.v1` — emitted when a product is created. */
 export const inventoryProductCreatedV1Schema = z.object({
@@ -71,16 +95,7 @@ export const inventoryStockLevelChangedV1Schema = z.object({
   variantId: z.string().uuid(),
   warehouseId: z.string().uuid(),
   movementId: z.string().uuid(),
-  movementType: z.enum([
-    'receipt',
-    'sale',
-    'return',
-    'transfer_in',
-    'transfer_out',
-    'adjustment',
-    'count_correction',
-    'write_off',
-  ]),
+  movementType: z.enum(STOCK_MOVEMENT_TYPES),
   // Signed quantity in UoM units (numeric(18,4) stored, decimal-string in the
   // payload — JSON has no fixed-point type).
   quantity: decimalString,
@@ -122,3 +137,35 @@ export const inventoryReorderPointReachedV1Schema = z.object({
   occurredAt: z.string().datetime(),
 });
 export type InventoryReorderPointReachedV1 = z.infer<typeof inventoryReorderPointReachedV1Schema>;
+
+/**
+ * Payload of `inventory.stock.movement_recorded.v1` — the full ledger row,
+ * emitted after EVERY movement is committed (Phase 7, ACC-15). Consumers (the
+ * accounting module) post the inventory-side GL entry idempotently, keyed on
+ * `movementId`.
+ */
+export const inventoryStockMovementRecordedV1Schema = z.object({
+  organizationId: z.string().uuid(),
+  movementId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  warehouseId: z.string().uuid(),
+  movementType: z.enum(STOCK_MOVEMENT_TYPES),
+  /**
+   * Signed quantity in UoM units (numeric(18,4)). Always `'0'` for
+   * `cost_adjustment` movements — those adjust value, not quantity (INV-3
+   * exemption).
+   */
+  quantity: signedDecimalString,
+  /**
+   * Per-unit cost for inbound movements (INV-12). For `cost_adjustment` it
+   * carries the SIGNED total value delta in minor units (may be negative).
+   * Null for outbound movements that do not affect moving average.
+   */
+  unitCostAmountMinor: signedMinorUnitsString.nullable(),
+  unitCostCurrency: currencyCode.nullable(),
+  referenceType: z.string().min(1),
+  referenceId: z.string().uuid(),
+  reasonCode: z.string().nullable(),
+  occurredAt: z.string().datetime(),
+});
+export type InventoryStockMovementRecordedV1 = z.infer<typeof inventoryStockMovementRecordedV1Schema>;

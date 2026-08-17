@@ -126,7 +126,9 @@ export class SyncOfflineSaleUseCase {
             },
             txRef,
           );
-          await this.getStockPort().commitReservation(reservation.reservationId, txRef);
+          // Pass our UnitOfWork as the movement-event collector (ACC-15):
+          // inventory registers movement_recorded on it, published after commit.
+          await this.getStockPort().commitReservation(reservation.reservationId, txRef, this.unitOfWork);
         }
 
         // POS-27: the server assigns the authoritative receipt number, only now

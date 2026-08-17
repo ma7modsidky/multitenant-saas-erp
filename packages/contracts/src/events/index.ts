@@ -25,7 +25,13 @@ import { z } from 'zod';
 import { minorUnitsString, currencyCode, decimalString } from './primitives.js';
 
 // ─── Shared primitives (re-exported for back-compat; defined in primitives.ts) ─
-export { minorUnitsString, currencyCode, decimalString } from './primitives.js';
+export {
+  minorUnitsString,
+  signedMinorUnitsString,
+  currencyCode,
+  decimalString,
+  signedDecimalString,
+} from './primitives.js';
 
 // ─── CRM events ─────────────────────────────────────────────────────────────
 //
@@ -137,12 +143,14 @@ export type CrmDealLostV1 = z.infer<typeof crmDealLostV1Schema>;
 
 export {
   INVENTORY_EVENTS,
+  STOCK_MOVEMENT_TYPES,
   inventoryProductCreatedV1Schema,
   inventoryProductArchivedV1Schema,
   inventoryProductRestoredV1Schema,
   inventoryStockLevelChangedV1Schema,
   inventoryStockDepletedV1Schema,
   inventoryReorderPointReachedV1Schema,
+  inventoryStockMovementRecordedV1Schema,
 } from './inventory.js';
 export type {
   InventoryProductCreatedV1,
@@ -151,6 +159,7 @@ export type {
   InventoryStockLevelChangedV1,
   InventoryStockDepletedV1,
   InventoryReorderPointReachedV1,
+  InventoryStockMovementRecordedV1,
 } from './inventory.js';
 
 // ─── POS events ─────────────────────────────────────────────────────────────

@@ -17,4 +17,5 @@ export {
   isNegativeQuantity,
   isZeroQuantity,
   movingAverageCost,
+  adjustMovingAverageCost,
 } from './quantity.js';

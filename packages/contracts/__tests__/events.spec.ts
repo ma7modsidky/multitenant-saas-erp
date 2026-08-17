@@ -235,7 +235,7 @@ describe('crmDealLostV1Schema', () => {
 // ─── Inventory events (PLAN.md §5.1) ────────────────────────────────────────
 
 describe('Inventory event names (PLAN.md §5.1)', () => {
-  it('declares exactly the six planned events', () => {
+  it('declares exactly the seven planned events', () => {
     expect(Object.values(INVENTORY_EVENTS).sort()).toEqual([
       'inventory.product.archived.v1',
       'inventory.product.created.v1',
@@ -243,6 +243,7 @@ describe('Inventory event names (PLAN.md §5.1)', () => {
       'inventory.reorder_point.reached.v1',
       'inventory.stock.depleted.v1',
       'inventory.stock.level_changed.v1',
+      'inventory.stock.movement_recorded.v1',
     ]);
   });
 
@@ -250,7 +251,9 @@ describe('Inventory event names (PLAN.md §5.1)', () => {
     const names: EventName[] = Object.values(INVENTORY_EVENTS);
     for (const name of names) {
       expect(name.startsWith(`${MODULE_KEYS.INVENTORY}.`)).toBe(true);
-      expect(name).toMatch(/^inventory\.[a-z_]+\.(created|archived|restored|level_changed|depleted|reached)\.v1$/);
+      expect(name).toMatch(
+        /^inventory\.[a-z_]+\.(created|archived|restored|level_changed|depleted|reached|movement_recorded)\.v1$/,
+      );
     }
   });
 });

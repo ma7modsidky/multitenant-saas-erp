@@ -63,6 +63,31 @@ export function movingAverageCost(oldOnHand: string, oldCostMinor: string, qty: 
   return ((numerator * 2n + newHand) / (newHand * 2n)).toString();
 }
 
+/**
+ * PUR-9 (Phase 7.0): apply a signed TOTAL value adjustment to the moving
+ * average without changing quantity — the bill cost-variance path.
+ *
+ *   newAvg = round((onHand·oldCost + deltaMinor) / onHand)
+ *
+ * `deltaMinor` is the signed total value change in minor units (e.g. -500 for
+ * a bill that priced the received goods 500 minor units below the GRN cost).
+ * Same integer BigInt arithmetic as `movingAverageCost` — no float ever
+ * (hard rule #3). Requires positive on-hand; adjusting an empty pair is a
+ * caller error (INVENTORY_COST_ADJUSTMENT_EMPTY_STOCK).
+ */
+export function adjustMovingAverageCost(oldOnHand: string, oldCostMinor: string, deltaMinor: string): string {
+  const hand = toBigInt(oldOnHand); // units × 10⁴
+  if (hand <= 0n) {
+    throw new Error('adjustMovingAverageCost: on-hand must be positive');
+  }
+  // `deltaMinor` is a TOTAL value change in minor units (not per-unit), so it
+  // must be scaled by 10⁴ to sit beside the ×10⁴ quantity terms. The ×10⁴
+  // then cancels against hand below, leaving minor units.
+  const numerator = hand * BigInt(oldCostMinor) + BigInt(deltaMinor) * BigInt(SCALE);
+  // Round to nearest: floor((2·numerator + hand) / (2·hand)).
+  return ((numerator * 2n + hand) / (hand * 2n)).toString();
+}
+
 // ─── internals ──────────────────────────────────────────────────────────────
 
 const SCALE = 10_000; // 4 decimal places (numeric(18,4))

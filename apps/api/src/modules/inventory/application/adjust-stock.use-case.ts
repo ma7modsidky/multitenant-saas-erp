@@ -6,6 +6,7 @@ import { UnitOfWork } from '../../../core/database/unit-of-work.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { MOVEMENT_TYPE, StockMovement, addQuantity, isNegativeQuantity } from '../domain/index.js';
 
+import { buildMovementRecordedEvent } from './movement-recorded.event.js';
 import { INVENTORY_REPOSITORY, type InventoryRepository } from './ports/index.js';
 
 export interface AdjustStockInput {
@@ -92,9 +93,12 @@ export class AdjustStockUseCase {
         await this.repo.upsertLowStockAlert(input.variantId, warehouse.id, now, tx);
       }
 
-      return { movementId: persisted.id };
+      // Phase 7.0 (ACC-15): the GL posts the inventory-side entry from this.
+      return { movementId: persisted.id, event: buildMovementRecordedEvent(persisted, organizationId, now) };
     });
 
-    return committed;
+    this.unitOfWork.addEvent(committed.event);
+    await this.unitOfWork.publishEvents();
+    return { movementId: committed.movementId };
   }
 }

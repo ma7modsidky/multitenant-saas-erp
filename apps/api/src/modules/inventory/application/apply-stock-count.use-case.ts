@@ -6,6 +6,7 @@ import { UnitOfWork } from '../../../core/database/unit-of-work.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { MOVEMENT_TYPE, StockCount, StockMovement, addQuantity } from '../domain/index.js';
 
+import { buildMovementRecordedEvent } from './movement-recorded.event.js';
 import { INVENTORY_REPOSITORY, type InventoryRepository } from './ports/index.js';
 
 /**
@@ -41,6 +42,7 @@ export class ApplyStockCountUseCase {
       await this.repo.applyStockCount(count.toJSON(), corrections, tx);
 
       // Corrections update the projection (INV-2): the ledger is the truth.
+      const events: Array<Parameters<UnitOfWork['addEvent']>[0]> = [];
       for (const correction of corrections) {
         const level = await this.repo.getStockLevel(correction.variantId, row.warehouseId, tx);
         const newOnHand = addQuantity(level?.quantityOnHand ?? '0', correction.quantity);
@@ -70,11 +72,15 @@ export class ApplyStockCountUseCase {
           persisted.id,
           tx,
         );
+        // Phase 7.0 (ACC-15): every correction reaches the GL.
+        events.push(buildMovementRecordedEvent(persisted, organizationId, now));
       }
 
-      return { correctionsApplied: corrections.length };
+      return { correctionsApplied: corrections.length, events };
     });
 
-    return committed;
+    for (const event of committed.events) this.unitOfWork.addEvent(event);
+    await this.unitOfWork.publishEvents();
+    return { correctionsApplied: committed.correctionsApplied };
   }
 }

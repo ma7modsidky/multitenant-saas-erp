@@ -2,9 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { NotFoundError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
+import { UnitOfWork } from '../../../core/database/unit-of-work.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { MOVEMENT_TYPE, StockLevel, StockMovement, addQuantity, subtractQuantity } from '../domain/index.js';
 
+import { buildMovementRecordedEvent } from './movement-recorded.event.js';
 import { INVENTORY_REPOSITORY, type InventoryRepository } from './ports/index.js';
 
 export interface TransferStockInput {
@@ -29,6 +31,9 @@ export class TransferStockUseCase {
     @Inject(INVENTORY_REPOSITORY)
     private readonly repo: InventoryRepository,
     private readonly txManager: TransactionManager,
+    // Optional for tests that construct the use case directly; Nest injects
+    // the global UnitOfWork at runtime (database.module.ts is @Global).
+    private readonly unitOfWork?: UnitOfWork,
   ) {}
 
   async execute(input: TransferStockInput): Promise<{ transferOutId: string; transferInId: string }> {
@@ -36,7 +41,7 @@ export class TransferStockUseCase {
     const userId = TenantContext.getUserId() ?? null;
     const now = new Date();
 
-    return this.txManager.run(async (tx) => {
+    const committed = await this.txManager.run(async (tx) => {
       if (!(await this.repo.findVariantById(input.variantId, tx))) {
         throw new NotFoundError('VARIANT_NOT_FOUND', { variantId: input.variantId });
       }
@@ -118,7 +123,21 @@ export class TransferStockUseCase {
         tx,
       );
 
-      return { transferOutId: out.id, transferInId: into.id };
+      // Phase 7.0 (ACC-15): both ledger rows reach the GL.
+      return {
+        transferOutId: out.id,
+        transferInId: into.id,
+        events: [
+          buildMovementRecordedEvent(out, organizationId, now),
+          buildMovementRecordedEvent(into, organizationId, now),
+        ],
+      };
     });
+
+    if (this.unitOfWork) {
+      for (const event of committed.events) this.unitOfWork.addEvent(event);
+      await this.unitOfWork.publishEvents();
+    }
+    return { transferOutId: committed.transferOutId, transferInId: committed.transferInId };
   }
 }

@@ -59,6 +59,7 @@ import {
 } from '../../apps/api/src/modules/pos/application/index.js';
 import { SALE_STATUS } from '../../apps/api/src/modules/pos/domain/index.js';
 import {
+  inventoryStockMovementRecordedV1Schema,
   posSaleCompletedV1Schema,
   posSaleRefundedV1Schema,
   posShiftOpenedV1Schema,
@@ -418,6 +419,19 @@ describe('POS application layer (integration)', () => {
       currency: 'USD',
       lineCount: 1,
       locale: 'en',
+    });
+
+    // ACC-15 (Phase 7.0): the sale movement reaches the GL stream too —
+    // inventory registers movement_recorded on POS's unit of work, published
+    // after commit alongside pos.sale.completed.
+    const recorded = observedEvents.find((e) => e.name === 'inventory.stock.movement_recorded.v1');
+    expect(recorded).toBeDefined();
+    expect(inventoryStockMovementRecordedV1Schema.parse(recorded?.payload)).toMatchObject({
+      variantId,
+      movementType: 'sale',
+      quantity: '-2',
+      referenceType: 'pos_sale',
+      referenceId: saleId,
     });
   });
 

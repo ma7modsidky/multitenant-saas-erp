@@ -73,12 +73,18 @@ export const inventoryDescriptor: ModuleDescriptor = defineModule({
     INVENTORY_EVENTS.STOCK_LEVEL_CHANGED_V1,
     INVENTORY_EVENTS.STOCK_DEPLETED_V1,
     INVENTORY_EVENTS.REORDER_POINT_REACHED_V1,
+    INVENTORY_EVENTS.MOVEMENT_RECORDED_V1,
   ],
   consumes: [],
   providesPorts: [
     {
       token: 'INVENTORY_STOCK_PORT',
       description: 'Stock availability, reservation, and deduction',
+      transactional: true,
+    },
+    {
+      token: 'INVENTORY_MOVEMENT_PORT',
+      description: 'Receive, issue, return-to-supplier, and cost-adjust stock (Phase 7.0)',
       transactional: true,
     },
   ],

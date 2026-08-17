@@ -13,6 +13,7 @@ import {
   subtractQuantity,
 } from '../domain/index.js';
 
+import { buildMovementRecordedEvent } from './movement-recorded.event.js';
 import { INVENTORY_REPOSITORY, type InventoryRepository } from './ports/index.js';
 
 /**
@@ -78,9 +79,12 @@ export class CommitReservationUseCase {
       );
       await this.repo.updateReservationState(reservation.id, RESERVATION_STATE.COMMITTED, now, tx);
 
-      return { movementId: persisted.id };
+      // Phase 7.0 (ACC-15): the GL posts the COGS side of the sale from this.
+      return { movementId: persisted.id, event: buildMovementRecordedEvent(persisted, organizationId, now) };
     });
 
-    return committed;
+    this.unitOfWork.addEvent(committed.event);
+    await this.unitOfWork.publishEvents();
+    return { movementId: committed.movementId };
   }
 }
