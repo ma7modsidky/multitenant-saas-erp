@@ -11,6 +11,7 @@ const ENTITLEMENT = {
   activatedAt: null,
   disabledAt: null,
   purgeAfter: null,
+  features: [],
   stripeSubscriptionItemId: null,
 };
 

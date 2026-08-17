@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BookOpenText,
   Building2,
   ChevronDown,
   ChevronLeft,
@@ -61,6 +62,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   crm: Users,
   inventory: Package,
   pos: DollarSign,
+  accounting: BookOpenText,
 };
 
 // Nav item icon names come from the module descriptors (NavigationItem.icon).

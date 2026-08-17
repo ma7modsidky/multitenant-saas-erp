@@ -71,6 +71,7 @@ async function createEntitlementGuard(
       activatedAt: seed.state === 'active' ? '2026-01-01T00:00:00Z' : null,
       disabledAt: seed.state === 'disabled' ? '2026-03-01T00:00:00Z' : null,
       purgeAfter: null,
+      features: [],
     });
   }
   const service = new EntitlementService(store);

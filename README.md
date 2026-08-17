@@ -48,7 +48,7 @@ Full detail, including rejected alternatives:
 | CRM                                                     | `crm`        | Beta    | —                  |
 | Inventory                                               | `inventory`  | Beta    | —                  |
 | Point of Sale                                           | `pos`        | Beta    | `inventory`        |
-| Accounting & Invoicing                                  | `accounting` | Planned | —                  |
+| Accounting & Invoicing                                  | `accounting` | Beta    | —                  |
 | Purchasing & Suppliers                                  | `purchasing` | Planned | `inventory`        |
 | E-commerce                                              | `ecommerce`  | Planned | `inventory`        |
 | Food Ordering & Delivery                                | `food`       | Planned | `inventory`, `pos` |

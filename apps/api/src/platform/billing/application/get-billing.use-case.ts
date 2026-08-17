@@ -28,6 +28,8 @@ export class GetBillingUseCase {
       activatedAt: string | null;
       /** End date of a free admin grant (PLT-8); null = unlimited grant. */
       accessUntil: string | null;
+      /** Enabled plan-gated feature keys (PLAN §7.0.1; UX mirror of ACC-16). */
+      features: string[];
       /** True when the module is on a paid Stripe subscription item. */
       isPaid: boolean;
     }>;
@@ -61,6 +63,7 @@ export class GetBillingUseCase {
         // time-boxed free grant and "Active until {date}" for paid modules
         // (paid expiry = the subscription period end, shared by all items).
         accessUntil: e!.accessUntil?.toISOString() ?? null,
+        features: e!.features ?? [],
         isPaid: (e!.stripeSubscriptionItemId ?? null) !== null,
       }));
 

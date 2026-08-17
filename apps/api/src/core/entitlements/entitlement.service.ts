@@ -124,4 +124,23 @@ export class EntitlementService {
 
     return entitlement?.state === state;
   }
+
+  /**
+   * Check whether a plan-gated feature is enabled for an organization's
+   * module entitlement (PLAN §7.0.1, ACC-16, OPS-8).
+   *
+   * The entitlement row's `features` set is the runtime authority (BILL-4):
+   * a feature not in the set behaves as ABSENT — regardless of what the
+   * client thinks it can do. Fails closed: no entitlement record, or an
+   * entitlement whose set was never computed, returns false.
+   *
+   * @param organizationId - The organization's UUID
+   * @param moduleKey - The module key (e.g. 'accounting')
+   * @param featureKey - Short feature key (e.g. 'advanced_coa')
+   * @returns True if the feature is in the entitlement's enabled set
+   */
+  async isFeatureEnabled(organizationId: string, moduleKey: string, featureKey: string): Promise<boolean> {
+    const entitlement = await this.store.findByOrgAndModule(organizationId, moduleKey);
+    return entitlement?.features.includes(featureKey) ?? false;
+  }
 }

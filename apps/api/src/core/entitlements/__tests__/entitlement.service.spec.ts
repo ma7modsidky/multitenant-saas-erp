@@ -27,6 +27,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: '2026-01-01T00:00:00Z',
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       };
       await store.upsert(entry);
 
@@ -47,6 +48,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: '2026-01-01T00:00:00Z',
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       };
       await store.upsert(entry);
 
@@ -64,6 +66,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: '2026-01-01T00:00:00Z',
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       };
       await store.upsert(entry);
 
@@ -88,6 +91,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: null,
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       });
       await store.upsert({
         moduleKey: 'inventory',
@@ -98,6 +102,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: null,
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       });
 
       const results = await store.findByOrg('org-1');
@@ -114,6 +119,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: null,
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       });
       await store.upsert({
         moduleKey: 'pos',
@@ -124,6 +130,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: null,
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       });
 
       const results = await store.findByOrg('org-1');
@@ -143,6 +150,7 @@ describe('InMemoryEntitlementStore', () => {
         activatedAt: null,
         disabledAt: null,
         purgeAfter: null,
+        features: [],
       });
 
       await store.updateState('org-1', 'inventory', 'disabled');
@@ -313,6 +321,44 @@ describe('EntitlementService', () => {
     });
   });
 
+  describe('isFeatureEnabled (PLAN.md §7.0.1, ACC-16)', () => {
+    it('ACC-16: returns true when the feature is in the enabled set', async () => {
+      await seedEntitlement(store, 'org-1', 'accounting', 'active');
+      await store.upsert({
+        ...(await store.findByOrgAndModule('org-1', 'accounting'))!,
+        features: ['advanced_coa', 'e_invoicing'],
+      });
+      expect(await service.isFeatureEnabled('org-1', 'accounting', 'advanced_coa')).toBe(true);
+    });
+
+    it('ACC-16: returns false when the feature is not in the enabled set', async () => {
+      await seedEntitlement(store, 'org-1', 'accounting', 'active');
+      await store.upsert({
+        ...(await store.findByOrgAndModule('org-1', 'accounting'))!,
+        features: ['e_invoicing'],
+      });
+      expect(await service.isFeatureEnabled('org-1', 'accounting', 'advanced_coa')).toBe(false);
+    });
+
+    it('fails closed when no entitlement record exists', async () => {
+      expect(await service.isFeatureEnabled('org-1', 'accounting', 'advanced_coa')).toBe(false);
+    });
+
+    it('fails closed when the entitlement set was never computed (empty array)', async () => {
+      await seedEntitlement(store, 'org-1', 'accounting', 'active');
+      expect(await service.isFeatureEnabled('org-1', 'accounting', 'advanced_coa')).toBe(false);
+    });
+
+    it('is isolated per organization', async () => {
+      await seedEntitlement(store, 'org-1', 'accounting', 'active');
+      await store.upsert({
+        ...(await store.findByOrgAndModule('org-1', 'accounting'))!,
+        features: ['advanced_coa'],
+      });
+      expect(await service.isFeatureEnabled('org-2', 'accounting', 'advanced_coa')).toBe(false);
+    });
+  });
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   async function seedEntitlement(
@@ -330,6 +376,7 @@ describe('EntitlementService', () => {
       activatedAt: state === 'active' ? '2026-01-01T00:00:00Z' : null,
       disabledAt: state === 'disabled' ? '2026-03-01T00:00:00Z' : null,
       purgeAfter: null,
+      features: [],
     });
   }
 });

@@ -30,6 +30,7 @@ module.exports = {
         'crm',
         'inventory',
         'pos',
+        'accounting',
         'api',
         'web',
         'contracts',

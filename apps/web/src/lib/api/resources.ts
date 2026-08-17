@@ -78,6 +78,7 @@ export function updateOrganizationSettings(
     timezone?: string;
     baseCurrency?: string;
     receiptFooter?: string | null;
+    sellerTaxId?: string | null;
   },
 ): Promise<OrganizationSettingsResponse> {
   return apiFetch<OrganizationSettingsResponse>(`/v1/organizations/${orgId}/settings`, {
@@ -1389,6 +1390,621 @@ function posQueryString(params: PosSaleParams): string {
   if (params.pageSize !== undefined && params.pageSize !== POS_PAGE_SIZE)
     query.set('pageSize', String(params.pageSize));
   return query.toString();
+}
+
+// ─── Accounting ─────────────────────────────────────────────────────────────
+
+/** One chart-of-accounts account row (ACC-5, lazy-seeded). */
+export interface AccountingAccount {
+  id: string;
+  code: string;
+  nameI18n: Record<string, string>;
+  type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+  isSystem: boolean;
+  isActive: boolean;
+}
+
+/** One GL movement row in the account detail (journal line + entry header). */
+export interface AccountingAccountMovement {
+  id: string;
+  entryId: string;
+  entryNumber: number;
+  entryDate: string;
+  description: string;
+  status: string;
+  postedAt: string | null;
+  debitAmountMinor: string;
+  creditAmountMinor: string;
+  memo: string | null;
+  /** Source reference of the journal entry (e.g. 'invoice_issuance'). */
+  sourceType: string;
+  /** Id of the source document (e.g. the invoice) when one exists. */
+  sourceId: string | null;
+  /** Cumulative net (debit − credit) after this movement, minor units. */
+  runningBalanceMinor: string;
+}
+
+/** Filters for the account GL history — date range + pagination. */
+export interface AccountingAccountMovementsParams {
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Account detail — header + balance + paginated GL history (general-ledger view). */
+export interface AccountingAccountDetail {
+  account: AccountingAccount;
+  balance: {
+    debitTotal: string;
+    creditTotal: string;
+    /** Signed net (debit − credit), minor units — positive = net debit. */
+    netAmountMinor: string;
+  };
+  movements: {
+    items: AccountingAccountMovement[];
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+}
+
+/** One payment receipt row in the payments list (ACC-9). */
+export interface AccountingPayment {
+  id: string;
+  method: 'cash' | 'bank_transfer' | 'card' | 'cheque' | 'other';
+  /** Human-facing receipt reference, e.g. `REC-000004` (ACC-9). */
+  receiptNumber: string;
+  amountMinor: string;
+  currency: string;
+  receivedAt: string;
+  reference: string | null;
+  invoiceId: string;
+  invoiceNumber: string;
+  customerNameSnapshot: string;
+  allocationAmountMinor: string;
+}
+
+/** One allocation of a payment receipt to an invoice (ACC-9 breakdown). */
+export interface AccountingPaymentAllocation {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  customerNameSnapshot: string;
+  invoiceDate: string;
+  invoiceStatus: string;
+  currency: string;
+  amountMinor: string;
+}
+
+/** Payment receipt detail — header + allocation breakdown (ACC-9). */
+export interface AccountingPaymentDetail {
+  payment: {
+    id: string;
+    method: 'cash' | 'bank_transfer' | 'card' | 'cheque' | 'other';
+    /** Human-facing receipt reference, e.g. `REC-000004` (ACC-9). */
+    receiptNumber: string;
+    amountMinor: string;
+    currency: string;
+    receivedAt: string;
+    reference: string | null;
+    createdBy: string | null;
+    createdAt: string;
+  };
+  allocations: AccountingPaymentAllocation[];
+  /** The receipt entry (Dr Bank/Cash, Cr AR) this payment posted — ACC-9. */
+  journalEntry: { id: string; entryNumber: number } | null;
+}
+
+/** Filters for the payments list — method + date range + free-text (ACC-9). */
+export interface AccountingPaymentParams {
+  /** Free-text search — matches the customer name or the invoice number. */
+  q?: string;
+  method?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** One credit-note header row in the credit-notes list (ACC-10). */
+export interface AccountingCreditNote {
+  id: string;
+  creditNoteNumber: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  customerNameSnapshot: string;
+  status: string;
+  reasonCode: string;
+  amountMinor: string;
+  currency: string;
+  issuedAt: string | null;
+  createdAt: string;
+}
+
+/** One reversed line resolved to its item name (ACC-10). */
+export interface AccountingCreditNoteLine {
+  id: string;
+  invoiceLineId: string;
+  itemNameSnapshot: string;
+  quantity: string;
+  unitPriceAmountMinor: string;
+  taxAmountMinor: string;
+  lineTotalAmountMinor: string;
+}
+
+/** Credit-note detail — header + reversed lines (ACC-10). */
+export interface AccountingCreditNoteDetail {
+  creditNote: AccountingCreditNote & { lines: AccountingCreditNoteLine[] };
+  /** The reversal entry (Dr Revenue, Cr AR) posted at issuance — ACC-10. */
+  journalEntry: { id: string; entryNumber: number } | null;
+}
+
+/** Filters for the credit-notes list (ACC-10). */
+export interface AccountingCreditNoteParams {
+  /** Free-text search — matches the note number, invoice number, or customer name. */
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** One journal entry row (ACC-3) — status is posted/reversed while in draft. */
+export interface AccountingJournalEntry {
+  id: string;
+  entryNumber: number;
+  entryDate: string;
+  description: string;
+  currency: string;
+  status: 'posted' | 'reversed' | 'draft';
+  sourceType: string;
+  sourceId: string | null;
+  postedAt: string | null;
+  /** The entry that reversed this one (ACC-2) — null unless reversed. */
+  reversedByEntryId: string | null;
+}
+
+/** One journal line resolved to its account (ACC-4, journal detail view). */
+export interface AccountingJournalEntryLine {
+  id: string;
+  accountId: string;
+  accountCode: string | null;
+  accountNameI18n: Record<string, string> | null;
+  debitAmountMinor: string;
+  creditAmountMinor: string;
+  memo: string | null;
+}
+
+/** Journal entry detail — header + actor metadata + resolved lines. */
+export interface AccountingJournalEntryDetail {
+  entry: AccountingJournalEntry & {
+    createdAt: string;
+    createdBy: string | null;
+    postedBy: string | null;
+    /** The reversing entry (id + number) when this entry was reversed. */
+    reversedBy: { id: string; entryNumber: number } | null;
+    lines: AccountingJournalEntryLine[];
+  };
+}
+
+/** Filters for the journal list — free-text search + a range on the entry date. */
+export interface AccountingJournalParams {
+  q?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** One invoice row (ACC-6/8/9/10 list response). */
+export interface AccountingInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerNameSnapshot: string;
+  status: 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'void';
+  invoiceDate: string;
+  dueDate: string;
+  currency: string;
+  subtotalAmountMinor: string;
+  discountAmountMinor: string;
+  taxAmountMinor: string;
+  totalAmountMinor: string;
+  paidAmountMinor: string;
+  creditedAmountMinor: string;
+  sourceType: string | null;
+  sourceId: string | null;
+}
+
+/** Filters for the invoices list — search + status + date range (ACC-8). */
+export interface AccountingInvoiceParams {
+  q?: string;
+  status?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** One itemized line of an invoice detail (ACC-6). */
+export interface AccountingInvoiceLine {
+  id: string;
+  itemNameSnapshot: string;
+  description: string | null;
+  quantity: string;
+  unitPriceAmountMinor: string;
+  discountAmountMinor: string;
+  taxRateBpSnapshot: number;
+  taxTypeSnapshot: string;
+  taxAmountMinor: string;
+  lineTotalAmountMinor: string;
+}
+
+/** One payment allocated to an invoice (ACC-9 payment history timeline). */
+export interface AccountingInvoicePayment {
+  id: string;
+  method: 'cash' | 'bank_transfer' | 'card' | 'cheque' | 'other';
+  amountMinor: string;
+  currency: string;
+  receivedAt: string;
+  reference: string | null;
+  allocationAmountMinor: string;
+}
+
+/** One credit-note header issued against an invoice (ACC-10 trail). */
+export interface AccountingInvoiceCreditNote {
+  id: string;
+  creditNoteNumber: string;
+  status: string;
+  reasonCode: string;
+  amountMinor: string;
+  currency: string;
+  issuedAt: string | null;
+}
+
+/** Invoice detail — header, lines, payments, and credit notes. */
+export interface AccountingInvoiceDetail {
+  invoice: AccountingInvoice & {
+    customerTaxIdSnapshot: string | null;
+    sellerTaxId: string | null;
+    createdAt: string;
+    lines: AccountingInvoiceLine[];
+  };
+  payments: AccountingInvoicePayment[];
+  creditNotes: AccountingInvoiceCreditNote[];
+  /** The org's seller tax ID setting (ACC-6) — fallback when the snapshot is empty. */
+  orgSellerTaxId: string | null;
+  /** The AR journal entry generated at issuance (ACC-6) — links to the GL. */
+  journalEntry: { id: string; entryNumber: number } | null;
+}
+
+// ─── Reports (ACC-1/ACC-8/ACC-9) ────────────────────────────────────────────
+
+/** One trial-balance row (ACC-1) — raw totals + natural-direction net. */
+export interface AccountingTrialBalanceRow {
+  accountId: string;
+  code: string;
+  nameI18n: Record<string, string>;
+  type: string;
+  isSystem: boolean;
+  isActive: boolean;
+  debitTotalMinor: string;
+  creditTotalMinor: string;
+  netMinor: string;
+}
+
+export interface AccountingTrialBalance {
+  rows: AccountingTrialBalanceRow[];
+  totals: { debitTotalMinor: string; creditTotalMinor: string };
+  balanced: boolean;
+}
+
+/** One income-statement line (revenue or expense, ACC-1). */
+export interface AccountingIncomeStatementLine {
+  accountId: string;
+  code: string;
+  nameI18n: Record<string, string>;
+  netMinor: string;
+}
+
+export interface AccountingIncomeStatement {
+  revenue: AccountingIncomeStatementLine[];
+  expenses: AccountingIncomeStatementLine[];
+  revenueTotalMinor: string;
+  expenseTotalMinor: string;
+  netIncomeMinor: string;
+}
+
+/** One balance-sheet line (ACC-1) — balance in the natural direction. */
+export interface AccountingBalanceSheetLine {
+  accountId: string;
+  code: string;
+  nameI18n: Record<string, string>;
+  balanceMinor: string;
+}
+
+export interface AccountingBalanceSheet {
+  asOfDate: string;
+  assets: AccountingBalanceSheetLine[];
+  liabilities: AccountingBalanceSheetLine[];
+  equity: AccountingBalanceSheetLine[];
+  assetTotalMinor: string;
+  liabilityTotalMinor: string;
+  equityTotalMinor: string;
+}
+
+/** One open invoice in the AR aging report (ACC-8/ACC-9). */
+export interface AccountingAgingInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerName: string;
+  invoiceDate: string;
+  dueDate: string;
+  currency: string;
+  balanceDueMinor: string;
+  daysPastDue: number;
+}
+
+export interface AccountingAgingBucket {
+  key: 'current' | '1_30' | '31_60' | '61_90' | '90_plus';
+  invoices: AccountingAgingInvoice[];
+  totalMinor: string;
+}
+
+export interface AccountingArAging {
+  asOfDate: string;
+  buckets: AccountingAgingBucket[];
+  totalOutstandingMinor: string;
+}
+
+/** A period filter shared by the trial balance and income statement. */
+export interface AccountingReportPeriod {
+  fromDate?: string;
+  toDate?: string;
+}
+
+export function getAccountingCoa(): Promise<{ items: AccountingAccount[] }> {
+  return apiFetch<{ items: AccountingAccount[] }>('/v1/accounting/coa');
+}
+
+/** Account detail — header, current balance, and GL history (ACC-5). */
+export function getAccountingAccount(
+  id: string,
+  params: AccountingAccountMovementsParams = {},
+): Promise<AccountingAccountDetail> {
+  const query = new URLSearchParams();
+  if (params.fromDate) query.set('fromDate', params.fromDate);
+  if (params.toDate) query.set('toDate', params.toDate);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<AccountingAccountDetail>(`/v1/accounting/coa/${id}${qs ? `?${qs}` : ''}`);
+}
+
+export function getAccountingPayments(
+  params: AccountingPaymentParams = {},
+): Promise<{ items: AccountingPayment[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.method) query.set('method', params.method);
+  if (params.fromDate) query.set('fromDate', params.fromDate);
+  if (params.toDate) query.set('toDate', params.toDate);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: AccountingPayment[]; total: number; page: number; pageSize: number }>(
+    `/v1/accounting/payments${qs ? `?${qs}` : ''}`,
+  );
+}
+
+/** Payment receipt detail — header + allocation breakdown (ACC-9). */
+export function getAccountingPayment(id: string): Promise<AccountingPaymentDetail> {
+  return apiFetch<AccountingPaymentDetail>(`/v1/accounting/payments/${id}`);
+}
+
+/** Credit-notes list — the reversal trail with its invoice + customer (ACC-10). */
+export function getAccountingCreditNotes(
+  params: AccountingCreditNoteParams = {},
+): Promise<{ items: AccountingCreditNote[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: AccountingCreditNote[]; total: number; page: number; pageSize: number }>(
+    `/v1/accounting/credit-notes${qs ? `?${qs}` : ''}`,
+  );
+}
+
+/** Credit-note detail — header, reversed lines, and the reversal entry (ACC-10). */
+export function getAccountingCreditNote(id: string): Promise<AccountingCreditNoteDetail> {
+  return apiFetch<AccountingCreditNoteDetail>(`/v1/accounting/credit-notes/${id}`);
+}
+
+/** Rename and/or toggle active on an account — the code never changes (ACC-5). */
+export function updateAccountingAccount(
+  id: string,
+  input: { name?: string; isActive?: boolean },
+): Promise<{ accountId: string }> {
+  return apiFetch<{ accountId: string }>(`/v1/accounting/coa/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Create a custom COA account (ACC-16 — advanced_coa feature gate). */
+export function createAccountingAccount(input: {
+  code: string;
+  name: string;
+  type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+  parentId?: string;
+}): Promise<{ accountId: string; code: string }> {
+  return apiFetch<{ accountId: string; code: string }>('/v1/accounting/coa', {
+    method: 'POST',
+    body: JSON.stringify({
+      code: input.code,
+      name: input.name,
+      type: input.type,
+      ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
+    }),
+  });
+}
+
+export function getAccountingJournal(
+  params: AccountingJournalParams = {},
+): Promise<{ items: AccountingJournalEntry[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.fromDate) query.set('fromDate', params.fromDate);
+  if (params.toDate) query.set('toDate', params.toDate);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: AccountingJournalEntry[]; total: number; page: number; pageSize: number }>(
+    `/v1/accounting/journal${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function postAccountingJournalEntry(input: {
+  entryDate: string;
+  description?: string;
+  currency: string;
+  lines: Array<{
+    accountId: string;
+    debit?: { amountMinor: string; currency: string };
+    credit?: { amountMinor: string; currency: string };
+    memo?: string | null;
+  }>;
+}): Promise<{ entryId: string; entryNumber: number }> {
+  // apiFetch returns the envelope's `data` field — never wrap it again.
+  return apiFetch<{ entryId: string; entryNumber: number }>('/v1/accounting/journal', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function reverseAccountingJournalEntry(
+  id: string,
+  input: { description?: string } = {},
+): Promise<{ entryId: string; reversalEntryId: string }> {
+  return apiFetch<{ entryId: string; reversalEntryId: string }>(`/v1/accounting/journal/${id}/reverse`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Journal entry detail — lines resolved to accounts + actor metadata. */
+export function getAccountingJournalEntry(id: string): Promise<AccountingJournalEntryDetail> {
+  return apiFetch<AccountingJournalEntryDetail>(`/v1/accounting/journal/${id}`);
+}
+
+export function getAccountingInvoice(id: string): Promise<AccountingInvoiceDetail> {
+  return apiFetch<AccountingInvoiceDetail>(`/v1/accounting/invoices/${id}`);
+}
+
+export function getAccountingInvoices(
+  params: AccountingInvoiceParams = {},
+): Promise<{ items: AccountingInvoice[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.status) query.set('status', params.status);
+  if (params.fromDate) query.set('fromDate', params.fromDate);
+  if (params.toDate) query.set('toDate', params.toDate);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: AccountingInvoice[]; total: number; page: number; pageSize: number }>(
+    `/v1/accounting/invoices${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getAccountingTrialBalance(period: AccountingReportPeriod = {}): Promise<AccountingTrialBalance> {
+  const query = new URLSearchParams();
+  if (period.fromDate) query.set('fromDate', period.fromDate);
+  if (period.toDate) query.set('toDate', period.toDate);
+  const qs = query.toString();
+  return apiFetch<AccountingTrialBalance>(`/v1/accounting/reports/trial-balance${qs ? `?${qs}` : ''}`);
+}
+
+export function getAccountingIncomeStatement(period: AccountingReportPeriod = {}): Promise<AccountingIncomeStatement> {
+  const query = new URLSearchParams();
+  if (period.fromDate) query.set('fromDate', period.fromDate);
+  if (period.toDate) query.set('toDate', period.toDate);
+  const qs = query.toString();
+  return apiFetch<AccountingIncomeStatement>(`/v1/accounting/reports/income-statement${qs ? `?${qs}` : ''}`);
+}
+
+export function getAccountingBalanceSheet(asOfDate?: string): Promise<AccountingBalanceSheet> {
+  const qs = asOfDate ? `?asOfDate=${encodeURIComponent(asOfDate)}` : '';
+  return apiFetch<AccountingBalanceSheet>(`/v1/accounting/reports/balance-sheet${qs}`);
+}
+
+export function getAccountingArAging(asOfDate?: string): Promise<AccountingArAging> {
+  const qs = asOfDate ? `?asOfDate=${encodeURIComponent(asOfDate)}` : '';
+  return apiFetch<AccountingArAging>(`/v1/accounting/reports/ar-aging${qs}`);
+}
+
+export function issueAccountingInvoice(input: {
+  customerContactId?: string | null;
+  customerCompanyId?: string | null;
+  customerName: string;
+  customerTaxId?: string | null;
+  sellerTaxId?: string | null;
+  invoiceDate?: string;
+  dueDate: string;
+  currency: string;
+  locale?: string;
+  sourceType?: 'manual' | 'pos_sale';
+  sourceId?: string | null;
+  idempotencyKey?: string;
+  lines: Array<{
+    variantId?: string | null;
+    itemName: string;
+    description?: string | null;
+    quantity?: string;
+    unitPrice: { amountMinor: string; currency: string };
+    discount?: { amountMinor: string; currency: string };
+    taxRateId?: string | null;
+    taxRateBp?: number;
+    taxType?: 'standard' | 'reduced' | 'zero' | 'exempt';
+    isGoods?: boolean;
+  }>;
+}): Promise<{ invoiceId: string; invoiceNumber: string }> {
+  const { idempotencyKey, ...body } = input;
+  return apiFetch<{ invoiceId: string; invoiceNumber: string }>('/v1/accounting/invoices', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+  });
+}
+
+export function applyAccountingPayment(input: {
+  invoiceId: string;
+  method: 'cash' | 'bank_transfer' | 'card' | 'cheque' | 'other';
+  amount: { amountMinor: string; currency: string };
+  reference?: string | null;
+  idempotencyKey?: string;
+}): Promise<{ paymentId: string; invoiceId: string }> {
+  const { idempotencyKey, ...body } = input;
+  return apiFetch<{ paymentId: string; invoiceId: string }>('/v1/accounting/payments', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+  });
+}
+
+export function issueAccountingCreditNote(input: {
+  invoiceId: string;
+  reasonCode: string;
+  lines: Array<{
+    invoiceLineId: string;
+    quantity?: string;
+    unitPrice: { amountMinor: string; currency: string };
+    taxAmount?: { amountMinor: string; currency: string };
+  }>;
+}): Promise<{ creditNoteId: string; creditNoteNumber: string }> {
+  return apiFetch<{ creditNoteId: string; creditNoteNumber: string }>('/v1/accounting/credit-notes', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 // ─── Platform Admin Console ────────────────────────────────────────────────

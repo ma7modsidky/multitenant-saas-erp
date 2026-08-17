@@ -36,6 +36,7 @@ describe('EnableModuleTrialUseCase', () => {
     activatedAt: null,
     disabledAt: null,
     purgeAfter: null,
+    features: [],
     stripeSubscriptionItemId: null,
   };
 
@@ -214,6 +215,14 @@ describe('EnableModuleTrialUseCase', () => {
     const trialEnd = first.trialEndsAt.getTime();
     const trialStart = first.trialStartedAt.getTime();
     expect(trialEnd - trialStart).toBeCloseTo(14 * 24 * 60 * 60 * 1000, -6);
+  });
+
+  it('PLAN 7.0.1: computes the plan-gated feature set at enable time from the catalog', async () => {
+    await useCase.execute({ organizationId: 'org-1', moduleKey: 'pos', userId: 'user-1' });
+
+    const first = billingRepo.upsertEntitlement.mock.calls[0]?.[0] as { features: string[] };
+    // POS declares no plan-gated features — the enabled set is empty.
+    expect(first.features).toEqual([]);
   });
 
   it('BILL-2: adds a Stripe subscription item for the module price key', async () => {

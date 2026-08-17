@@ -89,6 +89,10 @@ export interface Entitlement {
   /** True when the module is on a paid Stripe subscription item. Optional for
       legacy fixtures — the API always returns it. */
   isPaid?: boolean;
+  /** Plan-gated feature keys enabled for this entitlement (e.g. 'advanced_coa',
+      'e_invoicing' — ACC-16). Optional for legacy fixtures — the API always
+      returns it. */
+  features?: string[];
 }
 
 export interface BillingResponse {
@@ -181,6 +185,7 @@ export interface OrganizationSettingsResponse {
   numberPreferences: Record<string, unknown>;
   datePreferences: Record<string, unknown>;
   receiptFooter: string | null;
+  sellerTaxId: string | null;
   createdAt: string;
   updatedAt: string;
 }

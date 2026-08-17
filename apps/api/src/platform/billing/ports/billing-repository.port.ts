@@ -57,6 +57,8 @@ export interface BillingRepository {
         stripeSubscriptionItemId: string | null;
         /** End date of a free admin grant (PLT-8); null = unlimited grant. */
         accessUntil: Date | null;
+        /** Enabled plan-gated feature keys (PLAN §7.0.1). */
+        features: string[];
       }
     | undefined
   >;
@@ -75,6 +77,8 @@ export interface BillingRepository {
       stripeSubscriptionItemId?: string | null;
       /** End date of a free admin grant (PLT-8); null = unlimited grant. */
       accessUntil?: Date | null;
+      /** Enabled plan-gated feature keys (PLAN §7.0.1); omitted keeps the stored set. */
+      features?: string[];
       updatedBy?: string | null;
     },
     tx?: TxOrDb,

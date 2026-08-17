@@ -1,4 +1,6 @@
 import * as crypto from 'node:crypto';
+
+import { defaultFeaturesForModule } from '@modubiz/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError, NotFoundError } from '../../../core/common/errors.js';
@@ -72,6 +74,9 @@ export class CreateSubscriptionUseCase {
                 state: 'active',
                 activatedAt: new Date(),
                 stripeSubscriptionItemId: null,
+                // PLAN §7.0.1: a subscription purchase is a plan event — compute
+                // the plan-gated feature set from the catalog defaults.
+                features: defaultFeaturesForModule(moduleCatalog.key),
               },
               tx,
             );

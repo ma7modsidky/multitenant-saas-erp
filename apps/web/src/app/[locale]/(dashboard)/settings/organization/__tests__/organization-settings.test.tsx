@@ -175,6 +175,6 @@ describe('OrganizationSettingsPage — edit gating (AUTHZ-5 / BUSINESS_RULES §3
     await waitFor(() =>
       expect(updateOrganizationMock).toHaveBeenCalledWith('org-1', expect.objectContaining({ name: 'Acme Rebranded' })),
     );
-    expect(updateOrganizationSettingsMock).toHaveBeenCalledWith('org-1', { receiptFooter: null });
+    expect(updateOrganizationSettingsMock).toHaveBeenCalledWith('org-1', { receiptFooter: null, sellerTaxId: null });
   });
 });

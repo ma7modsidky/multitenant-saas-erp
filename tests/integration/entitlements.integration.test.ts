@@ -206,4 +206,28 @@ describe('DrizzleEntitlementStore (integration)', () => {
     expect(await service.isEntitled(orgA, 'crm')).toBe(true); // expired = read-only
     expect(await service.hasFullAccess(orgA, 'crm')).toBe(false);
   });
+
+  it('ACC-16: features survive a store round-trip as a real jsonb array (isFeatureEnabled)', async () => {
+    // The drizzle write path JSON-encodes the set and casts ::jsonb; the read
+    // path must return a REAL array (Array.isArray true) so isFeatureEnabled
+    // works. Regression guard for the ACC-16/PUR-12 plan-gated features.
+    await store.upsert({
+      moduleKey: 'pos',
+      organizationId: orgA,
+      state: 'trialing',
+      trialStartedAt: null,
+      trialEndsAt: null,
+      activatedAt: null,
+      disabledAt: null,
+      purgeAfter: null,
+      features: ['advanced_coa', 'e_invoicing'],
+    });
+
+    const entry = await store.findByOrgAndModule(orgA, 'pos');
+    expect(Array.isArray(entry?.features)).toBe(true);
+    expect(entry?.features).toEqual(['advanced_coa', 'e_invoicing']);
+
+    expect(await service.isFeatureEnabled(orgA, 'pos', 'advanced_coa')).toBe(true);
+    expect(await service.isFeatureEnabled(orgA, 'pos', 'purchase_approval')).toBe(false);
+  });
 });

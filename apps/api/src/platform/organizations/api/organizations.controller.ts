@@ -236,6 +236,7 @@ export class OrganizationsController {
       ...(dto.numberPreferences !== undefined ? { numberPreferences: dto.numberPreferences } : {}),
       ...(dto.datePreferences !== undefined ? { datePreferences: dto.datePreferences } : {}),
       ...(dto.receiptFooter !== undefined ? { receiptFooter: dto.receiptFooter } : {}),
+      ...(dto.sellerTaxId !== undefined ? { sellerTaxId: dto.sellerTaxId } : {}),
     });
 
     return {

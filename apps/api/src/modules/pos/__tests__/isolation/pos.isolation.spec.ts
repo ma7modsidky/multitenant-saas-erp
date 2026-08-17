@@ -288,6 +288,7 @@ describe('POS tenant isolation', () => {
       activatedAt: null,
       disabledAt: '2026-01-01T00:00:00Z',
       purgeAfter: null,
+      features: [],
     });
     const guard = new EntitlementGuard(new Reflector(), new EntitlementService(store));
     await expect(guard.canActivate(guardContext(['pos:register:manage']))).rejects.toThrow('MODULE_NOT_ENTITLED');

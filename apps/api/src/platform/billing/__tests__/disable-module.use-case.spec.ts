@@ -25,6 +25,7 @@ describe('DisableModuleUseCase', () => {
     activatedAt: new Date(),
     disabledAt: null,
     purgeAfter: null,
+    features: [],
     stripeSubscriptionItemId: 'si_inventory',
   };
 

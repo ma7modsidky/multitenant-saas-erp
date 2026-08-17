@@ -8,6 +8,25 @@ import type { TxOrDb } from '../../../../core/database/repository.base.js';
 import { type SubscriptionData } from '../../domain/index.js';
 import { type BillingRepository } from '../../ports/index.js';
 
+/**
+ * Normalize the `features` jsonb column to a string array (ACC-16).
+ * postgres-js parses jsonb into JS values, so a correctly-written row arrives
+ * as an array; rows from the pre-fix write path are a double-encoded jsonb
+ * string (`'"[\"advanced_coa\"]"'`) — unwrap those defensively.
+ */
+function parseFeatures(value: unknown): string[] {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 @Injectable()
 export class DrizzleBillingRepository implements BillingRepository {
   constructor(
@@ -146,12 +165,13 @@ export class DrizzleBillingRepository implements BillingRepository {
         purgeAfter: Date | null;
         stripeSubscriptionItemId: string | null;
         accessUntil: Date | null;
+        features: string[];
       }
     | undefined
   > {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
-      sql`SELECT id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, access_until
+      sql`SELECT id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, access_until, features
           FROM core_module_entitlements
           WHERE organization_id = ${organizationId} AND module_key = ${moduleKey}
           LIMIT 1`,
@@ -169,6 +189,10 @@ export class DrizzleBillingRepository implements BillingRepository {
       purgeAfter: fromDbDate(row.purge_after),
       stripeSubscriptionItemId: row.stripe_subscription_item_id as string | null,
       accessUntil: fromDbDate(row.access_until),
+      // postgres-js parses jsonb into JS values; pre-feature rows have [] (the
+      // column default). Tolerate the legacy double-encoded jsonb string too
+      // (ACC-16) — unwrap it rather than failing closed to an empty set.
+      features: parseFeatures(row.features),
     };
   }
 
@@ -184,6 +208,7 @@ export class DrizzleBillingRepository implements BillingRepository {
       purgeAfter?: Date | null;
       stripeSubscriptionItemId?: string | null;
       accessUntil?: Date | null;
+      features?: string[];
       updatedBy?: string | null;
     },
     tx?: TxOrDb,
@@ -202,19 +227,21 @@ export class DrizzleBillingRepository implements BillingRepository {
       if (data.stripeSubscriptionItemId !== undefined)
         fragments.push(sql`stripe_subscription_item_id = ${data.stripeSubscriptionItemId}`);
       if (data.accessUntil !== undefined) fragments.push(sql`access_until = ${toDbDate(data.accessUntil)}`);
+      if (data.features !== undefined) fragments.push(sql`features = ${JSON.stringify(data.features)}::jsonb`);
 
       const setClause = sql.join(fragments, sql.raw(', '));
       await db.execute(sql`UPDATE core_module_entitlements SET ${setClause} WHERE id = ${existing.id}`);
     } else {
       await db.execute(sql`
         INSERT INTO core_module_entitlements
-          (id, organization_id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, access_until, created_at, updated_at)
+          (id, organization_id, module_key, state, trial_started_at, trial_ends_at, activated_at, disabled_at, purge_after, stripe_subscription_item_id, access_until, features, created_at, updated_at)
         VALUES
           (gen_random_uuid(), ${data.organizationId}, ${data.moduleKey}, ${data.state},
            ${toDbDate(data.trialStartedAt ?? null)}, ${toDbDate(data.trialEndsAt ?? null)},
            ${toDbDate(data.activatedAt ?? null)}, ${toDbDate(data.disabledAt ?? null)},
            ${toDbDate(data.purgeAfter ?? null)}, ${data.stripeSubscriptionItemId ?? null},
            ${toDbDate(data.accessUntil ?? null)},
+           ${JSON.stringify(data.features ?? [])}::jsonb,
            NOW(), NOW())
       `);
     }

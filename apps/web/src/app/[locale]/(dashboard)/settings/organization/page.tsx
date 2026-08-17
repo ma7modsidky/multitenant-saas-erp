@@ -94,6 +94,7 @@ export default function OrganizationSettingsPage() {
 
   const [name, setName] = useState('');
   const [receiptFooter, setReceiptFooter] = useState('');
+  const [sellerTaxId, setSellerTaxId] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -109,6 +110,7 @@ export default function OrganizationSettingsPage() {
     setHydrated(false);
     setName('');
     setReceiptFooter('');
+    setSellerTaxId('');
     setCountryCode('');
     setBaseCurrency('');
     setTimezone('');
@@ -125,6 +127,7 @@ export default function OrganizationSettingsPage() {
     setTimezone(org.timezone);
     setBaseCurrency(org.baseCurrency);
     setReceiptFooter(settings?.receiptFooter ?? '');
+    setSellerTaxId(settings?.sellerTaxId ?? '');
     setHydrated(true);
   }, [org, settings, hydrated]);
 
@@ -163,7 +166,10 @@ export default function OrganizationSettingsPage() {
       // persisted while the UI shows an error — the partial-write behavior is
       // intentional for now; a single combined endpoint would remove it.
       await updateOrganization(organizationId, { name, countryCode, timezone, baseCurrency });
-      await updateOrganizationSettings(organizationId, { receiptFooter: receiptFooter || null });
+      await updateOrganizationSettings(organizationId, {
+        receiptFooter: receiptFooter || null,
+        sellerTaxId: sellerTaxId || null,
+      });
       await queryClient.invalidateQueries({ queryKey: ['organization'] });
       setNotice('settings.saved');
     } catch (err) {
@@ -356,6 +362,17 @@ export default function OrganizationSettingsPage() {
                   onChange={(e) => setReceiptFooter(e.target.value)}
                   maxLength={500}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="org-seller-tax-id">{t('settings.org.sellerTaxId')}</Label>
+                <Input
+                  id="org-seller-tax-id"
+                  dir="auto"
+                  value={sellerTaxId}
+                  onChange={(e) => setSellerTaxId(e.target.value)}
+                  maxLength={50}
+                />
+                <p className="text-xs text-muted-foreground">{t('settings.org.sellerTaxIdHint')}</p>
               </div>
               {error && (
                 <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

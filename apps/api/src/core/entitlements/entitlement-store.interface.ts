@@ -36,6 +36,12 @@ export interface EntitlementEntry {
   disabledAt: string | null;
   /** When the module data can be purged (null if not scheduled) */
   purgeAfter: string | null;
+  /**
+   * Enabled plan-gated feature keys (short keys, e.g. `['advanced_coa']`).
+   * Computed by billing at enable/plan change from MODULE_FEATURES; the
+   * runtime authority for server-side feature gating (PLAN §7.0.1, ACC-16).
+   */
+  features: string[];
 }
 
 /**

@@ -16,6 +16,7 @@ export interface UpdateOrganizationSettingsInput {
   numberPreferences?: Record<string, unknown>;
   datePreferences?: Record<string, unknown>;
   receiptFooter?: string | null;
+  sellerTaxId?: string | null;
 }
 
 /**
@@ -52,6 +53,7 @@ export class UpdateOrganizationSettingsUseCase {
         numberPreferences: input.numberPreferences ?? existing.numberPreferences,
         datePreferences: input.datePreferences ?? existing.datePreferences,
         receiptFooter: input.receiptFooter !== undefined ? input.receiptFooter : existing.receiptFooter,
+        sellerTaxId: input.sellerTaxId !== undefined ? input.sellerTaxId : existing.sellerTaxId,
       });
 
       const persisted = await this.orgRepo.upsertSettings(merged.toJSON(), tx);

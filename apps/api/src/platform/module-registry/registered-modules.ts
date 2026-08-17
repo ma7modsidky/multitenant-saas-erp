@@ -7,7 +7,8 @@
 // @see PLAN.md §2.7 — Module registry
 // @see MODULE_GUIDE.md — Module descriptor rules
 
-import { type ModuleDescriptor } from '@modubiz/contracts';
+import { defineModule, type ModuleDescriptor } from '@modubiz/contracts';
+import { accountingDescriptor } from '../../modules/accounting/public/index.js';
 
 import { crmDescriptor } from '../../modules/crm/public/index.js';
 import { inventoryDescriptor } from '../../modules/inventory/public/index.js';
@@ -16,5 +17,14 @@ import { posDescriptor } from '../../modules/pos/public/index.js';
 /**
  * All registered business modules.
  * Bootstrap collects this array at startup — fail fast on any validation error.
+ *
+ * Each descriptor is re-validated through `defineModule()` at composition time
+ * (idempotent) so a hand-edited descriptor fails fast here, and the import
+ * keeps the `defineModule` anchor the module generator requires.
  */
-export const REGISTERED_MODULES: ModuleDescriptor[] = [crmDescriptor, inventoryDescriptor, posDescriptor];
+export const REGISTERED_MODULES: ModuleDescriptor[] = [
+  defineModule(crmDescriptor),
+  defineModule(inventoryDescriptor),
+  defineModule(posDescriptor),
+  defineModule(accountingDescriptor),
+];

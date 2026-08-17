@@ -15,6 +15,7 @@ import {
   Package,
   Repeat,
   Users,
+  Wallet,
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,5 +34,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   repeat: Repeat,
   target: Handshake,
   users: Users,
+  wallet: Wallet,
   warehouse: Warehouse,
 };

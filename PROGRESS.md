@@ -1,7 +1,428 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 75 — **architecture, domain planning & documentation
-for Accounting & Invoicing + Purchasing & Suppliers**: PLAN.md gains **Phase 7
+**Last updated:** Session 86 — **Accounting UI polish: sidebar payments link,
+CRM-style headers, COA form toggle, invoice status dropdown**.
+
+- **Payments page in the global sidebar.** The accounting module descriptor's
+  `navigation` array was missing the payments entry, so the shell sidebar never
+  showed it — now declared (`/m/accounting/payments`, `wallet` icon added to
+  `NAV_ICONS`), alongside the existing COA / journal / invoices / credit notes /
+  reports entries.
+- **CRM/Inventory-style page headers on every main accounting view.** New
+  `AccountingPageHeader` (icon badge + title + subtitle + action slot) mirrors
+  `InventoryPageHeader` exactly for cross-module consistency. Applied to COA,
+  journal, invoices, payments, credit notes, and reports.
+- **COA: Add Account form is now a collapsible section** like journal/invoices —
+  collapsed on load so the chart is the primary focus; '+ Add account' in the
+  header actions expands it. The submit button also sits in its own row (aligned
+  with the journal/invoices forms instead of the field grid).
+- **Invoices: status filter is a dropdown** ('Status': All / Issued / Paid /
+  Partially paid / Overdue / Void) instead of tab buttons; it commits to the
+  server-side filter on change and resets to page 1.
+- New i18n keys (`coa.addAccountAction`, `coa.hideForm`,
+  `invoices.filterStatus`) in en/ar/fr/es; accounting completeness green.
+  Frontend accounting suite 68/68, web 55 files / 402 tests, lint 0 errors both
+  apps, typecheck + prettier clean.
+
+**Session 85** — **Credit-note detail, printable payment receipts, payment GL
+entries**.
+
+- **Credit notes: real list + printable detail.** The credit-notes page now
+  lists actual credit notes (was: credited invoices) —
+  `GET /v1/accounting/credit-notes` (`ListCreditNotesUseCase` +
+  `listCreditNotes` repo read joining the reversed invoice for the customer
+  snapshot; free-text search by note/invoice number or customer + server-side
+  pagination). New **`m/accounting/credit-notes/[id]`** detail
+  (`GET /v1/accounting/credit-notes/:id` — `GetCreditNoteDetailUseCase`):
+  printable document with the customer, the **linked original invoice** (link
+  back to `invoices/[id]`), the reversal **reason/memo**, the reversed lines
+  resolved to item names (credit-note lines joined to invoice-line snapshots),
+  the credited total, and a **View journal entry** button that opens the
+  reversal entry (`source_type 'credit_note'`) modal in place. **Print + Export
+  PDF** actions render the printable layout via the browser print dialog
+  (Save-as-PDF is the PDF destination — no new dependency; the app's established
+  pattern).
+- **Payment receipts: structured references + GL records.** ACC-9 was documented
+  to post the receipt entry (Dr Bank/Cash, Cr AR) but never did — now completed:
+  `ApplyPaymentUseCase` allocates a gap-free **receipt number (`REC-000004`)**
+  per org and posts the receipt entry atomically (`source_type 'payment'`,
+  sourceId = payment id; cash → Dr Cash 1000, other methods → Dr Bank 1100,
+  always Cr AR 1200). Migration `accounting/0005_payment_receipts.sql` adds
+  `next_receipt_number` to `acc_org_settings` + `receipt_number` to
+  `acc_payments` (backfilled per org, NOT NULL, unique). POS-generated payments
+  allocate a number but post **no** GL entry (ACC-13 books the cash at the
+  register). The receipt detail page now shows **Payment receipt #REC-xxxxx**
+  instead of the raw UUID hash, a **Print receipt** button, and a **View journal
+  entry** button opening the receipt's GL entry modal in place (hidden for POS
+  receipts — no entry).
+- **Payments list: search + pagination.** A free-text **search** (customer name
+  or invoice number, case-insensitive) joins the existing method + date filters
+  — backend `PaymentFilter.q` + `q` query param on
+  `GET /v1/accounting/payments`. Pagination was already present.
+- **Docs.** BUSINESS_RULES ACC-9 reworded (every payment posts its receipt
+  entry; POS path excluded); DATA_MODEL updated for `receipt_number` +
+  `next_receipt_number`.
+- **Tests.** Backend: 4 new integration tests — receipt number + GL entry (Dr
+  Cash/Cr AR lines + gap-free numbering + detail journalEntry), payments
+  q-search (customer / number / no-match), credit-note detail (lines + invoice
+  - journalEntry + list + search + 404). Accounting integration now **33**, unit
+    1792, isolation 52, web **55 files / 402 tests** (new credit-notes-view and
+    credit-note-detail suites; payment detail + payments-view extended for
+    receipt reference / print / journal modal / search). Lint 0 errors both
+    apps, typecheck + prettier clean, i18n completeness green. OpenAPI +
+    api-client regenerated (credit-notes routes + receiptNumber).
+
+- **Journal `?entry=` deep link fixed.** The View-journal-entry badge now works
+  on a fresh page load: the journal page previously read
+  `window.location.search` in a lazy state initializer, which React never
+  re-runs during SSR/hydration — so opening `journal?entry=<id>` from the
+  invoice detail showed the full ledger with no modal. The page now reads the
+  promise-based `searchParams` server-side (Next 15) and passes `initialEntryId`
+  into `JournalView`, which auto-opens the entry modal. New component test
+  covers the prop-driven open; journal suite now 14 tests.
+- **Journal entry opens in place (no navigation).** The invoice detail's **View
+  journal entry** button no longer navigates to the journal list page (which
+  showed every entry behind the modal) — it now opens the
+  `JournalEntryDetailModal` directly on the invoice document (ACC-6), keeping
+  the user in context. The journal page's `?entry=` deep link remains for direct
+  URL access. Invoice-detail test updated to assert the in-place modal (with its
+  View-invoice back-link); invoice-detail suite stays 7 tests.
+
+- **Invoices list.** The issue-invoice form is now a **collapsible '+ Create
+  invoice'** (collapsed on load — the AR table is primary), with a **search
+  bar** (invoice number / customer name, case-insensitive) + **status tabs**
+  (All / Issued / Paid / Partially paid / Overdue / Void) + Apply/Clear, and
+  **prev/next pagination** (20/page) wired to the filters. Void invoices never
+  render a Pay action (ACC-8). Backend: `InvoiceFilter.q` (invoice_number /
+  customer_name_snapshot ILIKE) + `q` query param on
+  `GET /v1/accounting/invoices`.
+- **Org-level seller tax ID (new core setting).** New forward migration
+  `core/0018_org_settings_seller_tax_id.sql` adds `seller_tax_id` to
+  `core_organization_settings`; the entity, update use case, DTO, and repository
+  thread it through, and the Settings → Organization page gains a **Seller tax
+  ID** input (with hint). The invoice detail now falls back to it when the
+  invoice snapshot is empty, and the invoice-detail response adds
+  `orgSellerTaxId` (resolved via a new `getOrgSellerTaxId` repo read).
+- **Invoice detail.** **Record Payment** renders only while a balance is
+  actually owed (`balanceDue > 0` + payable status). A **View journal entry
+  JE-0005** badge in the header links to `journal?entry=<id>` — the backend
+  resolves the AR entry (`journalEntry: { id, entryNumber }`) via
+  `findJournalEntryBySource('invoice_issuance', …)`, and the journal page
+  auto-opens the entry modal from the `?entry=` query param (plain client
+  component — URL read on mount).
+- **i18n.** New invoices keys (createInvoice/hideForm/search*/filterAll/
+  apply/clear/pageOf/previous/next/viewJournalEntry) + settings `sellerTaxId`
+  keys in en/ar/fr/es (completeness spec green).
+- **Tests.** Backend: 2 new integration tests — invoice search (customer /
+  number / no-match) and detail journalEntry + org seller tax fallback (30
+  accounting integration tests). Frontend: new invoices-view suite (8: collapsed
+  form, search/status/pagination wiring, void/paid action guards) and
+  invoice-detail suite (7: seller-tax fallback, record-payment gating, journal
+  link). Full suite green: api 117/117 files, web 53/53 files, lint 0 errors
+  both apps, typecheck + prettier clean. OpenAPI + api-client regenerated.
+
+**Session 83 — Journal page + entry modal refinements**.
+
+- **Journal page UX.** The manual entry form is now a **collapsible '+ New
+  entry' section** (collapsed on load, so the transaction history table is the
+  primary focus), and a **search + date-range filter bar** sits above the ledger
+  — free-text search matches the description (case-insensitive) or the entry
+  reference (`JE-0005` / bare `5`), committed with the from/to dates via Apply,
+  with a Clear button. Backend: `JournalFilter.q` + ILIKE/entry-number
+  conditions in `listJournalEntries`, `q` query param on
+  `GET /v1/accounting/journal`.
+- **Entry detail modal.** The header now shows the **formatted reference
+  ('Journal entry #JE-0005')** instead of the raw UUID. NULL actors (system-
+  driven paths like ACC-13 auto-invoicing / ACC-15 GL) render **'System
+  (Auto-generated)'** under Created/Posted by instead of dashes. A reversed
+  entry shows a **'Reversed by JE-0008' link** — the backend now resolves the
+  reversing entry (`reversedBy: { id, entryNumber }` on the detail response),
+  and clicking the link navigates the modal to the reversing entry.
+- **i18n.** New journal keys (`newEntry`, `hideForm`, `search*`, from/to,
+  apply/clear, `detailReversedBy`, `reversedBy`, `openReversal`, `systemActor`)
+  - updated `detailTitle` (`#{entry}`) and `empty` text in en/ar/fr/es
+    (completeness spec green).
+- **Journal pagination.** The ledger now has prev/next + **Page N of M**
+  controls with a shown/total count (20/page), wired to the search + date
+  filters — Apply/Clear reset to page 1, and Next/Previous re-query with the
+  active filters. `journal.previous/next/pageOf` keys in en/ar/fr/es.
+- **Tests.** Backend: 2 new integration tests — journal list search by
+  description / formatted ref / bare number / no-match, and reversedBy
+  resolution on the detail (28 accounting integration tests). Frontend: journal
+  suite extended to 13 (form-toggle-open, formatted title, system actor ×2,
+  reversal link navigation, filter bar apply/clear, pagination indicator +
+  next/prev requests + last-page disable). Full suite green: api 117/117 files,
+  web 51/51 files, lint 0 errors both apps, typecheck + prettier clean.
+  OpenAPI + api-client regenerated.
+
+**Session 82 — Payment receipt detail view with allocation breakdown**.
+
+- **Payment receipt detail.** Every receipt in the Payments tab now has a **View
+  receipt** action (`m/accounting/payments/[id]`): the header card (method
+  badge, amount, received-at, reference, who recorded it via the shared
+  member-name hook, recorded-at) and the **allocation breakdown** — each invoice
+  the receipt was applied to (invoice link back to `invoices/[id]`, customer,
+  invoice date, invoice status badge, allocated amount) with a **Total
+  allocated** footer and a **Fully / Partially allocated** badge.
+  `GET /v1/accounting/payments/:id` (`GetPaymentDetailUseCase` + `getPayment`
+  repo method — payment header + allocations joined to invoices, RLS-scoped).
+  `payments.detail.*` + list action keys in en/ar/fr/es; OpenAPI + api-client
+  regenerated.
+- **Tests.** Backend: 1 new integration test — a single cash receipt split
+  across two invoices returns both allocations with invoice metadata, and an
+  unknown receipt 404s (26 accounting integration tests). Frontend: 4 new
+  payment-detail component tests (header + actor resolution, allocation links +
+  totals, partial-allocation badge, empty state). Full suite green: api 117/117
+  files, web 51/51 files, lint 0 errors both apps, typecheck + prettier clean.
+
+**Session 81 — Payments tab, COA search/type filters, account-detail date
+range + pagination + CSV export**.
+
+- **Payments tab.** A new `m/accounting/payments` page (nav: Payments, Wallet
+  icon) lists every payment receipt (ACC-9): date, method badge, invoice link,
+  customer, reference, amount. Method + received-at date-range filters and
+  server-side pagination; empty state. `GET /v1/accounting/payments`
+  (`ListPaymentsUseCase` + `listPayments` repo method — receipt + invoice
+  number + customer name snapshot, newest first). `payments.*` catalog in
+  en/ar/fr/es; OpenAPI + api-client regenerated.
+- **COA page: search + type filter.** A filter bar above the chart filters
+  client-side by name/code text and account type (search input + type select,
+  shown/total count, no-matches state). Labels disambiguated from the Add
+  Account form (`Search accounts` / `Filter by type`) in all four locales.
+- **Account detail (GL): date range, pagination, CSV.** The transaction history
+  is now server-side paginated (20/page) with a from/to date-range filter; the
+  running balance is computed by the DB with a window function over the filtered
+  set. `GET /v1/accounting/coa/:id` accepts `fromDate/toDate/page/pageSize`.
+  Export CSV downloads the current filtered page (BOM-prefixed, quoted fields).
+  `detail.*` keys (fromDate/toDate/apply/ clear/previous/next/pageOf/exportCsv)
+  added in en/ar/fr/es.
+- **Tests.** Backend: 1 new integration test (payments list newest-first) + the
+  ACC-5 detail test extended for pagination/date filtering. Frontend: 4 new COA
+  filter tests, 3 payments-view tests, and the account-detail suite extended to
+  8 (pagination controls + CSV export + date filter). Full suite green: api
+  117/117 files, web 50/50 files, integration 15/15 (25 accounting), lint 0
+  errors both apps, typecheck + prettier clean.
+
+**Session 80 — Accounting reports shipped: trial balance, income statement,
+balance sheet, AR aging (full stack)**.
+
+- **The reports page is functional.** The static placeholder hub is now a tabbed
+  reports workspace with four server-computed financial statements under
+  `v1/accounting/reports/*` (all `accounting:report:view`, read-only):
+  - **Trial balance** (`GET reports/trial-balance?fromDate&toDate`) — every
+    account's debit/credit totals over a period (accounts with no activity
+    included at zero), natural-direction net, grand totals, and a live
+    **Balanced / Drift detected** badge (ACC-1 Σdebit = Σcredit check).
+  - **Income statement** (`GET reports/income-statement?fromDate&toDate`) —
+    revenue vs expense nets per account plus total revenue / total expenses /
+    net income (negative net income renders in destructive red).
+  - **Balance sheet** (`GET reports/balance-sheet?asOfDate`) — assets,
+    liabilities, and equity as of a date, each section with its natural-
+    direction balances and a section total (P&L accounts excluded).
+  - **AR aging** (`GET reports/ar-aging?asOfDate`) — every open invoice (issued
+    / partially paid / overdue) bucketed current, 1–30, 31–60, 61–90, 90+ days
+    past due with balance due = total − paid − credited and a total-outstanding
+    footer (ACC-8/ACC-9).
+- **Backend.** New repository methods `sumAccountPeriodBalances` (period
+  aggregation over journal lines; the filter is applied inside the lines
+  subquery so zero-activity accounts stay in the report) and `listOpenInvoices`
+  (open-status invoices for aging). Reversals net naturally — they are
+  themselves balanced entries (ACC-2). Four new use cases
+  (`GetTrialBalanceUseCase`, `GetIncomeStatementUseCase`,
+  `GetBalanceSheetUseCase`, `GetArAgingUseCase`) + the pure exported
+  `bucketAgingInvoices` bucketing function; DTOs + Swagger response classes;
+  registered in the module. The `acc_account_balances` projection is not yet
+  populated (only validated by the ACC-15 reconciliation job), so reports
+  aggregate from GL line sums — the same source the reconciliation asserts.
+- **Frontend.** `reports-view.tsx` rebuilt: report picker tabs, a shared period
+  filter (from/to dates + This month / Last month / All time shortcuts) for
+  trial balance + income statement, an as-of date filter for balance sheet + AR
+  aging (empty = today), loading / error / empty states per report, and a Print
+  button (chrome hidden via `print:hidden`) plus CSV export for the trial
+  balance. Full `reports.*` message catalog in en/ar/fr/es (completeness spec
+  green).
+- **Tests.** Backend: 5 new unit tests for `bucketAgingInvoices` (current /
+  buckets / future-due / paid-credited exclusion / bucket totals) and 4 new
+  integration tests (trial balance balances + period filter, income statement
+  nets, balance sheet sections, AR aging buckets against real Postgres).
+  Frontend: 4 new component tests (trial balance rows + balanced badge + period
+  filter, income statement, AR aging buckets). OpenAPI + `@modubiz/api-client`
+  regenerated with the four report routes.
+
+**Session 79 — Accounting UX refactor: COA GL detail + actions, journal
+live-balance form, invoice detail, POS-sync paid**.
+
+- **Chart of accounts (COA) refactor.** The Add Account form now enforces a
+  plain-text business name (dotted system keys like `coa.bank` are rejected
+  client-side with a hint, and the seeded system accounts now display translated
+  names instead of raw `coa.bank`-style keys — new `coa.seeded.*` catalog in
+  en/ar/fr/es), and the code auto-generates from the account type's numeric
+  block (asset 1xxx … expense 5xxx, next free +100) with manual override. An
+  **ACTIONS** column was added: custom accounts get Edit (rename modal) and an
+  Activate/Deactivate toggle (confirm dialog); system accounts stay immutable
+  (ACC-5). New **account detail / general-ledger page** (`coa/[id]`): header
+  (name, code, type, status), current total balance in the account's natural
+  direction (Dr/Cr side badge + debit/credit totals), and the append-only
+  transaction history (date, JE reference, description, debit, credit, running
+  balance).
+- **Backend for COA**: `GET/PATCH /v1/accounting/coa/:id`
+  (`GetAccountDetailUseCase` — balance + movements with running balance;
+  `UpdateAccountUseCase` — rename + toggle, `advanced_coa`-gated (ACC-16), code
+  never changes, system accounts can't be deactivated), domain
+  `Account.update()`, and repository reads
+  (`findAccountMovements`/`sumAccountBalances`/`updateAccount`).
+- **Journal live-balance form.** The posting form now shows live Total Debit /
+  Total Credit at the bottom of the lines, turns the footer red with an
+  unbalanced hint while the sides differ (ACC-1), and strictly disables Post
+  Entry unless the entry is balanced AND has at least two lines. The single-side
+  rule (ACC-4) is enforced by clearing the other amount field when one is typed,
+  and the minimum line count went from 1 → 2.
+- **Invoices: POS sync = Paid + dynamic actions + detail page.** POS-generated
+  invoices now default to **Paid**: `IssueInvoiceUseCase` marks `pos_sale`
+  invoices paid inside the same transaction (a payment + allocation row in the
+  AR subledger, no double GL entry, no misattributed events) — ACC-13
+  integration test asserts status `paid` + full allocation. The invoices table
+  renders **Pay** only while money is owed (Issued / Overdue / Partially paid)
+  and a **View** link for every row; Paid rows show the Paid badge. New
+  **invoice detail page** (`invoices/[id]`): customer + tax-ID + issue/due
+  dates, itemized lines with per-line tax, totals (subtotal / tax / total / paid
+  / balance due), payment-history timeline (ACC-9), credit-note trail (ACC-10),
+  Print + CSV export, a Record Payment modal, and an Issue Credit Note modal
+  (line picker + reason).
+- **Backend for invoices**: `GET /v1/accounting/invoices/:id`
+  (`GetInvoiceDetailUseCase`) with lines, payments (`listInvoicePayments`), and
+  credit notes (`listCreditNotesByInvoice`).
+- **GL rows link back to the source document.** The account detail page's
+  transaction history now exposes each movement's source reference
+  (`sourceType`/`sourceId` from the journal entry — `findAccountMovements`
+  selects `source_type`/`source_id`), and rows originating from an invoice
+  issuance render a direct **View invoice** link to `invoices/[id]` next to the
+  description (ACC-6/ACC-15); manual and other sources stay plain. Frontend: 2
+  new component tests (invoice link href rendered; manual rows render no link).
+  The ACC-5 integration test now posts an `invoice_issuance`-sourced entry and
+  asserts both source fields on the GL rows.
+- **Journal entry detail modal.** Every journal entry reference (JE-xxxx) and
+  row in the journal list is now clickable and opens a detail modal
+  (`JournalEntryDetailModal`) showing the full line set resolved to accounts
+  (code + name, ACC-4), each line's Debit / Credit / Memo, live Dr/Cr totals,
+  actor metadata (created/posted by with member names, timestamps), and a direct
+  link to the source document when one exists (e.g. **View invoice** for AR
+  entries from invoice issuance, ACC-6/ACC-15); manual entries show a
+  source-type label instead. New backend: `GET /v1/accounting/journal/:id`
+  (`GetJournalEntryDetailUseCase`) — the journal list rows now also carry
+  `createdBy`, and the detail resolves lines to account code/name + actor
+  fields. Frontend: 2 new component tests (lines + actor metadata + invoice
+  link; manual-source label fallback).
+- **Tests & gates.** Backend: 47 accounting unit tests (+3 domain `update`
+  tests), 20 integration tests (+5 new: account detail/update/system-toggle
+  guard/invoice detail/journal entry detail; ACC-13 now asserts paid). Frontend:
+  11 new component tests (journal live balance + single-side + disabled Post +
+  detail modal; COA plain-name validation + code auto-generation + actions
+  column; GL source-document links). OpenAPI + `@modubiz/api-client` regenerated
+  with the four new routes. Lint 0 errors, typecheck + prettier clean, full unit
+  suite green (api 117 files, web 47 files + accounting).
+
+**Session 78 — Accounting 500s fixed + ACC-16 custom accounts shipped
+(dev-server verified).**
+
+- **Accounting domain errors now map to 4xx, not 500.** `AccountingDomainError`
+  extended plain `Error`, so the global exception filter (which only maps
+  `AppError`/`HttpException`) turned EVERY violated accounting invariant into a
+  500 INTERNAL_ERROR. It now extends the shared `DomainError` (422, same as
+  `InventoryError`/`PosError`) — a domain violation returns its stable
+  `ACCOUNTING_*` code. Reproduced live: an unbalanced journal entry went from
+  500 to **422 ACCOUNTING_ENTRY_UNBALANCED**; an invoice without a customer went
+  from 500 to **400** (zod) / **422** (domain).
+- **Manual invoices accept a name-only customer.** `Invoice.createDraft`
+  required a CRM contact/company id, contradicting DATA_MODEL §10 (ids optional,
+  `customer_name_snapshot` is what the document needs). Now requires a non-empty
+  customer name; CRM ids stay optional. Unit test updated + name-only acceptance
+  test added.
+- **Journal form validates ACC-1 balance client-side** — an unbalanced entry is
+  blocked in the UI instead of round-tripping to the backend.
+- **ACC-16 custom accounts implemented.** `POST /v1/accounting/coa`
+  (`CreateAccountUseCase`): 4-digit numeric code unique per org, five account
+  types, never system (ACC-5), gated server-side on the `advanced_coa` plan
+  feature (`ACCOUNTING_COA_READ_ONLY` 422 when absent). COA page gains an
+  add-account form (feature-gated + `Can`), `features` added to the web
+  `Entitlement` type, i18n in en/ar/fr/es. OpenAPI + api-client regenerated.
+- **Entitlement `features` read defensively.** The jsonb column is parsed as an
+  array on read (`parseFeatures` in `DrizzleEntitlementStore` and
+  `DrizzleBillingRepository`), unwrapping legacy double-encoded string rows
+  (written by non-drizzle SQL) instead of failing closed to `[]`; forward
+  migration `core/0017_entitlement_features_fix.sql` repairs such rows. New
+  ACC-16 integration tests: features round-trip via the real store + 3
+  create-account cases (enabled / feature-absent / duplicate code).
+- **Verified live on the dev server:** billing returns
+  `["advanced_coa","e_invoicing"]`, `POST /coa` 201, journal 422, invoice 201.
+  Full gates green: unit 1514 (+3), integration 179, isolation 47, lint 0
+  errors, typecheck + prettier clean.
+
+**Session 77 — Accounting & Invoicing frontend (Phase 7.8) shipped + full
+quality gates green**. Routes under `app/[locale]/(dashboard)/m/accounting/`
+(COA → journal → invoices → credit notes → reports) with a sub-navigation
+layout, feature views in `features/accounting/` (lazy-seeded COA table, journal
+posting with dynamic balanced lines + ACC-2 reversal, invoice issuance with
+multi-line items + per-line tax + ACC-9 payment dialog, credit-note trail,
+reports hub), `ModuleGate` + `Can` gating throughout, and full
+`modules.accounting` message catalogs in **en/ar/fr/es** (new
+`accounting-completeness.spec.ts`). `accounting-journey.e2e.spec.ts` committed
+(COA → journal → invoice → payment, skipped without `E2E_BASE_URL`). OpenAPI +
+`@modubiz/api-client` regenerated with the `v1/accounting` routes — this
+surfaced and fixed a real boot defect: the accounting module now imports
+`EntitlementsModule` (GL event handlers gate on `EntitlementService`, ACC-16)
+and registers `GetStatusUseCase`, so the full app boots cleanly. **Full stack
+green: unit 1776, integration 11 (accounting), isolation 47, lint + typecheck +
+prettier clean.**
+
+**Session 76 — Accounting & Invoicing module implemented (Phase 7, full stack
+backend)**. The plan-gated feature mechanism (PLAN §7.0.1) lands first:
+`MODULE_FEATURES` catalog in `@modubiz/contracts`, a `features jsonb` column on
+`core_module_entitlements` (core migration 0016), billing computes the enabled
+set at enable/plan-change, `EntitlementService isFeatureEnabled()` fails closed,
+and `get-billing` exposes features to the frontend. Accounting contracts (PLAN
+§7.1): `accounting` module key + 9 permissions, 5 published events +
+`pos.sale.completed.v1` / `inventory.stock.movement_recorded.v1` consumed,
+`INVENTORY_MOVEMENT_PORT` consumed (Level 3), and the Phase 8 purchasing events
+co-declared. The module is scaffolded (`pnpm generate:module accounting`) and
+built out:
+
+- **Schema (7.3)** — `acc_accounts`, `acc_tax_rates`, `acc_journal_entries` /
+  `acc_journal_lines` (append-only once posted, ACC-2 trigger with the
+  sanctioned reversal flip), `acc_invoices` / `acc_invoice_lines` (with
+  `paid_amount_minor`/`credited_amount_minor` projections and e-invoice
+  columns), `acc_payments` / `acc_payment_allocations`, `acc_credit_notes` /
+  `acc_credit_note_lines`, `acc_account_balances`, `acc_org_settings` (per-org
+  counters for gap-free numbers). RLS on every table; deferred balanced-entry
+  trigger (ACC-1), one-side CHECK (ACC-4), allocation ≤ total (ACC-9), credit
+  notes ≤ net (ACC-10) as DB backstops.
+- **Domain (7.4)** — `Account`/COA with lazy idempotent default SME chart
+  (ACC-5), `JournalEntry`/`JournalLine` (ACC-1..4), `TaxRate` (ACC-11),
+  `Invoice`/`InvoiceLine` (ACC-6..12, ACC-14 goods lines), `CreditNote` (ACC-10)
+  — 31 rule-cited unit tests.
+- **Application (7.5)** — `EnsureDefaultChartOfAccounts`, `PostJournalEntry` (+
+  transaction-scoped `postInTx` so the AR entry posts atomically with issuance,
+  ACC-6), `ReverseJournalEntry` (ACC-2), `IssueInvoice` (goods lines deduct
+  stock via the movement port in the same transaction, ACC-14), `ApplyPayment`
+  (ACC-9, status flips persisted), `IssueCreditNote` (ACC-10),
+  `GenerateInvoiceFromPosSale` (ACC-13, idempotent per sale id), list use cases,
+  and jobs: overdue-invoice (ACC-8), GL reconciliation (ACC-15), e-invoice
+  status polling (ACC-12).
+- **Events (7.7)** — `PosSaleCompletedHandler` (ACC-13) and
+  `InventoryMovementRecordedHandler` (ACC-15 COGS posting; sale/return/
+  cost_adjustment mapped, purchase paths deferred to Phase 8) — both idempotent,
+  TEN-6 context re-established from the payload, OPS-3 failure isolation.
+- **API (7.6)** — `v1/accounting` controller: COA, journal post/reverse/list,
+  invoice issue/list, payments, credit notes — all `@RequiresModule` +
+  `@RequiresPermission`, zod-validated, money as `{ amountMinor, currency }`.
+- **Tests** — 11 integration tests (ACC-1/2/3/5/6/9/10/13/14/15, TEN-1) and 12
+  isolation tests (cross-org read/list/update, injected org ignored, no-context
+  zero rows, entitlement/permission/feature denials). Full unit suite 1764
+  green, integration 175 green, isolation 47 green, arch 0 errors, lint +
+  typecheck clean.
+
+**Previous (Session 75):** architecture, domain planning & documentation for
+Accounting & Invoicing + Purchasing & Suppliers: PLAN.md gains **Phase 7
 (Accounting & Invoicing**, key `accounting`, prefix `acc_`) and **Phase 8
 (Purchasing & Suppliers**, key `purchasing`, prefix `pur_`) before production
 hardening, which is renumbered **Phase 9** (diagram, phase table, milestones
@@ -110,7 +531,7 @@ troubleshooting table. Prettier-clean. **Current phase:** Phase 6 — POS Module
 | 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified               |
 | 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                               |
 | 6 — POS Module                        | 🚧 Full stack  | 6.1–6.6 + 6.9 done; 6.7 offline engine + PWA shell (Sessions 64–65, 69) |
-| 7 — Accounting & Invoicing            | ⬜ Not started | Planned (Session 75): double-entry GL, AR invoicing, tax + e-invoicing  |
+| 7 — Accounting & Invoicing            | ✅ Full stack  | Contracts → schema → domain → app → API → events → jobs → frontend      |
 | 8 — Purchasing & Suppliers            | ⬜ Not started | Planned (Session 75): purchase-to-pay, vendor ledger, GRN→stock         |
 | 9 — Production Hardening & Deployment | ⬜ Not started |                                                                         |
 

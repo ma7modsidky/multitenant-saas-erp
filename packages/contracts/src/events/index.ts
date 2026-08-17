@@ -176,3 +176,42 @@ export {
   posShiftClosedV1Schema,
 } from './pos.js';
 export type { PosSaleCompletedV1, PosSaleRefundedV1, PosShiftOpenedV1, PosShiftClosedV1 } from './pos.js';
+
+// ─── Accounting events ───────────────────────────────────────────────────────
+//
+// @see PLAN.md §7.1 — Declare contracts first
+// @see DATA_MODEL.md §10 — Accounting schema (`acc_`)
+// @see BUSINESS_RULES.md §13 — Accounting and invoicing rules (ACC-*)
+
+export {
+  ACCOUNTING_EVENTS,
+  accountingInvoiceIssuedV1Schema,
+  accountingInvoicePaidV1Schema,
+  accountingCreditNoteIssuedV1Schema,
+  accountingJournalPostedV1Schema,
+  accountingPaymentReceivedV1Schema,
+} from './accounting.js';
+export type {
+  AccountingInvoiceIssuedV1,
+  AccountingInvoicePaidV1,
+  AccountingCreditNoteIssuedV1,
+  AccountingJournalPostedV1,
+  AccountingPaymentReceivedV1,
+} from './accounting.js';
+
+// ─── Purchasing events (co-declared in Phase 7 for Accounting's handlers) ───
+//
+// @see PLAN.md §7.1.4 — Accounting co-declares the Phase 8 purchasing events
+// @see BUSINESS_RULES.md §14 — Purchasing and suppliers rules (PUR-*)
+
+export {
+  PURCHASING_EVENTS,
+  purchasingBillApprovedV1Schema,
+  purchasingPaymentRecordedV1Schema,
+  purchasingSupplierReturnApprovedV1Schema,
+} from './purchasing.js';
+export type {
+  PurchasingBillApprovedV1,
+  PurchasingPaymentRecordedV1,
+  PurchasingSupplierReturnApprovedV1,
+} from './purchasing.js';

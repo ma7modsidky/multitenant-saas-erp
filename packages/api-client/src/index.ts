@@ -1748,6 +1748,262 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/accounting/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_status'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/coa': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_listCoaRoute'];
+    put?: never;
+    post: operations['AccountingController_createAccountRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/coa/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_getAccountDetailRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['AccountingController_updateAccountRoute'];
+    trace?: never;
+  };
+  '/v1/accounting/journal': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_listJournalRoute'];
+    put?: never;
+    post: operations['AccountingController_postJournalEntryRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/journal/{id}/reverse': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['AccountingController_reverseJournalEntryRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/journal/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_getJournalEntryDetailRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/invoices': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_listInvoicesRoute'];
+    put?: never;
+    post: operations['AccountingController_issueInvoiceRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/invoices/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_getInvoiceDetailRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/payments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_listPaymentsRoute'];
+    put?: never;
+    post: operations['AccountingController_applyPaymentRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/payments/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_getPaymentDetailRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/credit-notes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_listCreditNotesRoute'];
+    put?: never;
+    post: operations['AccountingController_issueCreditNoteRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/credit-notes/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_getCreditNoteDetailRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/reports/trial-balance': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_trialBalanceRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/reports/income-statement': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_incomeStatementRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/reports/balance-sheet': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_balanceSheetRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/reports/ar-aging': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_arAgingRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1804,6 +2060,7 @@ export interface components {
           [key: string]: unknown;
         };
         receiptFooter: string | null;
+        sellerTaxId: string | null;
         createdAt: string;
         updatedAt: string;
       } | null;
@@ -1836,6 +2093,7 @@ export interface components {
           [key: string]: unknown;
         };
         receiptFooter: string | null;
+        sellerTaxId: string | null;
         createdAt: string;
         updatedAt: string;
       } | null;
@@ -1851,6 +2109,7 @@ export interface components {
         [key: string]: unknown;
       };
       receiptFooter?: string | null;
+      sellerTaxId?: string | null;
     };
     SettingsUpdateEnvelopeResponse: {
       data: {
@@ -1866,6 +2125,7 @@ export interface components {
           [key: string]: unknown;
         };
         receiptFooter: string | null;
+        sellerTaxId: string | null;
         createdAt: string;
         updatedAt: string;
       };
@@ -3296,6 +3556,201 @@ export interface components {
     };
     PosRefundEnvelopeResponse: {
       data: components['schemas']['PosRefundResponse'];
+    };
+    AccountResponse: {
+      id: string;
+      code: string;
+      nameI18n: Record<string, never>;
+      type: string;
+      isSystem: boolean;
+      isActive: boolean;
+    };
+    AccountListEnvelopeResponse: {
+      data: components['schemas']['AccountResponse'][];
+    };
+    AccountDetailEnvelopeResponse: {
+      data: components['schemas']['AccountResponse'];
+    };
+    AccountUpdateEnvelopeResponse: {
+      data: Record<string, never>;
+    };
+    JournalEntryResponse: {
+      id: string;
+      entryNumber: number;
+      entryDate: string;
+      description: string;
+      currency: string;
+      status: string;
+      sourceType: string;
+      debitTotalAmountMinor: string;
+      creditTotalAmountMinor: string;
+      postedAt?: Record<string, never> | null;
+    };
+    JournalEntryEnvelopeResponse: {
+      data: components['schemas']['JournalEntryResponse'];
+    };
+    JournalListEnvelopeResponse: {
+      data: components['schemas']['JournalEntryResponse'][];
+    };
+    JournalEntryDetailEnvelopeResponse: {
+      data: components['schemas']['JournalEntryResponse'];
+    };
+    InvoiceResponse: {
+      id: string;
+      invoiceNumber: string;
+      customerNameSnapshot: string;
+      status: string;
+      invoiceDate: string;
+      dueDate: string;
+      currency: string;
+      subtotalAmountMinor: string;
+      discountAmountMinor: string;
+      taxAmountMinor: string;
+      totalAmountMinor: string;
+      paidAmountMinor: string;
+      creditedAmountMinor: string;
+      sourceType?: Record<string, never> | null;
+      sourceId?: Record<string, never> | null;
+    };
+    InvoiceEnvelopeResponse: {
+      data: components['schemas']['InvoiceResponse'];
+    };
+    InvoiceDetailResponse: {
+      id: string;
+      invoiceNumber: string;
+      customerNameSnapshot: string;
+      status: string;
+      invoiceDate: string;
+      dueDate: string;
+      currency: string;
+      subtotalAmountMinor: string;
+      discountAmountMinor: string;
+      taxAmountMinor: string;
+      totalAmountMinor: string;
+      paidAmountMinor: string;
+      creditedAmountMinor: string;
+      sourceType?: Record<string, never> | null;
+      sourceId?: Record<string, never> | null;
+      lines: Record<string, never>[];
+    };
+    InvoiceDetailEnvelopeResponse: {
+      data: components['schemas']['InvoiceDetailResponse'];
+    };
+    InvoiceListEnvelopeResponse: {
+      data: components['schemas']['InvoiceResponse'][];
+    };
+    PaymentListResponse: {
+      id: string;
+      method: string;
+      receiptNumber: string;
+      amountMinor: string;
+      currency: string;
+      receivedAt: string;
+      reference?: Record<string, never> | null;
+      invoiceId: string;
+      invoiceNumber: string;
+      customerNameSnapshot: string;
+      allocationAmountMinor: string;
+    };
+    PaymentListEnvelopeResponse: {
+      data: components['schemas']['PaymentListResponse'][];
+    };
+    PaymentDetailResponse: {
+      id: string;
+      method: string;
+      receiptNumber: string;
+      amountMinor: string;
+      currency: string;
+      receivedAt: string;
+      reference?: Record<string, never> | null;
+      createdBy?: Record<string, never> | null;
+      createdAt: string;
+    };
+    PaymentDetailEnvelopeResponse: {
+      data: components['schemas']['PaymentDetailResponse'];
+    };
+    PaymentEnvelopeResponse: {
+      data: Record<string, never>;
+    };
+    CreditNoteEnvelopeResponse: {
+      data: Record<string, never>;
+    };
+    CreditNoteListResponse: {
+      id: string;
+      creditNoteNumber: string;
+      invoiceId: string;
+      invoiceNumber: string;
+      customerNameSnapshot: string;
+      status: string;
+      reasonCode: string;
+      amountMinor: string;
+      currency: string;
+      issuedAt?: Record<string, never> | null;
+      createdAt: string;
+    };
+    CreditNoteListEnvelopeResponse: {
+      data: components['schemas']['CreditNoteListResponse'][];
+    };
+    CreditNoteDetailLineResponse: {
+      id: string;
+      invoiceLineId: string;
+      itemNameSnapshot: string;
+      quantity: string;
+      unitPriceAmountMinor: string;
+      taxAmountMinor: string;
+      lineTotalAmountMinor: string;
+    };
+    CreditNoteDetailResponse: {
+      id: string;
+      creditNoteNumber: string;
+      invoiceId: string;
+      invoiceNumber: string;
+      customerNameSnapshot: string;
+      status: string;
+      reasonCode: string;
+      amountMinor: string;
+      currency: string;
+      issuedAt?: Record<string, never> | null;
+      createdAt: string;
+      lines: components['schemas']['CreditNoteDetailLineResponse'][];
+    };
+    CreditNoteDetailEnvelopeResponse: {
+      data: components['schemas']['CreditNoteDetailResponse'];
+    };
+    TrialBalanceRowResponse: {
+      accountId: string;
+      code: string;
+      nameI18n: Record<string, never>;
+      type: string;
+      isSystem: boolean;
+      isActive: boolean;
+      debitTotalMinor: string;
+      creditTotalMinor: string;
+      netMinor: string;
+    };
+    TrialBalanceEnvelopeResponse: {
+      data: components['schemas']['TrialBalanceRowResponse'][];
+    };
+    IncomeStatementLineResponse: {
+      accountId: string;
+      code: string;
+      nameI18n: Record<string, never>;
+      netMinor: string;
+    };
+    IncomeStatementEnvelopeResponse: {
+      data: components['schemas']['IncomeStatementLineResponse'][];
+    };
+    BalanceSheetLineResponse: {
+      accountId: string;
+      code: string;
+      nameI18n: Record<string, never>;
+      balanceMinor: string;
+    };
+    BalanceSheetEnvelopeResponse: {
+      data: components['schemas']['BalanceSheetLineResponse'][];
+    };
+    ArAgingEnvelopeResponse: {
+      data: Record<string, never>;
     };
   };
   responses: never;
@@ -6202,6 +6657,479 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['PosRefundEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AccountingController_listCoaRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AccountListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_createAccountRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AccountListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_getAccountDetailRoute: {
+    parameters: {
+      query: {
+        fromDate: string;
+        toDate: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AccountDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_updateAccountRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AccountUpdateEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_listJournalRoute: {
+    parameters: {
+      query: {
+        q: string;
+        fromDate: string;
+        toDate: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JournalListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_postJournalEntryRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JournalEntryEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_reverseJournalEntryRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JournalEntryEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_getJournalEntryDetailRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JournalEntryDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_listInvoicesRoute: {
+    parameters: {
+      query: {
+        q: string;
+        status: string;
+        fromDate: string;
+        toDate: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InvoiceListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_issueInvoiceRoute: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InvoiceEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_getInvoiceDetailRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InvoiceDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_listPaymentsRoute: {
+    parameters: {
+      query: {
+        q: string;
+        method: string;
+        fromDate: string;
+        toDate: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_applyPaymentRoute: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_getPaymentDetailRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_listCreditNotesRoute: {
+    parameters: {
+      query: {
+        q: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CreditNoteListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_issueCreditNoteRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CreditNoteEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_getCreditNoteDetailRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CreditNoteDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_trialBalanceRoute: {
+    parameters: {
+      query: {
+        fromDate: string;
+        toDate: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TrialBalanceEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_incomeStatementRoute: {
+    parameters: {
+      query: {
+        fromDate: string;
+        toDate: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['IncomeStatementEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_balanceSheetRoute: {
+    parameters: {
+      query: {
+        asOfDate: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BalanceSheetEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_arAgingRoute: {
+    parameters: {
+      query: {
+        asOfDate: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ArAgingEnvelopeResponse'];
         };
       };
     };

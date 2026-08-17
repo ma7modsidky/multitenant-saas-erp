@@ -18,6 +18,8 @@ export interface OrganizationSettingsData {
   numberPreferences: Record<string, unknown>;
   datePreferences: Record<string, unknown>;
   receiptFooter: string | null;
+  /** The organization's seller/company tax ID (ACC-6 — invoice header). */
+  sellerTaxId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +64,9 @@ export class OrganizationSettings {
   get receiptFooter(): string | null {
     return this.data.receiptFooter;
   }
+  get sellerTaxId(): string | null {
+    return this.data.sellerTaxId;
+  }
   get createdAt(): Date {
     return this.data.createdAt;
   }
@@ -88,6 +93,7 @@ export function defaultOrganizationSettings(organizationId: string, baseCurrency
     numberPreferences: {},
     datePreferences: {},
     receiptFooter: null,
+    sellerTaxId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

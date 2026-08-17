@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { DESCRIPTOR_ERROR, defineModule, validateDescriptors } from '../src/module/index.js';
+import {
+  DESCRIPTOR_ERROR,
+  MODULE_FEATURES,
+  defaultFeaturesForModule,
+  defineModule,
+  featuresForModule,
+  validateDescriptors,
+} from '../src/module/index.js';
 
 // Helpers ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +87,42 @@ describe('defineModule() — descriptor-level validation (PLAN.md §3.1)', () =>
 
   it('does NOT reject consumed events that start with another module key', () => {
     expect(() => make({ consumes: ['crm.contact.created.v1'] })).not.toThrow();
+  });
+});
+
+// ─── MODULE_FEATURES catalog (PLAN.md §7.0.1) ──────────────────────────────
+
+describe('MODULE_FEATURES — plan-gated feature catalog (PLAN.md §7.0.1)', () => {
+  it('declares the accounting plan-gated features with their defaults', () => {
+    const accounting = featuresForModule('accounting');
+    const keys = accounting.map((f) => f.featureKey);
+    expect(keys).toEqual(expect.arrayContaining(['advanced_coa', 'e_invoicing']));
+    expect(accounting.find((f) => f.featureKey === 'advanced_coa')?.defaultEnabled).toBe(true);
+    expect(accounting.find((f) => f.featureKey === 'e_invoicing')?.defaultEnabled).toBe(true);
+  });
+
+  it('declares the purchasing purchase_approval feature off by default (PUR-12)', () => {
+    const purchaseApproval = MODULE_FEATURES.find(
+      (f) => f.moduleKey === 'purchasing' && f.featureKey === 'purchase_approval',
+    );
+    expect(purchaseApproval?.defaultEnabled).toBe(false);
+  });
+
+  it('defaultFeaturesForModule returns only default-enabled short keys', () => {
+    expect(defaultFeaturesForModule('accounting')).toEqual(['advanced_coa', 'e_invoicing']);
+    expect(defaultFeaturesForModule('purchasing')).toEqual([]);
+  });
+
+  it('returns an empty set for a module with no declared features', () => {
+    expect(defaultFeaturesForModule('crm')).toEqual([]);
+    expect(featuresForModule('crm')).toEqual([]);
+  });
+
+  it('stores short feature keys — never module-prefixed — so the entitlement set is unambiguous', () => {
+    for (const f of MODULE_FEATURES) {
+      expect(f.featureKey).not.toContain('.');
+      expect(f.moduleKey).toBeTruthy();
+    }
   });
 });
 

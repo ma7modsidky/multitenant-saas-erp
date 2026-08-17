@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export { MODULE_FEATURES, defaultFeaturesForModule, featuresForModule } from './features.js';
+export type { ModuleFeature } from './features.js';
+
 // ─── Module keys ────────────────────────────────────────────────────────────
 
 /**
@@ -10,6 +13,7 @@ export const MODULE_KEYS = {
   CRM: 'crm',
   INVENTORY: 'inventory',
   POS: 'pos',
+  ACCOUNTING: 'accounting',
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];

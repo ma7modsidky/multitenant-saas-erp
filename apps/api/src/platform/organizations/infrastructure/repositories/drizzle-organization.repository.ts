@@ -152,12 +152,12 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
       sql`
         INSERT INTO ${this.settingsTable}
           (organization_id, locale, timezone, base_currency,
-           number_preferences, date_preferences, receipt_footer)
+           number_preferences, date_preferences, receipt_footer, seller_tax_id)
         VALUES
           (${data.organizationId}, ${data.locale}, ${data.timezone}, ${data.baseCurrency},
            ${JSON.stringify(data.numberPreferences)}::jsonb,
            ${JSON.stringify(data.datePreferences)}::jsonb,
-           ${data.receiptFooter})
+           ${data.receiptFooter}, ${data.sellerTaxId})
         ON CONFLICT (organization_id)
         DO UPDATE SET
           locale = EXCLUDED.locale,
@@ -166,6 +166,7 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
           number_preferences = EXCLUDED.number_preferences,
           date_preferences = EXCLUDED.date_preferences,
           receipt_footer = EXCLUDED.receipt_footer,
+          seller_tax_id = EXCLUDED.seller_tax_id,
           updated_at = NOW()
         RETURNING *
       `,
@@ -210,6 +211,7 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
           ? JSON.parse(row.date_preferences)
           : (row.date_preferences as Record<string, unknown>),
       receiptFooter: (row.receipt_footer as string | null) ?? null,
+      sellerTaxId: (row.seller_tax_id as string | null) ?? null,
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,
     };

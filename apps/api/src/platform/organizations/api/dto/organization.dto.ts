@@ -78,6 +78,7 @@ export const updateOrganizationSettingsSchema = z
     numberPreferences: z.record(z.string(), z.unknown()).optional(),
     datePreferences: z.record(z.string(), z.unknown()).optional(),
     receiptFooter: z.string().max(500).nullable().optional(),
+    sellerTaxId: z.string().max(50).nullable().optional(),
   })
   .strict();
 
@@ -120,6 +121,7 @@ export const organizationSettingsResponseSchema = z.object({
   numberPreferences: z.record(z.string(), z.unknown()),
   datePreferences: z.record(z.string(), z.unknown()),
   receiptFooter: z.string().nullable(),
+  sellerTaxId: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -213,6 +215,7 @@ export function settingsToResponse(settings: {
   numberPreferences: Record<string, unknown>;
   datePreferences: Record<string, unknown>;
   receiptFooter: string | null;
+  sellerTaxId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): OrganizationSettingsResponse {
@@ -225,6 +228,7 @@ export function settingsToResponse(settings: {
     numberPreferences: settings.numberPreferences,
     datePreferences: settings.datePreferences,
     receiptFooter: settings.receiptFooter,
+    sellerTaxId: settings.sellerTaxId,
     createdAt: settings.createdAt.toISOString(),
     updatedAt: settings.updatedAt.toISOString(),
   };

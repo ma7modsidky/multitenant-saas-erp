@@ -40,12 +40,31 @@ export const POS_PERMISSIONS = {
   REPORT_VIEW: 'pos:report:view',
 } as const;
 
+// ─── Accounting permissions ────────────────────────────────────────────────
+
+export const ACCOUNTING_PERMISSIONS = {
+  COA_MANAGE: 'accounting:coa:manage',
+  TAX_MANAGE: 'accounting:tax:manage',
+  JOURNAL_POST: 'accounting:journal:post',
+  INVOICE_READ: 'accounting:invoice:read',
+  INVOICE_WRITE: 'accounting:invoice:write',
+  PAYMENT_APPLY: 'accounting:payment:apply',
+  CREDIT_NOTE_ISSUE: 'accounting:credit-note:issue',
+  // Named distinctly from POS_PERMISSIONS.REPORT_VIEW: object spreads share
+  // key names, so a duplicate would silently drop one permission from
+  // ALL_PERMISSIONS (the last spread wins) and strip it from every system
+  // role token.
+  ACCOUNTING_REPORT_VIEW: 'accounting:report:view',
+  SETTINGS_MANAGE: 'accounting:settings:manage',
+} as const;
+
 // ─── Aggregate ─────────────────────────────────────────────────────────────
 
 export const ALL_PERMISSIONS = {
   ...CRM_PERMISSIONS,
   ...INVENTORY_PERMISSIONS,
   ...POS_PERMISSIONS,
+  ...ACCOUNTING_PERMISSIONS,
 } as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[keyof typeof ALL_PERMISSIONS];

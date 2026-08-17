@@ -1,5 +1,6 @@
 import * as crypto from 'node:crypto';
 
+import { defaultFeaturesForModule } from '@modubiz/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError, NotFoundError } from '../../../core/common/errors.js';
@@ -85,6 +86,12 @@ export class EnableModuleTrialUseCase {
     const targetState = isTrial ? 'trialing' : 'active';
     const trialDays = moduleCatalog.trialDays;
 
+    // PLAN §7.0.1: the entitlement row is the runtime authority for plan-gated
+    // features. The enabled set is computed HERE from the MODULE_FEATURES
+    // catalog defaults — the module enablement is the plan event that fixes it
+    // (ACC-16: features are enforced server-side from this set).
+    const features = defaultFeaturesForModule(input.moduleKey);
+
     await this.txManager.run(async (tx) => {
       // BILL-1: exactly one base subscription per org. BILL-2: a trial requires
       // no payment method — so when the org has no subscription yet (fresh
@@ -129,6 +136,7 @@ export class EnableModuleTrialUseCase {
           trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null,
           activatedAt: new Date(),
           stripeSubscriptionItemId: null,
+          features,
         },
         tx,
       );

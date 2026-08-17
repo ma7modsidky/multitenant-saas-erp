@@ -1,5 +1,6 @@
 import * as crypto from 'node:crypto';
 
+import { defaultFeaturesForModule } from '@modubiz/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ConflictError, NotFoundError } from '../../../core/common/errors.js';
@@ -133,6 +134,10 @@ export class SetOrganizationModuleUseCase {
     // (accessUntil); omitted = unlimited. Paid modules never use this column.
     const accessUntil = isFreeGrant && input.accessUntil ? new Date(input.accessUntil) : null;
 
+    // PLAN §7.0.1: compute the plan-gated feature set at enable time, mirroring
+    // the tenant self-service path (the entitlement row is the authority).
+    const features = defaultFeaturesForModule(input.moduleKey);
+
     const after = await this.txManager.runWithOrg(input.targetOrgId, async (tx) => {
       let activeSubscription = subscription;
       if (isTrial) {
@@ -186,6 +191,7 @@ export class SetOrganizationModuleUseCase {
           activatedAt: new Date(),
           stripeSubscriptionItemId: null,
           accessUntil,
+          features,
         },
         tx,
       );

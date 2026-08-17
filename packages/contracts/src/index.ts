@@ -1,4 +1,12 @@
-export { defineModule, validateDescriptors, MODULE_KEYS, DESCRIPTOR_ERROR } from './module/index.js';
+export {
+  defineModule,
+  validateDescriptors,
+  MODULE_KEYS,
+  DESCRIPTOR_ERROR,
+  MODULE_FEATURES,
+  defaultFeaturesForModule,
+  featuresForModule,
+} from './module/index.js';
 export type {
   ModuleDescriptor,
   ModuleKey,
@@ -9,6 +17,7 @@ export type {
   PortDeclaration,
   DescriptorValidationError,
   DescriptorErrorCode,
+  ModuleFeature,
 } from './module/index.js';
 
 export { ALL_PERMISSIONS } from './permissions/index.js';
@@ -35,6 +44,16 @@ export {
   posSaleRefundedV1Schema,
   posShiftOpenedV1Schema,
   posShiftClosedV1Schema,
+  ACCOUNTING_EVENTS,
+  accountingInvoiceIssuedV1Schema,
+  accountingInvoicePaidV1Schema,
+  accountingCreditNoteIssuedV1Schema,
+  accountingJournalPostedV1Schema,
+  accountingPaymentReceivedV1Schema,
+  PURCHASING_EVENTS,
+  purchasingBillApprovedV1Schema,
+  purchasingPaymentRecordedV1Schema,
+  purchasingSupplierReturnApprovedV1Schema,
   minorUnitsString,
   signedMinorUnitsString,
   currencyCode,
@@ -58,6 +77,14 @@ export type {
   PosSaleRefundedV1,
   PosShiftOpenedV1,
   PosShiftClosedV1,
+  AccountingInvoiceIssuedV1,
+  AccountingInvoicePaidV1,
+  AccountingCreditNoteIssuedV1,
+  AccountingJournalPostedV1,
+  AccountingPaymentReceivedV1,
+  PurchasingBillApprovedV1,
+  PurchasingPaymentRecordedV1,
+  PurchasingSupplierReturnApprovedV1,
 } from './events/index.js';
 
 export type {

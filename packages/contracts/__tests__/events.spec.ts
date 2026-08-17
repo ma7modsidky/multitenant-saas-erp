@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ACCOUNTING_EVENTS,
   CRM_EVENTS,
   INVENTORY_EVENTS,
   POS_EVENTS,
+  PURCHASING_EVENTS,
+  accountingCreditNoteIssuedV1Schema,
+  accountingInvoiceIssuedV1Schema,
+  accountingInvoicePaidV1Schema,
+  accountingJournalPostedV1Schema,
+  accountingPaymentReceivedV1Schema,
   crmContactCreatedV1Schema,
   crmContactUpdatedV1Schema,
   crmDealLostV1Schema,
@@ -19,6 +26,9 @@ import {
   posSaleRefundedV1Schema,
   posShiftClosedV1Schema,
   posShiftOpenedV1Schema,
+  purchasingBillApprovedV1Schema,
+  purchasingPaymentRecordedV1Schema,
+  purchasingSupplierReturnApprovedV1Schema,
 } from '../src/events/index.js';
 import { MODULE_KEYS, type EventName } from '../src/module/index.js';
 
@@ -562,5 +572,244 @@ describe('posShiftClosedV1Schema', () => {
   it('rejects a missing countedCashAmountMinor (POS-5: counted cash is mandatory)', () => {
     const { countedCashAmountMinor: _omit, ...rest } = valid;
     expect(() => posShiftClosedV1Schema.parse(rest)).toThrow();
+  });
+});
+
+// ─── Accounting events (PLAN.md §7.1) ───────────────────────────────────────
+
+describe('Accounting event names (PLAN.md §7.1.3)', () => {
+  it('declares exactly the five planned events', () => {
+    expect(Object.values(ACCOUNTING_EVENTS).sort()).toEqual([
+      'accounting.credit_note.issued.v1',
+      'accounting.invoice.issued.v1',
+      'accounting.invoice.paid.v1',
+      'accounting.journal.posted.v1',
+      'accounting.payment.received.v1',
+    ]);
+  });
+
+  it('every event name matches the EventName format and the ACCOUNTING module key', () => {
+    const names: EventName[] = Object.values(ACCOUNTING_EVENTS);
+    for (const name of names) {
+      expect(name.startsWith(`${MODULE_KEYS.ACCOUNTING}.`)).toBe(true);
+      expect(name).toMatch(/^accounting\.[a-z_]+\.[a-z_]+\.v1$/);
+    }
+  });
+});
+
+// ─── accounting.invoice.issued.v1 ───────────────────────────────────────────
+
+describe('accountingInvoiceIssuedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    invoiceId: id,
+    invoiceNumber: 'INV-0001',
+    customerContactId: userId,
+    customerCompanyId: null,
+    customerNameSnapshot: 'Acme Corp',
+    subtotalAmountMinor: '10000',
+    discountAmountMinor: '0',
+    taxAmountMinor: '1500',
+    totalAmountMinor: '11500',
+    currency: 'USD',
+    invoiceDate: '2026-08-04T09:00:00.000Z',
+    dueDate: '2026-09-03T09:00:00.000Z',
+    lineCount: 2,
+    sourceType: 'manual',
+    sourceId: null,
+    issuedAt: '2026-08-04T09:00:00.000Z',
+    occurredAt: '2026-08-04T09:00:00.000Z',
+  };
+
+  it('accepts a valid issued payload (ACC-6: issuance posts the AR entry)', () => {
+    expect(accountingInvoiceIssuedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('accepts a pos_sale source with a source id (ACC-13: auto-invoicing)', () => {
+    const payload = { ...valid, sourceType: 'pos_sale', sourceId: id };
+    expect(accountingInvoiceIssuedV1Schema.parse(payload).sourceType).toBe('pos_sale');
+  });
+
+  it('rejects an unknown source type', () => {
+    expect(() => accountingInvoiceIssuedV1Schema.parse({ ...valid, sourceType: 'magic' })).toThrow();
+  });
+
+  it('rejects a missing customer name snapshot', () => {
+    const { customerNameSnapshot: _omit, ...rest } = valid;
+    expect(() => accountingInvoiceIssuedV1Schema.parse(rest)).toThrow();
+  });
+
+  it('rejects a zero line count (an issued invoice has at least one line)', () => {
+    expect(() => accountingInvoiceIssuedV1Schema.parse({ ...valid, lineCount: 0 })).toThrow();
+  });
+});
+
+// ─── accounting.invoice.paid.v1 ─────────────────────────────────────────────
+
+describe('accountingInvoicePaidV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    invoiceId: id,
+    invoiceNumber: 'INV-0001',
+    paymentId: userId,
+    amountMinor: '11500',
+    currency: 'USD',
+    paidAt: '2026-08-10T09:00:00.000Z',
+    occurredAt: '2026-08-10T09:00:00.000Z',
+  };
+
+  it('accepts a valid paid payload (ACC-9: allocations reached the total)', () => {
+    expect(accountingInvoicePaidV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a negative amount (allocations are never negative)', () => {
+    expect(() => accountingInvoicePaidV1Schema.parse({ ...valid, amountMinor: '-5' })).toThrow();
+  });
+});
+
+// ─── accounting.credit_note.issued.v1 ───────────────────────────────────────
+
+describe('accountingCreditNoteIssuedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    creditNoteId: id,
+    creditNoteNumber: 'CN-0001',
+    invoiceId: id,
+    invoiceNumber: 'INV-0001',
+    reasonCode: 'goods_returned',
+    amountMinor: '5000',
+    currency: 'USD',
+    issuedAt: '2026-08-11T09:00:00.000Z',
+    occurredAt: '2026-08-11T09:00:00.000Z',
+  };
+
+  it('accepts a valid credit-note payload (ACC-10: reverses a referenced invoice)', () => {
+    expect(accountingCreditNoteIssuedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a missing reason code (ACC-10/ACC-7: corrections are credit notes, never edits)', () => {
+    const { reasonCode: _omit, ...rest } = valid;
+    expect(() => accountingCreditNoteIssuedV1Schema.parse(rest)).toThrow();
+  });
+});
+
+// ─── accounting.journal.posted.v1 ───────────────────────────────────────────
+
+describe('accountingJournalPostedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    entryId: id,
+    entryNumber: 1,
+    entryDate: '2026-08-04T09:00:00.000Z',
+    currency: 'USD',
+    debitTotalAmountMinor: '11500',
+    creditTotalAmountMinor: '11500',
+    sourceType: 'invoice_issuance',
+    sourceId: id,
+    postedAt: '2026-08-04T09:00:00.000Z',
+    occurredAt: '2026-08-04T09:00:00.000Z',
+  };
+
+  it('accepts a valid posted payload (ACC-1: balanced by construction)', () => {
+    expect(accountingJournalPostedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a non-positive entry number (ACC-3: sequential, gap-free)', () => {
+    expect(() => accountingJournalPostedV1Schema.parse({ ...valid, entryNumber: 0 })).toThrow();
+  });
+});
+
+// ─── accounting.payment.received.v1 ─────────────────────────────────────────
+
+describe('accountingPaymentReceivedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    paymentId: id,
+    method: 'bank_transfer',
+    amountMinor: '5000',
+    currency: 'USD',
+    allocationCount: 1,
+    receivedAt: '2026-08-10T09:00:00.000Z',
+    occurredAt: '2026-08-10T09:00:00.000Z',
+  };
+
+  it('accepts a valid payment payload (ACC-9: partial payments allowed)', () => {
+    expect(accountingPaymentReceivedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects an unknown method', () => {
+    expect(() => accountingPaymentReceivedV1Schema.parse({ ...valid, method: 'crypto' })).toThrow();
+  });
+});
+
+// ─── Purchasing events (co-declared in PLAN.md §7.1.4) ─────────────────────
+
+describe('Purchasing event names (co-declared for Accounting handlers)', () => {
+  it('declares the six planned purchasing events', () => {
+    expect(Object.values(PURCHASING_EVENTS).sort()).toEqual([
+      'purchasing.bill.approved.v1',
+      'purchasing.grn.received.v1',
+      'purchasing.payment.recorded.v1',
+      'purchasing.po.approved.v1',
+      'purchasing.supplier.created.v1',
+      'purchasing.supplier_return.approved.v1',
+    ]);
+  });
+
+  it('the accounting-consumed payloads carry the org id and occurredAt', () => {
+    expect(purchasingBillApprovedV1Schema).toBeDefined();
+    expect(purchasingPaymentRecordedV1Schema).toBeDefined();
+    expect(purchasingSupplierReturnApprovedV1Schema).toBeDefined();
+  });
+});
+
+describe('purchasingBillApprovedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    billId: id,
+    billNumber: 'BILL-0001',
+    supplierId: userId,
+    subtotalAmountMinor: '90000',
+    discountAmountMinor: '0',
+    taxAmountMinor: '13500',
+    totalAmountMinor: '103500',
+    currency: 'USD',
+    billDate: '2026-08-05T09:00:00.000Z',
+    dueDate: '2026-09-04T09:00:00.000Z',
+    approvedAt: '2026-08-05T09:00:00.000Z',
+    occurredAt: '2026-08-05T09:00:00.000Z',
+  };
+
+  it('accepts a valid bill-approved payload (PUR-6: AP entry source)', () => {
+    expect(purchasingBillApprovedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a missing approvedAt', () => {
+    const { approvedAt: _omit, ...rest } = valid;
+    expect(() => purchasingBillApprovedV1Schema.parse(rest)).toThrow();
+  });
+});
+
+describe('purchasingSupplierReturnApprovedV1Schema', () => {
+  const valid = {
+    organizationId: orgId,
+    returnId: id,
+    returnNumber: 'SR-0001',
+    supplierId: userId,
+    billId: id,
+    reasonCode: 'defective',
+    amountMinor: '-5000',
+    currency: 'USD',
+    returnedAt: '2026-08-12T09:00:00.000Z',
+    occurredAt: '2026-08-12T09:00:00.000Z',
+  };
+
+  it('accepts a valid supplier-return payload (PUR-11: signed AP reduction)', () => {
+    expect(purchasingSupplierReturnApprovedV1Schema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a missing reason code', () => {
+    const { reasonCode: _omit, ...rest } = valid;
+    expect(() => purchasingSupplierReturnApprovedV1Schema.parse(rest)).toThrow();
   });
 });

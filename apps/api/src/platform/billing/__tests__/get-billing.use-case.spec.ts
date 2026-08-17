@@ -36,6 +36,7 @@ describe('GetBillingUseCase', () => {
         activatedAt: new Date('2026-07-01T00:00:00Z'),
         disabledAt: null,
         purgeAfter: null,
+        features: [],
         stripeSubscriptionItemId: 'si_1',
       }),
     };
@@ -64,6 +65,7 @@ describe('GetBillingUseCase', () => {
         trialEndsAt: null,
         activatedAt: '2026-07-01T00:00:00.000Z',
         accessUntil: null,
+        features: [],
         // si_1 on the entitlement row → paid module (shows the period end).
         isPaid: true,
       },
@@ -80,6 +82,7 @@ describe('GetBillingUseCase', () => {
       activatedAt: null,
       disabledAt: null,
       purgeAfter: null,
+      features: [],
       stripeSubscriptionItemId: null,
     });
 
