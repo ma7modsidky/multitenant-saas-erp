@@ -30,7 +30,13 @@ import {
 } from './application/index.js';
 import { ACCOUNTING_REPOSITORY } from './application/ports/index.js';
 import { DrizzleAccountingRepository } from './infrastructure/index.js';
-import { InventoryMovementRecordedHandler, PosSaleCompletedHandler } from './events/handlers/index.js';
+import {
+  InventoryMovementRecordedHandler,
+  PosSaleCompletedHandler,
+  PurchasingBillApprovedHandler,
+  PurchasingPaymentRecordedHandler,
+  PurchasingSupplierReturnApprovedHandler,
+} from './events/handlers/index.js';
 import { EInvoiceStatusJob, GlReconciliationJob, OverdueInvoiceJob } from './jobs/index.js';
 
 /**
@@ -78,6 +84,11 @@ import { EInvoiceStatusJob, GlReconciliationJob, OverdueInvoiceJob } from './job
     // GL event handlers (ACC-13, ACC-15) — registered via @HandleEvent.
     PosSaleCompletedHandler,
     InventoryMovementRecordedHandler,
+    // Phase 8 AP handlers (ACC-15) — post Dr Inventory/Expense · Cr AP / VAT,
+    // Dr AP · Cr Bank/Cash, and Dr AP · Cr Inventory idempotently.
+    PurchasingBillApprovedHandler,
+    PurchasingPaymentRecordedHandler,
+    PurchasingSupplierReturnApprovedHandler,
     // Job processors (invoked by the platform scheduler; payloads carry orgId).
     OverdueInvoiceJob,
     GlReconciliationJob,

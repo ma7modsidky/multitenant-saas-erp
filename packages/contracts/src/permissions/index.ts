@@ -58,6 +58,23 @@ export const ACCOUNTING_PERMISSIONS = {
   SETTINGS_MANAGE: 'accounting:settings:manage',
 } as const;
 
+// ─── Purchasing permissions ────────────────────────────────────────────────
+
+export const PURCHASING_PERMISSIONS = {
+  SUPPLIER_READ: 'purchasing:supplier:read',
+  SUPPLIER_WRITE: 'purchasing:supplier:write',
+  REQUISITION_WRITE: 'purchasing:requisition:write',
+  PO_WRITE: 'purchasing:po:write',
+  GRN_RECEIVE: 'purchasing:grn:receive',
+  BILL_APPROVE: 'purchasing:bill:approve',
+  PAYMENT_RECORD: 'purchasing:payment:record',
+  RETURN_CREATE: 'purchasing:return:create',
+  // Named distinctly from POS_PERMISSIONS.REPORT_VIEW: object spreads share
+  // key names, so a duplicate would silently drop one permission from
+  // ALL_PERMISSIONS (the last spread wins).
+  PURCHASING_REPORT_VIEW: 'purchasing:report:view',
+} as const;
+
 // ─── Aggregate ─────────────────────────────────────────────────────────────
 
 export const ALL_PERMISSIONS = {
@@ -65,6 +82,7 @@ export const ALL_PERMISSIONS = {
   ...INVENTORY_PERMISSIONS,
   ...POS_PERMISSIONS,
   ...ACCOUNTING_PERMISSIONS,
+  ...PURCHASING_PERMISSIONS,
 } as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[keyof typeof ALL_PERMISSIONS];

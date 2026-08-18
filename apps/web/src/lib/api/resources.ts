@@ -2207,3 +2207,497 @@ export function updateAdminSettings(settings: Partial<AdminSaasSettings>): Promi
     body: JSON.stringify(settings),
   });
 }
+// ─── Purchasing & Suppliers (Phase 8, PUR-*) ────────────────────────────────
+
+export interface PurchasingSupplier {
+  id: string;
+  code: string;
+  name: string;
+  taxId: string | null;
+  currency: string;
+  isActive: boolean;
+  balanceMinor: string;
+}
+
+export interface PurchasingSupplierParams {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PurchasingSupplierLedgerRow {
+  id: string;
+  type: string;
+  amountMinor: string;
+  currency: string;
+  referenceType: string;
+  referenceNumber: string | null;
+  entryDate: string;
+  createdAt: string;
+}
+
+export interface PurchasingSupplierDetail {
+  supplier: {
+    id: string;
+    code: string;
+    name: string;
+    taxId: string | null;
+    paymentTerms: { netDays: number; discountDays: number; discountRateBp: number };
+    currency: string;
+    contactName: string | null;
+    contactEmail: string | null;
+    contactPhone: string | null;
+    isActive: boolean;
+    createdAt: string;
+  };
+  balanceMinor: string;
+  ledger: PurchasingSupplierLedgerRow[];
+}
+
+export interface PurchasingPurchaseOrder {
+  id: string;
+  number: string;
+  supplierId: string;
+  supplierNameSnapshot: string;
+  status: string;
+  totalMinor: string;
+  currency: string;
+}
+
+export interface PurchasingPoLine {
+  id: string;
+  variantId: string | null;
+  itemNameSnapshot: string;
+  quantity: string;
+  receivedQuantity: string;
+  unitCostMinor: string;
+  unitCostCurrency: string;
+  taxRateBpSnapshot: number;
+  lineTotalMinor: string;
+}
+
+export interface PurchasingPurchaseOrderDetail extends PurchasingPurchaseOrder {
+  orderDate: string;
+  expectedDate: string | null;
+  subtotalMinor: string;
+  discountMinor: string;
+  taxMinor: string;
+  notes: string | null;
+  createdAt: string;
+  lines: PurchasingPoLine[];
+}
+
+export interface PurchasingPoParams {
+  q?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PurchasingGrn {
+  id: string;
+  number: string;
+  poId: string;
+  poNumber: string;
+  supplierId: string;
+  supplierNameSnapshot: string;
+  warehouseId: string | null;
+  status: string;
+  receivedAt: string | null;
+  createdAt: string;
+}
+
+export interface PurchasingGrnLine {
+  id: string;
+  poLineId: string;
+  variantId: string | null;
+  quantity: string;
+  unitCostMinor: string;
+  unitCostCurrency: string;
+  accepted: boolean;
+}
+
+export interface PurchasingGrnDetail extends PurchasingGrn {
+  lines: PurchasingGrnLine[];
+}
+
+export interface PurchasingGrnParams {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PurchasingBill {
+  id: string;
+  number: string;
+  supplierId: string;
+  supplierNameSnapshot: string;
+  status: string;
+  billDate: string;
+  dueDate: string | null;
+  currency: string;
+  subtotalMinor: string;
+  taxMinor: string;
+  totalMinor: string;
+  paidMinor: string;
+}
+
+export interface PurchasingBillLine {
+  id: string;
+  poLineId: string | null;
+  grnLineId: string | null;
+  variantId: string | null;
+  itemNameSnapshot: string;
+  quantity: string;
+  unitCostMinor: string;
+  unitCostCurrency: string;
+  taxRateBpSnapshot: number;
+  taxMinor: string;
+  lineTotalMinor: string;
+}
+
+export interface PurchasingBillDetail extends PurchasingBill {
+  poId: string | null;
+  grnId: string | null;
+  supplierTaxIdSnapshot: string | null;
+  lines: PurchasingBillLine[];
+}
+
+export interface PurchasingBillParams {
+  q?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PurchasingPayment {
+  id: string;
+  number: string;
+  supplierId: string;
+  supplierNameSnapshot: string;
+  method: string;
+  amountMinor: string;
+  currency: string;
+  paidAt: string;
+  reference: string | null;
+  createdAt: string;
+}
+
+export interface PurchasingPaymentAllocation {
+  id: string;
+  billId: string;
+  billNumber: string;
+  amountMinor: string;
+  currency: string;
+}
+
+export interface PurchasingPaymentDetail extends PurchasingPayment {
+  allocations: PurchasingPaymentAllocation[];
+}
+
+export interface PurchasingPaymentParams {
+  q?: string;
+  method?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PurchasingSupplierReturn {
+  id: string;
+  number: string;
+  supplierId: string;
+  supplierNameSnapshot: string;
+  billId: string | null;
+  reasonCode: string;
+  status: string;
+  amountMinor: string;
+  currency: string;
+  createdAt: string;
+}
+
+export interface PurchasingSupplierReturnLine {
+  id: string;
+  variantId: string | null;
+  quantity: string;
+  unitCostMinor: string;
+  unitCostCurrency: string;
+}
+
+export interface PurchasingSupplierReturnDetail extends PurchasingSupplierReturn {
+  billNumber: string | null;
+  lines: PurchasingSupplierReturnLine[];
+}
+
+export interface PurchasingReturnParams {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PurchasingVendorBalance {
+  id: string;
+  code: string;
+  name: string;
+  balanceMinor: string;
+  currency: string;
+}
+
+export interface PurchasingPoLineInput {
+  variantId?: string | null;
+  itemNameSnapshot: string;
+  quantity?: string;
+  unitCostMinor: string;
+  unitCostCurrency?: string;
+  taxRateBpSnapshot?: number;
+}
+
+export interface PurchasingGrnLineInput {
+  poLineId: string;
+  variantId?: string | null;
+  quantity: string;
+  unitCostMinor: string;
+  unitCostCurrency?: string;
+}
+
+export interface PurchasingBillLineInput {
+  poLineId?: string | null;
+  grnLineId?: string | null;
+  variantId?: string | null;
+  /** Item name snapshot persisted on the bill line (PUR-6). */
+  itemNameSnapshot?: string;
+  quantity: string;
+  unitCostMinor: string;
+  unitCostCurrency?: string;
+  taxRateBpSnapshot?: number;
+}
+export function getPurchasingSuppliers(
+  params: PurchasingSupplierParams = {},
+): Promise<{ items: PurchasingSupplier[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: PurchasingSupplier[]; total: number; page: number; pageSize: number }>(
+    `/v1/purchasing/suppliers${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getPurchasingSupplier(id: string): Promise<PurchasingSupplierDetail> {
+  return apiFetch<PurchasingSupplierDetail>(`/v1/purchasing/suppliers/${id}`);
+}
+
+export function createPurchasingSupplier(input: {
+  name: string;
+  taxId?: string | null;
+  paymentTerms?: { netDays?: number; discountDays?: number; discountRateBp?: number };
+  currency?: string;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+}): Promise<{ supplierId: string; code: string }> {
+  return apiFetch<{ supplierId: string; code: string }>('/v1/purchasing/suppliers', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePurchasingSupplier(
+  id: string,
+  input: Partial<{ name: string; taxId: string | null; isActive: boolean }>,
+): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(`/v1/purchasing/suppliers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getPurchasingPurchaseOrders(
+  params: PurchasingPoParams = {},
+): Promise<{ items: PurchasingPurchaseOrderDetail[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.status) query.set('status', params.status);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: PurchasingPurchaseOrderDetail[]; total: number; page: number; pageSize: number }>(
+    `/v1/purchasing/purchase-orders${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getPurchasingPurchaseOrder(id: string): Promise<PurchasingPurchaseOrderDetail> {
+  return apiFetch<PurchasingPurchaseOrderDetail>(`/v1/purchasing/purchase-orders/${id}`);
+}
+
+export function createPurchasingPurchaseOrder(input: {
+  supplierId: string;
+  currency: string;
+  orderDate?: string;
+  expectedDate?: string | null;
+  notes?: string | null;
+  lines: PurchasingPoLineInput[];
+}): Promise<{ purchaseOrderId: string; number: string }> {
+  return apiFetch<{ purchaseOrderId: string; number: string }>('/v1/purchasing/purchase-orders', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function approvePurchasingPurchaseOrder(id: string): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(`/v1/purchasing/purchase-orders/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function getPurchasingGrns(
+  params: PurchasingGrnParams = {},
+): Promise<{ items: PurchasingGrn[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: PurchasingGrn[]; total: number; page: number; pageSize: number }>(
+    `/v1/purchasing/grns${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getPurchasingGrn(id: string): Promise<PurchasingGrnDetail> {
+  return apiFetch<PurchasingGrnDetail>(`/v1/purchasing/grns/${id}`);
+}
+
+export function receivePurchasingGrn(input: {
+  poId: string;
+  warehouseId?: string | null;
+  idempotencyKey?: string | null;
+  lines: PurchasingGrnLineInput[];
+}): Promise<{ grnId: string; number: string }> {
+  return apiFetch<{ grnId: string; number: string }>('/v1/purchasing/grns', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getPurchasingBills(
+  params: PurchasingBillParams = {},
+): Promise<{ items: PurchasingBill[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.status) query.set('status', params.status);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: PurchasingBill[]; total: number; page: number; pageSize: number }>(
+    `/v1/purchasing/bills${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getPurchasingBill(id: string): Promise<PurchasingBillDetail> {
+  return apiFetch<PurchasingBillDetail>(`/v1/purchasing/bills/${id}`);
+}
+
+export function createPurchasingBill(input: {
+  supplierId: string;
+  poId?: string | null;
+  grnId?: string | null;
+  billDate?: string;
+  dueDate?: string | null;
+  currency: string;
+  supplierTaxIdSnapshot?: string | null;
+  lines: PurchasingBillLineInput[];
+}): Promise<{ billId: string; number: string }> {
+  return apiFetch<{ billId: string; number: string }>('/v1/purchasing/bills', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function approvePurchasingBill(id: string, idempotencyKey?: string | null): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(`/v1/purchasing/bills/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(idempotencyKey ? { idempotencyKey } : {}),
+  });
+}
+
+export function getPurchasingPayments(
+  params: PurchasingPaymentParams = {},
+): Promise<{ items: PurchasingPayment[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.method) query.set('method', params.method);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: PurchasingPayment[]; total: number; page: number; pageSize: number }>(
+    `/v1/purchasing/payments${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getPurchasingPayment(id: string): Promise<PurchasingPaymentDetail> {
+  return apiFetch<PurchasingPaymentDetail>(`/v1/purchasing/payments/${id}`);
+}
+
+export function recordPurchasingPayment(input: {
+  supplierId: string;
+  method: string;
+  amountMinor: string;
+  currency: string;
+  paidAt?: string;
+  reference?: string | null;
+  allocations: Array<{ billId: string; amountMinor: string }>;
+  idempotencyKey?: string | null;
+}): Promise<{ paymentId: string; number: string }> {
+  return apiFetch<{ paymentId: string; number: string }>('/v1/purchasing/payments', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getPurchasingReturns(
+  params: PurchasingReturnParams = {},
+): Promise<{ items: PurchasingSupplierReturn[]; total: number; page: number; pageSize: number }> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiFetch<{ items: PurchasingSupplierReturn[]; total: number; page: number; pageSize: number }>(
+    `/v1/purchasing/returns${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getPurchasingReturn(id: string): Promise<PurchasingSupplierReturnDetail> {
+  return apiFetch<PurchasingSupplierReturnDetail>(`/v1/purchasing/returns/${id}`);
+}
+
+export function createPurchasingReturn(input: {
+  supplierId: string;
+  billId?: string | null;
+  grnLineId?: string | null;
+  reasonCode: string;
+  currency: string;
+  lines: Array<{ variantId?: string | null; quantity: string; unitCostMinor: string; unitCostCurrency?: string }>;
+}): Promise<{ returnId: string; number: string }> {
+  return apiFetch<{ returnId: string; number: string }>('/v1/purchasing/returns', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function approvePurchasingReturn(id: string, idempotencyKey?: string | null): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(`/v1/purchasing/returns/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(idempotencyKey ? { idempotencyKey } : {}),
+  });
+}
+
+export function getPurchasingVendorBalances(): Promise<{
+  suppliers: PurchasingVendorBalance[];
+  totalBalanceMinor: string;
+}> {
+  return apiFetch<{ suppliers: PurchasingVendorBalance[]; totalBalanceMinor: string }>(
+    '/v1/purchasing/vendor-balances',
+  );
+}

@@ -6,6 +6,7 @@ import {
   CRM_PERMISSIONS,
   INVENTORY_PERMISSIONS,
   POS_PERMISSIONS,
+  PURCHASING_PERMISSIONS,
 } from '../src/permissions/index.js';
 
 // ─── ALL_PERMISSIONS aggregate integrity ────────────────────────────────────
@@ -20,7 +21,13 @@ import {
 
 describe('ALL_PERMISSIONS — aggregate integrity (AUTHZ-5 role matrix source)', () => {
   it('keeps every value from every module catalog (no value lost to a key collision)', () => {
-    const moduleObjects = [CRM_PERMISSIONS, INVENTORY_PERMISSIONS, POS_PERMISSIONS, ACCOUNTING_PERMISSIONS];
+    const moduleObjects = [
+      CRM_PERMISSIONS,
+      INVENTORY_PERMISSIONS,
+      POS_PERMISSIONS,
+      ACCOUNTING_PERMISSIONS,
+      PURCHASING_PERMISSIONS,
+    ];
     const allValues = new Set(Object.values(ALL_PERMISSIONS));
     for (const mod of moduleObjects) {
       for (const value of Object.values(mod)) {
@@ -38,6 +45,8 @@ describe('ALL_PERMISSIONS — aggregate integrity (AUTHZ-5 role matrix source)',
     expect(Object.values(ALL_PERMISSIONS)).toContain('inventory:product:read');
     expect(Object.values(ALL_PERMISSIONS)).toContain('pos:sale:create');
     expect(Object.values(ALL_PERMISSIONS)).toContain('accounting:invoice:write');
+    expect(Object.values(ALL_PERMISSIONS)).toContain('purchasing:report:view');
+    expect(Object.values(ALL_PERMISSIONS)).toContain('purchasing:supplier:read');
   });
 
   it('has no duplicate permission strings', () => {
@@ -52,7 +61,8 @@ describe('ALL_PERMISSIONS — aggregate integrity (AUTHZ-5 role matrix source)',
       Object.keys(CRM_PERMISSIONS).length +
       Object.keys(INVENTORY_PERMISSIONS).length +
       Object.keys(POS_PERMISSIONS).length +
-      Object.keys(ACCOUNTING_PERMISSIONS).length;
+      Object.keys(ACCOUNTING_PERMISSIONS).length +
+      Object.keys(PURCHASING_PERMISSIONS).length;
     expect(Object.keys(ALL_PERMISSIONS).length).toBe(sum);
   });
 });

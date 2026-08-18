@@ -35,6 +35,58 @@ const purchasingMoney = {
 };
 
 /**
+ * Payload of `purchasing.supplier.created.v1` — emitted when a supplier is
+ * created (PUR-1). No consumer today (declared for the Phase 8 public
+ * contract); the directory is the supplier master.
+ */
+export const purchasingSupplierCreatedV1Schema = z.object({
+  organizationId: z.string().uuid(),
+  supplierId: z.string().uuid(),
+  supplierName: z.string().min(1),
+  taxId: z.string().nullable().optional(),
+  currency: currencyCode,
+  occurredAt: z.string().datetime(),
+});
+export type PurchasingSupplierCreatedV1 = z.infer<typeof purchasingSupplierCreatedV1Schema>;
+
+/**
+ * Payload of `purchasing.po.approved.v1` — emitted when a purchase order is
+ * approved (PUR-3). No consumer today (declared for the Phase 8 public
+ * contract).
+ */
+export const purchasingPoApprovedV1Schema = z.object({
+  organizationId: z.string().uuid(),
+  poId: z.string().uuid(),
+  poNumber: z.string().min(1),
+  supplierId: z.string().uuid(),
+  totalAmountMinor: minorUnitsString,
+  currency: currencyCode,
+  approvedAt: z.string().datetime(),
+  occurredAt: z.string().datetime(),
+});
+export type PurchasingPoApprovedV1 = z.infer<typeof purchasingPoApprovedV1Schema>;
+
+/**
+ * Payload of `purchasing.grn.received.v1` — emitted when goods are received
+ * (PUR-4/PUR-5). No consumer today (declared for the Phase 8 public
+ * contract); the GRN's stock effect travels as its own
+ * `inventory.stock.movement_recorded.v1` events.
+ */
+export const purchasingGrnReceivedV1Schema = z.object({
+  organizationId: z.string().uuid(),
+  grnId: z.string().uuid(),
+  grnNumber: z.string().min(1),
+  poId: z.string().uuid(),
+  supplierId: z.string().uuid(),
+  /** Inventory warehouse id — plain id, no FK. Null = org default warehouse. */
+  warehouseId: z.string().uuid().nullable().optional(),
+  lineCount: z.number().int().positive(),
+  receivedAt: z.string().datetime(),
+  occurredAt: z.string().datetime(),
+});
+export type PurchasingGrnReceivedV1 = z.infer<typeof purchasingGrnReceivedV1Schema>;
+
+/**
  * Payload of `purchasing.bill.approved.v1` — emitted when a purchase bill is
  * approved (PUR-6). Accounting posts the AP journal entry (Dr Inventory/
  * Expense, Cr AP, Cr VAT) idempotently, keyed on `billId` (ACC-15).
@@ -48,6 +100,20 @@ export const purchasingBillApprovedV1Schema = z.object({
   /** FX snapshot when the bill currency differs from the org base currency. */
   exchangeRate: decimalString.optional(),
   baseTotalAmountMinor: minorUnitsString.optional(),
+  /**
+   * Per-line detail so accounting splits Dr Inventory (goods, variantId set)
+   * vs Dr Expense (service lines) exactly (ACC-15).
+   */
+  lines: z
+    .array(
+      z.object({
+        variantId: z.string().uuid().nullable().optional(),
+        quantity: decimalString,
+        unitCostAmountMinor: minorUnitsString,
+        taxRateBpSnapshot: z.number().int().min(0),
+      }),
+    )
+    .min(1),
   billDate: z.string().datetime(),
   dueDate: z.string().datetime(),
   approvedAt: z.string().datetime(),
@@ -95,6 +161,19 @@ export const purchasingSupplierReturnApprovedV1Schema = z.object({
    */
   amountMinor: signedMinorUnitsString,
   currency: currencyCode,
+  /**
+   * Per-line detail so accounting credits Inventory (goods) vs Expense
+   * (service) on the reversal leg (ACC-15).
+   */
+  lines: z
+    .array(
+      z.object({
+        variantId: z.string().uuid().nullable().optional(),
+        quantity: decimalString,
+        unitCostAmountMinor: minorUnitsString,
+      }),
+    )
+    .min(1),
   returnedAt: z.string().datetime(),
   occurredAt: z.string().datetime(),
 });

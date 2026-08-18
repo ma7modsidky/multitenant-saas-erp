@@ -1,7 +1,58 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 86 — **Accounting UI polish: sidebar payments link,
-CRM-style headers, COA form toggle, invoice status dropdown**.
+**Last updated:** Session 87 — **Phase 8 — Purchasing & Suppliers shipped (full
+stack) + accounting AP integration**.
+
+- **Contracts (Phase 8)** — `purchasing` module key + 9 permissions
+  (`purchasing:supplier:read` … `purchasing:report:view`), 6 published events
+  (`supplier.created`, `po.approved`, `grn.received`, `bill.approved`,
+  `payment.recorded`, `supplier.return.approved`), with per-line payloads for
+  the AP posting handlers. `purchasing` descriptor registered with navigation
+  (Suppliers / POs / Receiving / Bills / Payments / Returns / Vendor balances).
+- **Schema (8.3)** — `pur_suppliers`, `pur_vendor_ledger` (append-only AP source
+  of truth, PUR-2), `pur_requisitions`(+lines), `pur_purchase_orders` (+lines,
+  `received_quantity` projection), `pur_grns`(+lines), `pur_bills` (+lines with
+  `item_name_snapshot`), `pur_supplier_payments` + `pur_payment_allocations`,
+  `pur_supplier_returns`(+lines), `pur_org_settings` (gap-free BILL-/GRN-/PO-
+  numbers). RLS on every table; PUR-4 no-overshoot trigger
+  (`0004_grn_overshoot.sql`) as the DB backstop.
+- **Domain (8.4)** — Supplier (PUR-1), VendorLedgerEntry (PUR-2), Requisition,
+  PurchaseOrder (PUR-3, PUR-8), Grn (PUR-4/5), Bill (PUR-6, PUR-9),
+  SupplierPayment + allocations (PUR-7), SupplierReturn (PUR-11) — 28 rule-cited
+  unit tests.
+- **Application (8.5)** — create/update supplier, submit/approve requisition,
+  create/approve PO, **receive GRN** (PUR-4: stock raises atomically via the
+  inventory movement port in the same transaction), create/approve bill
+  (PUR-6/9: three-way match + cost-variance movement), record payment (PUR-7,
+  allocation ≤ total), create/approve return (PUR-11: stock + AP reduced),
+  list/get use cases, vendor balances (derived, never stored).
+- **Events (8.7)** — all 6 published after commit with idempotency keys;
+  accounting now **consumes** `bill.approved`, `payment.recorded`, and
+  `supplier.return.approved` via new AP handlers
+  (`PurchasingBillApprovedHandler` → Inventory/Expense + AP entry,
+  `PurchasingPaymentRecordedHandler` → AP + Cash,
+  `PurchasingSupplierReturnApprovedHandler` → AP + Inventory/Expense reversal) —
+  all idempotent, TEN-6 context re-established.
+- **API (8.6)** — `v1/purchasing` controller: suppliers, purchase-orders,
+  receiving (GRN), bills, payments, returns, vendor-balances — all
+  `@RequiresModule` + `@RequiresPermission`, zod-validated, money as
+  `{ amountMinor, currency }`.
+- **Tests** — 37 unit (28 domain + isolation incl. TEN-1/2 no-context zero rows,
+  entitlement/permission denials), 7 purchasing integration (PUR-1/2/3/4/6/7/11,
+  GRN no-overshoot, payment status flip fix) + 2 AP-handler integration tests
+  (ACC-15 chain through the real stores). Full API suite green (1829 unit, 207
+  integration), arch clean.
+- **Frontend** — `m/purchasing` route group with CRM-style sub-nav layout +
+  `PurchasingPageHeader`; Suppliers (list + AP-ledger detail), Purchase orders
+  (list + detail with approve), Goods receiving (PO line quantities), Bills
+  (create/approve/record-payment + detail), Payments (list + allocation detail),
+  Returns (create/approve), Vendor balances (derived AP). Sidebar module icon +
+  nav icons (`file-text`, `package-check`, `receipt`, `undo`). Full
+  `modules.purchasing` message catalogs + root `errors.purchasing` in
+  **en/ar/fr/es** with a `purchasing-completeness.spec.ts`.
+
+**Session 86 — Accounting UI polish: sidebar payments link, CRM-style headers,
+COA form toggle, invoice status dropdown**.
 
 - **Payments page in the global sidebar.** The accounting module descriptor's
   `navigation` array was missing the payments entry, so the shell sidebar never
@@ -522,18 +573,18 @@ troubleshooting table. Prettier-clean. **Current phase:** Phase 6 — POS Module
 
 ## Phase status
 
-| Phase                                 | Status         | Notes                                                                   |
-| ------------------------------------- | -------------- | ----------------------------------------------------------------------- |
-| 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                          |
-| 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                                         |
-| 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19)           |
-| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof               |
-| 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified               |
-| 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                               |
-| 6 — POS Module                        | 🚧 Full stack  | 6.1–6.6 + 6.9 done; 6.7 offline engine + PWA shell (Sessions 64–65, 69) |
-| 7 — Accounting & Invoicing            | ✅ Full stack  | Contracts → schema → domain → app → API → events → jobs → frontend      |
-| 8 — Purchasing & Suppliers            | ⬜ Not started | Planned (Session 75): purchase-to-pay, vendor ledger, GRN→stock         |
-| 9 — Production Hardening & Deployment | ⬜ Not started |                                                                         |
+| Phase                                 | Status         | Notes                                                                     |
+| ------------------------------------- | -------------- | ------------------------------------------------------------------------- |
+| 0 — Foundation & Tooling              | ✅ Complete    | All 0.1–0.7 done; DoD verified                                            |
+| 1 — Core Shared Kernel                | ✅ Complete    | All 1.1–1.12 done; DoD verified                                           |
+| 2 — Platform + Frontend Shell         | ✅ Complete    | Unit + arch + integration + E2E green; committed (Session 19)             |
+| 3 — Module Framework & Generator      | ✅ Complete    | Descriptor system, generator, registry, ports, demo proof                 |
+| 4 — CRM Module                        | ✅ Complete    | Full stack, contracts → UI (Sessions 24–55); DoD verified                 |
+| 5 — Inventory Module                  | ✅ Complete    | Full stack (Sessions 56–57); DoD verified                                 |
+| 6 — POS Module                        | 🚧 Full stack  | 6.1–6.6 + 6.9 done; 6.7 offline engine + PWA shell (Sessions 64–65, 69)   |
+| 7 — Accounting & Invoicing            | ✅ Full stack  | Contracts → schema → domain → app → API → events → jobs → frontend        |
+| 8 — Purchasing & Suppliers            | ✅ Full stack  | Contracts → schema → domain → app → API → events → AP handlers → frontend |
+| 9 — Production Hardening & Deployment | ⬜ Not started |                                                                           |
 
 ---
 

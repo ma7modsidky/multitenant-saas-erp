@@ -49,7 +49,7 @@ Full detail, including rejected alternatives:
 | Inventory                                               | `inventory`  | Beta    | —                  |
 | Point of Sale                                           | `pos`        | Beta    | `inventory`        |
 | Accounting & Invoicing                                  | `accounting` | Beta    | —                  |
-| Purchasing & Suppliers                                  | `purchasing` | Planned | `inventory`        |
+| Purchasing & Suppliers                                  | `purchasing` | Beta    | `inventory`        |
 | E-commerce                                              | `ecommerce`  | Planned | `inventory`        |
 | Food Ordering & Delivery                                | `food`       | Planned | `inventory`, `pos` |
 | HR                                                      | `hr`         | Planned | —                  |

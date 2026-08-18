@@ -14,6 +14,7 @@ export const MODULE_KEYS = {
   INVENTORY: 'inventory',
   POS: 'pos',
   ACCOUNTING: 'accounting',
+  PURCHASING: 'purchasing',
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];

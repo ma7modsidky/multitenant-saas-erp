@@ -774,6 +774,8 @@ describe('purchasingBillApprovedV1Schema', () => {
     taxAmountMinor: '13500',
     totalAmountMinor: '103500',
     currency: 'USD',
+    // ACC-15: per-line detail lets accounting split Dr Inventory vs Dr Expense.
+    lines: [{ variantId: id, quantity: '10', unitCostAmountMinor: '9000', taxRateBpSnapshot: 1500 }],
     billDate: '2026-08-05T09:00:00.000Z',
     dueDate: '2026-09-04T09:00:00.000Z',
     approvedAt: '2026-08-05T09:00:00.000Z',
@@ -800,6 +802,8 @@ describe('purchasingSupplierReturnApprovedV1Schema', () => {
     reasonCode: 'defective',
     amountMinor: '-5000',
     currency: 'USD',
+    // ACC-15: per-line detail so the reversal credits Inventory vs Expense.
+    lines: [{ variantId: id, quantity: '1', unitCostAmountMinor: '5000' }],
     returnedAt: '2026-08-12T09:00:00.000Z',
     occurredAt: '2026-08-12T09:00:00.000Z',
   };

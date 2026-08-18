@@ -207,11 +207,17 @@ export type {
 export {
   PURCHASING_EVENTS,
   purchasingBillApprovedV1Schema,
+  purchasingGrnReceivedV1Schema,
   purchasingPaymentRecordedV1Schema,
+  purchasingPoApprovedV1Schema,
+  purchasingSupplierCreatedV1Schema,
   purchasingSupplierReturnApprovedV1Schema,
 } from './purchasing.js';
 export type {
   PurchasingBillApprovedV1,
+  PurchasingGrnReceivedV1,
   PurchasingPaymentRecordedV1,
+  PurchasingPoApprovedV1,
+  PurchasingSupplierCreatedV1,
   PurchasingSupplierReturnApprovedV1,
 } from './purchasing.js';

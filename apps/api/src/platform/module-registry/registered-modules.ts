@@ -8,6 +8,7 @@
 // @see MODULE_GUIDE.md — Module descriptor rules
 
 import { defineModule, type ModuleDescriptor } from '@modubiz/contracts';
+import { purchasingDescriptor } from '../../modules/purchasing/public/index.js';
 import { accountingDescriptor } from '../../modules/accounting/public/index.js';
 
 import { crmDescriptor } from '../../modules/crm/public/index.js';
@@ -27,4 +28,5 @@ export const REGISTERED_MODULES: ModuleDescriptor[] = [
   defineModule(inventoryDescriptor),
   defineModule(posDescriptor),
   defineModule(accountingDescriptor),
+  purchasingDescriptor,
 ];

@@ -2,6 +2,7 @@ import {
   ACCOUNTING_EVENTS,
   POS_EVENTS,
   INVENTORY_EVENTS,
+  PURCHASING_EVENTS,
   defineModule,
   type ModuleDescriptor,
 } from '@modubiz/contracts';
@@ -86,11 +87,10 @@ export const accountingDescriptor: ModuleDescriptor = defineModule({
     POS_EVENTS.SALE_COMPLETED_V1,
     // ACC-15: post the inventory-side GL entry from every stock movement.
     INVENTORY_EVENTS.MOVEMENT_RECORDED_V1,
-    // NOTE: the Phase 8 purchasing events (bill.approved / payment.recorded /
-    // supplier_return.approved) are co-declared in @modubiz/contracts and their
-    // handlers are wired in Phase 7, but they are NOT listed here yet — boot
-    // validation requires a consumed event to be published by a registered
-    // module, and purchasing registers in Phase 8. They join `consumes` there.
+    // Phase 8 — ACC-15: post the AP entries from purchasing documents.
+    PURCHASING_EVENTS.BILL_APPROVED_V1,
+    PURCHASING_EVENTS.PAYMENT_RECORDED_V1,
+    PURCHASING_EVENTS.SUPPLIER_RETURN_APPROVED_V1,
   ],
   providesPorts: [],
   consumesPorts: [

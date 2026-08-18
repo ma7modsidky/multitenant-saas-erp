@@ -15,6 +15,7 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  ShoppingCart,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -63,6 +64,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   inventory: Package,
   pos: DollarSign,
   accounting: BookOpenText,
+  purchasing: ShoppingCart,
 };
 
 // Nav item icon names come from the module descriptors (NavigationItem.icon).

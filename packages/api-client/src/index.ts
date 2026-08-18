@@ -2004,6 +2004,310 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/purchasing/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_status'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/suppliers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_listSuppliersRoute'];
+    put?: never;
+    post: operations['PurchasingController_createSupplierRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/suppliers/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_getSupplierRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['PurchasingController_updateSupplierRoute'];
+    trace?: never;
+  };
+  '/v1/purchasing/requisitions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PurchasingController_submitRequisitionRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/requisitions/{id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PurchasingController_approveRequisitionRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/purchase-orders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_listPurchaseOrdersRoute'];
+    put?: never;
+    post: operations['PurchasingController_createPurchaseOrderRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/purchase-orders/{id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PurchasingController_approvePurchaseOrderRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/purchase-orders/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_getPurchaseOrderRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/grns': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_listGrnsRoute'];
+    put?: never;
+    post: operations['PurchasingController_receiveGrnRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/grns/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_getGrnRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/bills': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_listBillsRoute'];
+    put?: never;
+    post: operations['PurchasingController_createBillRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/bills/{id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PurchasingController_approveBillRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/bills/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_getBillRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/payments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_listPaymentsRoute'];
+    put?: never;
+    post: operations['PurchasingController_recordPaymentRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/payments/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_getPaymentRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/returns': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_listSupplierReturnsRoute'];
+    put?: never;
+    post: operations['PurchasingController_createSupplierReturnRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/returns/{id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PurchasingController_approveSupplierReturnRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/returns/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_getSupplierReturnRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/purchasing/vendor-balances': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PurchasingController_vendorBalancesRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3653,7 +3957,10 @@ export interface components {
       allocationAmountMinor: string;
     };
     PaymentListEnvelopeResponse: {
-      data: components['schemas']['PaymentListResponse'][];
+      items: components['schemas']['PaymentResponse'][];
+      total: number;
+      page: number;
+      pageSize: number;
     };
     PaymentDetailResponse: {
       id: string;
@@ -3667,10 +3974,16 @@ export interface components {
       createdAt: string;
     };
     PaymentDetailEnvelopeResponse: {
-      data: components['schemas']['PaymentDetailResponse'];
+      id: string;
+      number: string;
+      supplierNameSnapshot: string;
+      method: string;
+      amountMinor: string;
+      currency: string;
     };
     PaymentEnvelopeResponse: {
-      data: Record<string, never>;
+      id: string;
+      number: string;
     };
     CreditNoteEnvelopeResponse: {
       data: Record<string, never>;
@@ -3751,6 +4064,138 @@ export interface components {
     };
     ArAgingEnvelopeResponse: {
       data: Record<string, never>;
+    };
+    SupplierEnvelopeResponse: {
+      supplier: Record<string, never>;
+      balanceMinor: string;
+      ledger: Record<string, never>[];
+    };
+    SupplierResponse: {
+      id: string;
+      code: string;
+      name: string;
+      taxId: Record<string, never> | null;
+      currency: string;
+      isActive: boolean;
+      balanceMinor: string;
+    };
+    SupplierListEnvelopeResponse: {
+      items: components['schemas']['SupplierResponse'][];
+      total: number;
+      page: number;
+      pageSize: number;
+    };
+    RequisitionEnvelopeResponse: {
+      requisitionId: string;
+      status: string;
+    };
+    PurchaseOrderEnvelopeResponse: {
+      id: string;
+      number: string;
+      status: string;
+    };
+    PurchaseOrderResponse: {
+      id: string;
+      number: string;
+      supplierId: string;
+      supplierNameSnapshot: string;
+      status: string;
+      totalMinor: string;
+      currency: string;
+    };
+    PurchaseOrderListEnvelopeResponse: {
+      items: components['schemas']['PurchaseOrderResponse'][];
+      total: number;
+      page: number;
+      pageSize: number;
+    };
+    PurchaseOrderDetailEnvelopeResponse: {
+      id: string;
+      number: string;
+      supplierNameSnapshot: string;
+      status: string;
+    };
+    GrnEnvelopeResponse: {
+      id: string;
+      number: string;
+      status: string;
+    };
+    GrnResponse: {
+      id: string;
+      number: string;
+      poId: string;
+      poNumber: string;
+      supplierNameSnapshot: string;
+      status: string;
+    };
+    GrnListEnvelopeResponse: {
+      items: components['schemas']['GrnResponse'][];
+      total: number;
+      page: number;
+      pageSize: number;
+    };
+    BillEnvelopeResponse: {
+      id: string;
+      number: string;
+      status: string;
+    };
+    BillResponse: {
+      id: string;
+      number: string;
+      supplierId: string;
+      supplierNameSnapshot: string;
+      status: string;
+      totalMinor: string;
+      currency: string;
+    };
+    BillListEnvelopeResponse: {
+      items: components['schemas']['BillResponse'][];
+      total: number;
+      page: number;
+      pageSize: number;
+    };
+    PaymentResponse: {
+      id: string;
+      number: string;
+      supplierId: string;
+      supplierNameSnapshot: string;
+      method: string;
+      amountMinor: string;
+      currency: string;
+      paidAt: string;
+    };
+    SupplierReturnEnvelopeResponse: {
+      id: string;
+      number: string;
+      status: string;
+    };
+    SupplierReturnResponse: {
+      id: string;
+      number: string;
+      supplierId: string;
+      supplierNameSnapshot: string;
+      reasonCode: string;
+      status: string;
+      amountMinor: string;
+      currency: string;
+    };
+    SupplierReturnListEnvelopeResponse: {
+      items: components['schemas']['SupplierReturnResponse'][];
+      total: number;
+      page: number;
+      pageSize: number;
+    };
+    SupplierReturnDetailEnvelopeResponse: {
+      id: string;
+      number: string;
+      supplierNameSnapshot: string;
+      reasonCode: string;
+      status: string;
+      amountMinor: string;
+    };
+    VendorBalancesEnvelopeResponse: {
+      suppliers: Record<string, never>[];
+      totalBalanceMinor: string;
     };
   };
   responses: never;
@@ -7130,6 +7575,555 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ArAgingEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PurchasingController_listSuppliersRoute: {
+    parameters: {
+      query: {
+        q: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_createSupplierRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_getSupplierRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_updateSupplierRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_submitRequisitionRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RequisitionEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_approveRequisitionRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RequisitionEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_listPurchaseOrdersRoute: {
+    parameters: {
+      query: {
+        q: string;
+        status: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PurchaseOrderListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_createPurchaseOrderRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PurchaseOrderEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_approvePurchaseOrderRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PurchaseOrderEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_getPurchaseOrderRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PurchaseOrderDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_listGrnsRoute: {
+    parameters: {
+      query: {
+        q: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GrnListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_receiveGrnRoute: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GrnEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_getGrnRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GrnEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_listBillsRoute: {
+    parameters: {
+      query: {
+        q: string;
+        status: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_createBillRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_approveBillRoute: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': string;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_getBillRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_listPaymentsRoute: {
+    parameters: {
+      query: {
+        q: string;
+        method: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_recordPaymentRoute: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_getPaymentRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_listSupplierReturnsRoute: {
+    parameters: {
+      query: {
+        q: string;
+        page: string;
+        pageSize: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierReturnListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_createSupplierReturnRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierReturnEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_approveSupplierReturnRoute: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': string;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierReturnEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_getSupplierReturnRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupplierReturnDetailEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PurchasingController_vendorBalancesRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VendorBalancesEnvelopeResponse'];
         };
       };
     };

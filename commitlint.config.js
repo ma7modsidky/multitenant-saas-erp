@@ -31,6 +31,7 @@ module.exports = {
         'inventory',
         'pos',
         'accounting',
+        'purchasing',
         'api',
         'web',
         'contracts',

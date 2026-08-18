@@ -29,6 +29,7 @@ import { OrganizationsModule } from './platform/organizations/organizations.modu
 import { RolesModule } from './platform/roles/roles.module.js';
 import { SearchModule } from './platform/search/search.module.js';
 import { UsersModule } from './platform/users/users.module.js';
+import { PurchasingModule } from './modules/purchasing/public/index.js';
 import { AccountingModule } from './modules/accounting/public/index.js';
 
 /**
@@ -78,6 +79,7 @@ import { AccountingModule } from './modules/accounting/public/index.js';
     InventoryModule,
     PosModule,
     AccountingModule,
+    PurchasingModule,
   ],
   controllers: [],
   providers: [],
