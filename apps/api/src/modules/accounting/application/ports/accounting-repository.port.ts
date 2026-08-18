@@ -61,6 +61,9 @@ export interface JournalFilter {
   q?: string;
   fromDate?: string;
   toDate?: string;
+  /** Narrow to entries posted for one source document (e.g. `purchase_bill` + its bill id). */
+  sourceType?: string;
+  sourceId?: string;
   page?: number;
   pageSize?: number;
 }

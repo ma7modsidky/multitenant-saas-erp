@@ -1,6 +1,7 @@
 'use client';
 
 import { PackageCheck, Plus } from 'lucide-react';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -191,7 +192,11 @@ export function GrnsView() {
                   <tbody>
                     {(data?.items ?? []).map((grn: PurchasingGrn) => (
                       <tr key={grn.id} className="border-b">
-                        <td className="py-2 pe-4 font-medium">{grn.number}</td>
+                        <td className="py-2 pe-4 font-medium">
+                          <Link href={`/m/purchasing/receiving/${grn.id}`} className="text-primary hover:underline">
+                            {grn.number}
+                          </Link>
+                        </td>
                         <td className="py-2 pe-4">{grn.poNumber}</td>
                         <td className="py-2 pe-4">{grn.supplierNameSnapshot}</td>
                         <td className="py-2 pe-4">

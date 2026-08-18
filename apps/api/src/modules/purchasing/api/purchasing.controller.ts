@@ -315,10 +315,11 @@ export class PurchasingController {
   @RequiresPermission('purchasing:grn:receive')
   async listGrnsRoute(
     @Query('q') q?: string,
+    @Query('supplierId') supplierId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ): Promise<{ data: Record<string, unknown> }> {
-    const result = await this.listGrns.execute(filterFromQuery({ q, page, pageSize }));
+    const result = await this.listGrns.execute(filterFromQuery({ q, page, pageSize, supplierId }));
     return { data: result as unknown as Record<string, unknown> };
   }
 
@@ -376,10 +377,11 @@ export class PurchasingController {
   async listBillsRoute(
     @Query('q') q?: string,
     @Query('status') status?: string,
+    @Query('supplierId') supplierId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ): Promise<{ data: Record<string, unknown> }> {
-    const result = await this.listBills.execute(filterFromQuery({ q, page, pageSize, status }));
+    const result = await this.listBills.execute(filterFromQuery({ q, page, pageSize, status, supplierId }));
     return { data: result as unknown as Record<string, unknown> };
   }
 
@@ -518,11 +520,13 @@ function filterFromQuery(input: {
   pageSize?: string | undefined;
   status?: string | undefined;
   method?: string | undefined;
+  supplierId?: string | undefined;
 }): Record<string, string | number> {
   const filter: Record<string, string | number> = {};
   if (input.q) filter.q = input.q;
   if (input.status) filter.status = input.status;
   if (input.method) filter.method = input.method;
+  if (input.supplierId) filter.supplierId = input.supplierId;
   if (input.page) filter.page = Number(input.page);
   if (input.pageSize) filter.pageSize = Number(input.pageSize);
   return filter;

@@ -268,6 +268,8 @@ export class AccountingController {
     @Query('q') q?: string,
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
+    @Query('sourceType') sourceType?: string,
+    @Query('sourceId') sourceId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ): Promise<{ data: Record<string, unknown> }> {
@@ -281,6 +283,8 @@ export class AccountingController {
       ...(q !== undefined && q.trim() !== '' ? { q } : {}),
       ...(fromDate !== undefined ? { fromDate } : {}),
       ...(toDate !== undefined ? { toDate } : {}),
+      ...(sourceType !== undefined && sourceType.trim() !== '' ? { sourceType } : {}),
+      ...(sourceId !== undefined && sourceId.trim() !== '' ? { sourceId } : {}),
       ...(page !== undefined ? { page: parsePage(page) } : {}),
       ...(pageSize !== undefined ? { pageSize: parsePage(pageSize) } : {}),
     });

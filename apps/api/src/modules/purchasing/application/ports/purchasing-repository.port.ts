@@ -93,6 +93,8 @@ export interface PurchaseOrderFilter {
 export interface BillFilter {
   q?: string;
   status?: string;
+  /** Scope the listing to one supplier (e.g. the return form's document picker). */
+  supplierId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -100,6 +102,8 @@ export interface BillFilter {
 /** Filters for the paginated GRN listing. */
 export interface GrnFilter {
   q?: string;
+  /** Scope the listing to one supplier (e.g. the return form's document picker). */
+  supplierId?: string;
   page?: number;
   pageSize?: number;
 }

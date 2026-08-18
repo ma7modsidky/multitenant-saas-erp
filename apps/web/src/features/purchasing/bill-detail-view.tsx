@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Banknote, CheckCircle2, Receipt } from 'lucide-react';
+import { ArrowLeft, Banknote, BookOpen, CheckCircle2, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -17,7 +17,13 @@ import { ModuleGate } from '@/lib/entitlements';
 import type { PurchasingBillDetail } from '@/lib/api/resources';
 
 import { usePurchasingError } from './errors';
-import { useCurrencies, useOrgBaseCurrency, usePurchasingBill, usePurchasingMutations } from './hooks';
+import {
+  useAccountingJournalBySource,
+  useCurrencies,
+  useOrgBaseCurrency,
+  usePurchasingBill,
+  usePurchasingMutations,
+} from './hooks';
 import { formatMinorAmount, formatQuantity, statusTone } from './labels';
 import { PurchasingPageHeader } from './page-header';
 
@@ -44,11 +50,15 @@ export function BillDetailView({ billId }: { billId: string }) {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
 
+  // The AP entry accounting posted when the bill was approved (ACC-15).
+  const journalEntry = useAccountingJournalBySource('purchase_bill', billId).data;
+
   const bill: PurchasingBillDetail | undefined = data;
   const currency = bill?.currency ?? baseCurrency;
   const formatMinor = (amountMinor: string) => formatMinorAmount(amountMinor, currency, { locale, exponent });
   const balanceDue = bill ? BigInt(bill.totalMinor) - BigInt(bill.paidMinor) : 0n;
   const canPay = bill && (bill.status === 'approved' || bill.status === 'partially_paid') && balanceDue > 0n;
+  const journalHref = journalEntry ? `/${locale}/m/accounting/journal?entry=${journalEntry.id}` : null;
 
   const onApprove = async () => {
     setError(null);
@@ -100,6 +110,16 @@ export function BillDetailView({ billId }: { billId: string }) {
                 <Button onClick={() => setPayOpen(true)}>
                   <Banknote />
                   {t('bills.pay')}
+                </Button>
+              )}
+              {journalEntry && journalHref && (
+                <Button asChild variant="outline">
+                  <Link href={journalHref}>
+                    <BookOpen />
+                    {t('bills.viewJournalEntry', {
+                      entry: `JE-${String(journalEntry.entryNumber).padStart(4, '0')}`,
+                    })}
+                  </Link>
                 </Button>
               )}
               <Button asChild variant="outline">

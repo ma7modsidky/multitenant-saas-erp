@@ -1591,6 +1591,9 @@ export interface AccountingJournalParams {
   q?: string;
   fromDate?: string;
   toDate?: string;
+  /** Narrow to entries posted for one source document (e.g. a purchase bill). */
+  sourceType?: string;
+  sourceId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -1855,6 +1858,8 @@ export function getAccountingJournal(
   if (params.q) query.set('q', params.q);
   if (params.fromDate) query.set('fromDate', params.fromDate);
   if (params.toDate) query.set('toDate', params.toDate);
+  if (params.sourceType) query.set('sourceType', params.sourceType);
+  if (params.sourceId) query.set('sourceId', params.sourceId);
   if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
   if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
   const qs = query.toString();
@@ -2323,6 +2328,7 @@ export interface PurchasingGrnDetail extends PurchasingGrn {
 
 export interface PurchasingGrnParams {
   q?: string;
+  supplierId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -2366,6 +2372,7 @@ export interface PurchasingBillDetail extends PurchasingBill {
 export interface PurchasingBillParams {
   q?: string;
   status?: string;
+  supplierId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -2556,6 +2563,7 @@ export function getPurchasingGrns(
 ): Promise<{ items: PurchasingGrn[]; total: number; page: number; pageSize: number }> {
   const query = new URLSearchParams();
   if (params.q) query.set('q', params.q);
+  if (params.supplierId) query.set('supplierId', params.supplierId);
   if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
   if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
   const qs = query.toString();
@@ -2586,6 +2594,7 @@ export function getPurchasingBills(
   const query = new URLSearchParams();
   if (params.q) query.set('q', params.q);
   if (params.status) query.set('status', params.status);
+  if (params.supplierId) query.set('supplierId', params.supplierId);
   if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
   if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
   const qs = query.toString();

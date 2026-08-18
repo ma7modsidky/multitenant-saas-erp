@@ -590,6 +590,9 @@ export class DrizzleAccountingRepository implements AccountingRepository {
     const conditions = [sql`TRUE`];
     if (filter.fromDate) conditions.push(sql`entry_date >= ${filter.fromDate}::date`);
     if (filter.toDate) conditions.push(sql`entry_date <= ${filter.toDate}::date`);
+    // Source-document scoping (ACC-15): e.g. the AP entry posted for a bill.
+    if (filter.sourceType) conditions.push(sql`source_type = ${filter.sourceType}`);
+    if (filter.sourceId) conditions.push(sql`source_id = ${filter.sourceId}`);
     if (filter.q) {
       const term = filter.q.trim();
       // Search matches the description (case-insensitive) OR the entry number

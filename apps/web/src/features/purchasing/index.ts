@@ -4,6 +4,7 @@
 
 export { BillDetailView } from './bill-detail-view';
 export { BillsView } from './bills-view';
+export { GrnDetailView } from './grn-detail-view';
 export { GrnsView } from './grns-view';
 export { PaymentDetailView } from './payment-detail-view';
 export { PaymentsView } from './payments-view';

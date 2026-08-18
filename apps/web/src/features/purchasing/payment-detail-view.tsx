@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Banknote } from 'lucide-react';
+import { ArrowLeft, Banknote, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 
@@ -11,7 +11,7 @@ import { ModuleGate } from '@/lib/entitlements';
 
 import type { PurchasingPaymentDetail } from '@/lib/api/resources';
 
-import { useCurrencies, useOrgBaseCurrency, usePurchasingPayment } from './hooks';
+import { useAccountingJournalBySource, useCurrencies, useOrgBaseCurrency, usePurchasingPayment } from './hooks';
 import { formatMinorAmount } from './labels';
 import { PurchasingPageHeader } from './page-header';
 
@@ -28,6 +28,10 @@ export function PaymentDetailView({ paymentId }: { paymentId: string }) {
   const exponent = currencies?.find((c) => c.code === baseCurrency)?.exponent ?? 2;
   const { data, isPending } = usePurchasingPayment(paymentId);
 
+  // The cash-disbursement entry accounting posted when the payment was recorded.
+  const journalEntry = useAccountingJournalBySource('supplier_payment', paymentId).data;
+  const journalHref = journalEntry ? `/${locale}/m/accounting/journal?entry=${journalEntry.id}` : null;
+
   const payment: PurchasingPaymentDetail | undefined = data;
   const currency = payment?.currency ?? baseCurrency;
   const formatMinor = (amountMinor: string) => formatMinorAmount(amountMinor, currency, { locale, exponent });
@@ -40,12 +44,24 @@ export function PaymentDetailView({ paymentId }: { paymentId: string }) {
           title={payment?.number ?? t('payments.detailTitle')}
           subtitle={payment ? `${payment.supplierNameSnapshot} · ${t(`payments.methods.${payment.method}`)}` : ''}
           actions={
-            <Button asChild variant="outline">
-              <Link href="/m/purchasing/payments">
-                <ArrowLeft />
-                {t('common.back')}
-              </Link>
-            </Button>
+            <>
+              {journalEntry && journalHref && (
+                <Button asChild variant="outline">
+                  <Link href={journalHref}>
+                    <BookOpen />
+                    {t('payments.viewJournalEntry', {
+                      entry: `JE-${String(journalEntry.entryNumber).padStart(4, '0')}`,
+                    })}
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="outline">
+                <Link href="/m/purchasing/payments">
+                  <ArrowLeft />
+                  {t('common.back')}
+                </Link>
+              </Button>
+            </>
           }
         />
 

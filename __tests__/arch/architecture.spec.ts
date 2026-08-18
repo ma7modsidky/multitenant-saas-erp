@@ -198,6 +198,14 @@ describe('architecture', () => {
     const violations: string[] = [];
 
     for (const [file, deps] of imports) {
+      // Test suites may wire real adapters across module boundaries (e.g. an
+      // isolation spec needs the inventory repository to verify a purchasing
+      // approval removes stock). The production boundary is what the rule
+      // protects, so specs/tests are exempt — same carve-out as the
+      // process.env rule.
+      if (file.includes('/__tests__/') || file.endsWith('.spec.ts') || file.endsWith('.test.ts')) {
+        continue;
+      }
       for (const dep of deps) {
         if (dep.includes('@/modules') || dep.match(/\.\.\/modules\//)) {
           violations.push(`${file} imports "${dep}"`);

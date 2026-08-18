@@ -27,7 +27,9 @@ import {
   recordPurchasingPayment,
   updatePurchasingSupplier,
   getActiveOrganization,
+  getAccountingJournal,
   getCurrencies,
+  type AccountingJournalEntry,
   type PurchasingBillParams,
   type PurchasingGrnParams,
   type PurchasingPaymentParams,
@@ -95,7 +97,7 @@ export function usePurchasingPurchaseOrder(id: string) {
 
 export function usePurchasingGrns(params: PurchasingGrnParams = {}) {
   return useQuery({
-    queryKey: purchasingKey(['grns', params.q ?? '', String(params.page ?? 1)]),
+    queryKey: purchasingKey(['grns', params.q ?? '', params.supplierId ?? '', String(params.page ?? 1)]),
     queryFn: () => getPurchasingGrns(params),
     placeholderData: keepPreviousData,
   });
@@ -111,7 +113,13 @@ export function usePurchasingGrn(id: string) {
 
 export function usePurchasingBills(params: PurchasingBillParams = {}) {
   return useQuery({
-    queryKey: purchasingKey(['bills', params.q ?? '', params.status ?? '', String(params.page ?? 1)]),
+    queryKey: purchasingKey([
+      'bills',
+      params.q ?? '',
+      params.status ?? '',
+      params.supplierId ?? '',
+      String(params.page ?? 1),
+    ]),
     queryFn: () => getPurchasingBills(params),
     placeholderData: keepPreviousData,
   });
@@ -154,6 +162,25 @@ export function usePurchasingReturn(id: string) {
     queryKey: purchasingKey(['returns', id]),
     queryFn: () => getPurchasingReturn(id),
     enabled: id !== '',
+  });
+}
+
+/**
+ * The journal entry accounting posted for a purchasing document (ACC-15) —
+ * resolved via the accounting module's journal list filtered by source. Used
+ * by the bill / payment detail "View journal entry" action.
+ */
+export function useAccountingJournalBySource(sourceType: string | null, sourceId: string | null) {
+  return useQuery({
+    queryKey: purchasingKey(['journal', sourceType ?? '', sourceId ?? '']),
+    queryFn: () =>
+      getAccountingJournal({
+        sourceType: sourceType === null ? '' : sourceType,
+        sourceId: sourceId === null ? '' : sourceId,
+        pageSize: 1,
+      }),
+    enabled: sourceType !== null && sourceId !== null,
+    select: (data): AccountingJournalEntry | undefined => data.items[0],
   });
 }
 

@@ -7214,6 +7214,8 @@ export interface operations {
         q: string;
         fromDate: string;
         toDate: string;
+        sourceType: string;
+        sourceId: string;
         page: string;
         pageSize: string;
       };
@@ -7809,6 +7811,7 @@ export interface operations {
     parameters: {
       query: {
         q: string;
+        supplierId: string;
         page: string;
         pageSize: string;
       };
@@ -7875,6 +7878,7 @@ export interface operations {
       query: {
         q: string;
         status: string;
+        supplierId: string;
         page: string;
         pageSize: string;
       };

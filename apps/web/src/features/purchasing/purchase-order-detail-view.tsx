@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, CheckCircle2, FileText } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, FileText, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -40,6 +40,15 @@ export function PurchaseOrderDetailView({ poId }: { poId: string }) {
     }
   };
 
+  const DetailField = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="space-y-1">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="text-sm" dir="auto">
+        {value}
+      </dd>
+    </div>
+  );
+
   return (
     <ModuleGate moduleKey="purchasing">
       <div className="space-y-5">
@@ -55,6 +64,16 @@ export function PurchaseOrderDetailView({ poId }: { poId: string }) {
                   {t('purchaseOrders.approve')}
                 </Button>
               )}
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
+                <Button variant="outline" size="sm" onClick={() => window.print()}>
+                  <Printer className="size-4" aria-hidden="true" />
+                  <span className="ms-1">{t('purchaseOrders.print')}</span>
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => window.print()}>
+                  <Download className="size-4" aria-hidden="true" />
+                  <span className="ms-1">{t('purchaseOrders.exportPdf')}</span>
+                </Button>
+              </div>
               <Button asChild variant="outline">
                 <Link href="/m/purchasing/purchase-orders">
                   <ArrowLeft />
@@ -66,6 +85,28 @@ export function PurchaseOrderDetailView({ poId }: { poId: string }) {
         />
 
         {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {data && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">{t('purchaseOrders.document')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <DetailField label={t('purchaseOrders.supplier')} value={data.supplierNameSnapshot} />
+                <DetailField
+                  label={t('purchaseOrders.orderDate')}
+                  value={new Date(data.orderDate).toLocaleDateString(locale)}
+                />
+                <DetailField
+                  label={t('purchaseOrders.expectedDate')}
+                  value={data.expectedDate ? new Date(data.expectedDate).toLocaleDateString(locale) : '—'}
+                />
+                <DetailField label={t('purchaseOrders.currency')} value={data.currency} />
+              </dl>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">

@@ -590,10 +590,13 @@ export class DrizzlePurchasingRepository implements PurchasingRepository {
     const db = this.getDb(tx);
     const page = Math.max(1, filter.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
-    const q = filter.q?.trim();
-    const where = q
-      ? sql`WHERE (g.number ILIKE ${`%${q}%`} OR po.number ILIKE ${`%${q}%`} OR s.name ILIKE ${`%${q}%`})`
-      : sql``;
+    const conditions: ReturnType<typeof sql>[] = [sql`TRUE`];
+    if (filter.q?.trim()) {
+      const q = filter.q.trim();
+      conditions.push(sql`(g.number ILIKE ${`%${q}%`} OR po.number ILIKE ${`%${q}%`} OR s.name ILIKE ${`%${q}%`})`);
+    }
+    if (filter.supplierId) conditions.push(sql`g.supplier_id = ${filter.supplierId}`);
+    const where = sql`WHERE ${sql.join(conditions, sql.raw(' AND '))}`;
 
     const countRows = await db.execute<{ c: number }>(sql`
       SELECT COUNT(*)::int AS c
@@ -708,10 +711,11 @@ export class DrizzlePurchasingRepository implements PurchasingRepository {
     const page = Math.max(1, filter.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
     const q = filter.q?.trim();
-    const conditions: string[] = [];
-    if (q) conditions.push(`(b.number ILIKE '%${q}%' OR s.name ILIKE '%${q}%')`);
-    if (filter.status) conditions.push(`b.status = '${filter.status}'`);
-    const where = conditions.length ? sql`WHERE ${sql.raw(conditions.join(' AND '))}` : sql``;
+    const conditions: ReturnType<typeof sql>[] = [sql`TRUE`];
+    if (q) conditions.push(sql`(b.number ILIKE ${`%${q}%`} OR s.name ILIKE ${`%${q}%`})`);
+    if (filter.status) conditions.push(sql`b.status = ${filter.status}`);
+    if (filter.supplierId) conditions.push(sql`b.supplier_id = ${filter.supplierId}`);
+    const where = sql`WHERE ${sql.join(conditions, sql.raw(' AND '))}`;
 
     const countRows = await db.execute<{ c: number }>(sql`
       SELECT COUNT(*)::int AS c
