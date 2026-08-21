@@ -51,5 +51,7 @@ export interface CachedCatalogItem {
   sku: string;
   nameI18n: Record<string, string>;
   unitPriceAmountMinor: string;
+  /** ACC-11: the product's tax rate in basis points (0 = default). */
+  taxRateBp: number;
   currency: string;
 }

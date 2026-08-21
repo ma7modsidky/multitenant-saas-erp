@@ -18,6 +18,8 @@ export interface CreateProductInput {
   costCurrency: string;
   reorderPoint: string;
   reorderQuantity: string;
+  /** ACC-11: product-level tax rate in basis points (default 0). */
+  taxRateBp?: number;
 }
 
 /**
@@ -56,6 +58,7 @@ export class CreateProductUseCase {
       costCurrency: input.costCurrency,
       reorderPoint: input.reorderPoint,
       reorderQuantity: input.reorderQuantity,
+      taxRateBp: input.taxRateBp ?? 0,
       isActive: true,
       createdAt: now,
       updatedAt: now,

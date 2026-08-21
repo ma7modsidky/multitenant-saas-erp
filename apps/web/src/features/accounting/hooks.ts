@@ -5,6 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   applyAccountingPayment,
   createAccountingAccount,
+  createAccountingTaxRate,
   getAccountingAccount,
   getAccountingArAging,
   getAccountingBalanceSheet,
@@ -18,12 +19,14 @@ import {
   getAccountingJournalEntry,
   getAccountingPayment,
   getAccountingPayments,
+  getAccountingTaxRates,
   getAccountingTrialBalance,
   issueAccountingCreditNote,
   issueAccountingInvoice,
   postAccountingJournalEntry,
   reverseAccountingJournalEntry,
   updateAccountingAccount,
+  updateAccountingTaxRate,
   type AccountingAccountMovementsParams,
   type AccountingCreditNoteParams,
   type AccountingInvoiceParams,
@@ -221,6 +224,11 @@ export function useAccountingInvoices(filters: AccountingInvoiceParams = {}) {
   });
 }
 
+/** Org tax catalog (ACC-11) — the tax-rates page and invoice form tax picker. */
+export function useAccountingTaxRates() {
+  return useQuery({ queryKey: accountingKey(['tax-rates']), queryFn: () => getAccountingTaxRates() });
+}
+
 /** Accounting mutations. Every mutation invalidates the `['accounting']` scope. */
 export function useAccountingMutations() {
   const client = useQueryClient();
@@ -243,5 +251,11 @@ export function useAccountingMutations() {
     issueInvoice: useMutation({ mutationFn: issueAccountingInvoice, onSuccess: invalidate }),
     applyPayment: useMutation({ mutationFn: applyAccountingPayment, onSuccess: invalidate }),
     issueCreditNote: useMutation({ mutationFn: issueAccountingCreditNote, onSuccess: invalidate }),
+    createTaxRate: useMutation({ mutationFn: createAccountingTaxRate, onSuccess: invalidate }),
+    updateTaxRate: useMutation({
+      mutationFn: (input: { taxRateId: string; patch: Parameters<typeof updateAccountingTaxRate>[1] }) =>
+        updateAccountingTaxRate(input.taxRateId, input.patch),
+      onSuccess: invalidate,
+    }),
   };
 }

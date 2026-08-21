@@ -19,14 +19,23 @@ import { ModuleGate } from '@/lib/entitlements';
 import { Can } from '@/lib/permissions';
 
 import { accountingErrorKey } from './errors';
-import { useAccountingInvoices, useAccountingMutations, useCurrencies, useOrgBaseCurrency } from './hooks';
+import {
+  useAccountingInvoices,
+  useAccountingMutations,
+  useAccountingTaxRates,
+  useCurrencies,
+  useOrgBaseCurrency,
+} from './hooks';
 import { formatMinorAmount } from './labels';
 import { AccountingPageHeader } from './page-header';
+
+import type { AccountingTaxRate } from '@/lib/api/resources';
 
 const invoiceLineSchema = z.object({
   itemName: z.string().min(1),
   quantity: z.string().regex(/^\d+(\.\d+)?$/, 'quantity must be a decimal string'),
   unitPriceMinor: z.string().regex(/^\d+$/, 'unit price must be an integer (minor units)'),
+  taxRateId: z.string().optional(),
   taxRateBp: z.string().regex(/^\d*$/, 'tax rate must be an integer (basis points)'),
 });
 
@@ -67,9 +76,16 @@ export function InvoicesView() {
     pageSize: PAGE_SIZE,
   });
   const { issueInvoice, applyPayment } = useAccountingMutations();
+  const { data: taxRates } = useAccountingTaxRates();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const totalPages = invoices ? Math.max(1, Math.ceil(invoices.total / invoices.pageSize)) : 1;
+
+  /** ACC-11: applying a catalog rate sets both the rate id (GL + record) and its bp. */
+  const applyTaxRate = (index: number, rate: AccountingTaxRate | null) => {
+    form.setValue(`lines.${index}.taxRateId`, rate?.id ?? '');
+    form.setValue(`lines.${index}.taxRateBp`, rate ? String(rate.rateBp) : '');
+  };
 
   /** Status filter — All + the AR lifecycle states (ACC-8). */
   const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
@@ -95,7 +111,7 @@ export function InvoicesView() {
       customerTaxId: '',
       dueDate: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
       currency: baseCurrency,
-      lines: [{ itemName: '', quantity: '1', unitPriceMinor: '', taxRateBp: '' }],
+      lines: [{ itemName: '', quantity: '1', unitPriceMinor: '', taxRateId: '', taxRateBp: '' }],
     },
   });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'lines' });
@@ -113,6 +129,7 @@ export function InvoicesView() {
           itemName: line.itemName,
           quantity: line.quantity,
           unitPrice: { amountMinor: line.unitPriceMinor, currency: values.currency },
+          ...(line.taxRateId ? { taxRateId: line.taxRateId } : {}),
           ...(line.taxRateBp ? { taxRateBp: Number(line.taxRateBp) } : {}),
         })),
       });
@@ -122,7 +139,7 @@ export function InvoicesView() {
         customerTaxId: '',
         dueDate: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
         currency: values.currency,
-        lines: [{ itemName: '', quantity: '1', unitPriceMinor: '', taxRateBp: '' }],
+        lines: [{ itemName: '', quantity: '1', unitPriceMinor: '', taxRateId: '', taxRateBp: '' }],
       });
     } catch (err) {
       setError(err instanceof ApiError ? t(accountingErrorKey(err.code)) : t('errors.unknown'));
@@ -252,7 +269,10 @@ export function InvoicesView() {
                       {fields.map((field, index) => {
                         const lineErrors = form.formState.errors.lines?.[index];
                         return (
-                          <div key={field.id} className="grid gap-2 px-3 py-2 md:grid-cols-[1fr_6rem_8rem_8rem_auto]">
+                          <div
+                            key={field.id}
+                            className="grid gap-2 px-3 py-2 md:grid-cols-[1fr_6rem_8rem_9rem_8rem_auto]"
+                          >
                             <div className="min-w-0 space-y-1">
                               <Input
                                 dir="auto"
@@ -289,6 +309,24 @@ export function InvoicesView() {
                               )}
                             </div>
                             <div className="space-y-1">
+                              <Select
+                                id={`invoice-line-${index}-tax-rate`}
+                                value={form.watch(`lines.${index}.taxRateId`) ?? ''}
+                                onValueChange={(value) => {
+                                  const rate =
+                                    (taxRates?.items ?? []).find((candidate) => candidate.id === value) ?? null;
+                                  applyTaxRate(index, rate);
+                                }}
+                              >
+                                <SelectItem value="">{t('invoices.fields.taxRateNone')}</SelectItem>
+                                {(taxRates?.items ?? []).map((rate) => (
+                                  <SelectItem key={rate.id} value={rate.id}>
+                                    {rate.nameI18n.en ?? rate.code} ({rate.rateBp / 100}%)
+                                  </SelectItem>
+                                ))}
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
                               <Input
                                 className="font-mono"
                                 inputMode="numeric"
@@ -319,7 +357,9 @@ export function InvoicesView() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => append({ itemName: '', quantity: '1', unitPriceMinor: '', taxRateBp: '' })}
+                      onClick={() =>
+                        append({ itemName: '', quantity: '1', unitPriceMinor: '', taxRateId: '', taxRateBp: '' })
+                      }
                     >
                       <Plus className="size-4" aria-hidden="true" />
                       <span className="ms-1">{t('invoices.addLine')}</span>

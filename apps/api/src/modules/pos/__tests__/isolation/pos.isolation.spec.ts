@@ -27,6 +27,7 @@ import { PosController } from '../../api/pos.controller.js';
 import {
   CheckoutUseCase,
   CreateRegisterUseCase,
+  DefaultTaxRateResolver,
   GetSaleUseCase,
   ListRegistersUseCase,
   ListSalesUseCase,
@@ -116,7 +117,8 @@ beforeAll(async () => {
   const stockPort = new InventoryStockPortImpl(invRepo, txManager);
   const portRegistry = new PortRegistry();
   portRegistry.register(INVENTORY_STOCK_PORT, stockPort);
-  checkout = new CheckoutUseCase(repo, txManager, unitOfWork, portRegistry);
+  const taxRateResolver = new DefaultTaxRateResolver(portRegistry);
+  checkout = new CheckoutUseCase(repo, txManager, unitOfWork, portRegistry, taxRateResolver);
 }, 180_000);
 
 beforeEach(async () =>

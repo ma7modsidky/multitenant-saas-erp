@@ -14,6 +14,8 @@ export interface ProductVariantData {
   costCurrency: string;
   reorderPoint: string;
   reorderQuantity: string;
+  /** ACC-11: product-level tax rate in basis points (inv_products.tax_rate_bp). */
+  taxRateBp?: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -43,7 +45,15 @@ export class ProductVariant {
     if (!data.sku.trim()) {
       throw new InventoryError(INVENTORY_ERROR_CODE.VARIANT_DUPLICATE_SKU, 'A variant requires an SKU.');
     }
-    return new ProductVariant({ ...data });
+    const taxRateBp = data.taxRateBp ?? 0;
+    if (!Number.isInteger(taxRateBp) || taxRateBp < 0) {
+      throw new InventoryError(
+        INVENTORY_ERROR_CODE.TAX_RATE_INVALID,
+        'A variant tax rate must be a non-negative integer in basis points (ACC-11).',
+        { taxRateBp },
+      );
+    }
+    return new ProductVariant({ ...data, taxRateBp });
   }
 
   /**

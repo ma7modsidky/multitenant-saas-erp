@@ -152,12 +152,12 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
       sql`
         INSERT INTO ${this.settingsTable}
           (organization_id, locale, timezone, base_currency,
-           number_preferences, date_preferences, receipt_footer, seller_tax_id)
+           number_preferences, date_preferences, receipt_footer, seller_tax_id, tax_enabled)
         VALUES
           (${data.organizationId}, ${data.locale}, ${data.timezone}, ${data.baseCurrency},
            ${JSON.stringify(data.numberPreferences)}::jsonb,
            ${JSON.stringify(data.datePreferences)}::jsonb,
-           ${data.receiptFooter}, ${data.sellerTaxId})
+           ${data.receiptFooter}, ${data.sellerTaxId}, ${data.taxEnabled})
         ON CONFLICT (organization_id)
         DO UPDATE SET
           locale = EXCLUDED.locale,
@@ -167,6 +167,7 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
           date_preferences = EXCLUDED.date_preferences,
           receipt_footer = EXCLUDED.receipt_footer,
           seller_tax_id = EXCLUDED.seller_tax_id,
+          tax_enabled = EXCLUDED.tax_enabled,
           updated_at = NOW()
         RETURNING *
       `,
@@ -212,6 +213,7 @@ export class DrizzleOrganizationRepository implements OrganizationRepository {
           : (row.date_preferences as Record<string, unknown>),
       receiptFooter: (row.receipt_footer as string | null) ?? null,
       sellerTaxId: (row.seller_tax_id as string | null) ?? null,
+      taxEnabled: row.tax_enabled !== false,
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,
     };

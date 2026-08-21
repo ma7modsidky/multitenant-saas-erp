@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
-import { buildDefaultSmeChart, type AccountData } from '../domain/index.js';
+import { buildDefaultSmeChart, DEFAULT_SME_COA, type AccountData } from '../domain/index.js';
 
 import { ACCOUNTING_REPOSITORY, type AccountingRepository } from './ports/index.js';
 
@@ -30,7 +30,21 @@ export class EnsureDefaultChartOfAccountsUseCase {
     return this.txManager.run(async (tx) => {
       const existing = await this.repo.listAccounts(tx);
       if (existing.length > 0) {
-        // ACC-5: already seeded — never duplicate.
+        // ACC-5: forward-fill any missing SYSTEM seed accounts (e.g. the Input
+        // VAT 2200 account added in a later seed revision) without duplicating
+        // existing codes — keeps existing orgs idempotent.
+        const existingCodes = new Set(existing.map((row) => row.code));
+        const missing = DEFAULT_SME_COA.filter((acc) => !existingCodes.has(acc.code));
+        if (missing.length > 0) {
+          const chart = buildDefaultSmeChart({
+            organizationId,
+            nameResolver: (nameKey) => defaultNameI18n(nameKey),
+          });
+          const toInsert = chart.filter((acc) => !existingCodes.has(acc.code));
+          if (toInsert.length > 0) {
+            await this.repo.insertAccounts(toInsert, tx);
+          }
+        }
         return existing.map((row) => ({
           id: row.id,
           organizationId: row.organizationId,

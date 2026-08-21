@@ -9,8 +9,8 @@ export type {
   JournalLineInput,
 } from './journal-entry.entity.js';
 
-export { TaxRate, TAX_TYPE } from './tax-rate.entity.js';
-export type { TaxRateData, TaxType } from './tax-rate.entity.js';
+export { TaxRate, TAX_TYPE, TAX_BASIS } from './tax-rate.entity.js';
+export type { TaxRateData, TaxType, TaxBasis } from './tax-rate.entity.js';
 
 export { Invoice, INVOICE_STATUS, INVOICE_SOURCE_TYPE } from './invoice.entity.js';
 export type {
@@ -31,3 +31,6 @@ export type {
 
 export { AccountingDomainError, ACCOUNTING_ERROR_CODE } from './errors.js';
 export type { AccountingErrorCode } from './errors.js';
+
+export { calculateTaxes, calculateLineTax } from './tax-engine.js';
+export type { TaxRateSpec, LineTaxResult, TaxCalculationResult } from './tax-engine.js';

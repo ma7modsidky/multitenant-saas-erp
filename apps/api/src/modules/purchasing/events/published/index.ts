@@ -187,7 +187,17 @@ export function buildSupplierReturnApprovedEvent(
   /** Positive returned value; carried negative in the AP direction (PUR-2). */
   amountMinor: string,
   currency: string,
-  lines: Array<{ variantId: string | null; quantity: string; unitCostAmountMinor: string }>,
+  /** ACC-11: return tax total (Σ line taxes). */
+  taxMinor: string,
+  /** ACC-11: supplier tax id snapshot from the source bill. */
+  supplierTaxIdSnapshot: string | null,
+  lines: Array<{
+    variantId: string | null;
+    quantity: string;
+    unitCostAmountMinor: string;
+    taxRateBpSnapshot: number;
+    taxAmountMinor: string;
+  }>,
   returnedAt: Date,
 ): PublishedEvent {
   const payload: PurchasingSupplierReturnApprovedV1 = {
@@ -199,11 +209,16 @@ export function buildSupplierReturnApprovedEvent(
     reasonCode,
     // PUR-2: a debit note reduces AP — signed negative.
     amountMinor: `-${amountMinor.replace(/^-/, '')}`,
+    taxMinor,
+    totalMinor: `-${(BigInt(amountMinor) + BigInt(taxMinor)).toString()}`,
+    supplierTaxIdSnapshot,
     currency,
     lines: lines.map((l) => ({
       ...(l.variantId !== null ? { variantId: l.variantId } : {}),
       quantity: l.quantity,
       unitCostAmountMinor: l.unitCostAmountMinor,
+      ...(l.taxRateBpSnapshot > 0 ? { taxRateBpSnapshot: l.taxRateBpSnapshot } : {}),
+      ...(BigInt(l.taxAmountMinor) !== 0n ? { taxAmountMinor: l.taxAmountMinor } : {}),
     })),
     returnedAt: returnedAt.toISOString(),
     occurredAt: returnedAt.toISOString(),

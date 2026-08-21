@@ -19,10 +19,11 @@ import { ACCOUNTING_ERROR_CODE, AccountingDomainError } from '../../domain/index
  * `returnId`.
  *
  * The entry reverses the bill's AP recognition (PUR-11):
- *   Dr AP        (2000) — the returned value (the payload carries it signed
- *                         negative in the AP direction; we take |amount|)
+ *   Dr AP        (2000) — the gross returned value (net + tax; the payload
+ *                         carries the net signed negative, ACC-11)
  *   Cr Inventory (1300) — goods lines (variantId set), at line total
  *   Cr Expense   (5100) — service lines, at line total
+ *   Cr Input VAT (2200) — return tax (ACC-11: reverses the bill's input VAT)
  * The credit split absorbs any rounding remainder so the entry is balanced.
  *
  * ACC-16/OPS-8: gated on the accounting entitlement (fail closed). TEN-6: the
@@ -81,23 +82,27 @@ export class PurchasingSupplierReturnApprovedHandler {
           const apAccountId = codeToId.get('2000');
           const inventoryAccountId = codeToId.get('1300');
           const expenseAccountId = codeToId.get('5100');
-          if (!apAccountId || !inventoryAccountId || !expenseAccountId) {
+          const inputVatAccountId = codeToId.get('2200');
+          if (!apAccountId || !inventoryAccountId || !expenseAccountId || !inputVatAccountId) {
             throw new AccountingDomainError(
               ACCOUNTING_ERROR_CODE.COA_INCOMPLETE,
               'The default chart of accounts is missing a required account (ACC-5).',
             );
           }
 
-          // The payload carries the amount signed negative (PUR-2); the entry
-          // debits AP by its absolute value.
-          const amount = BigInt(payload.amountMinor) < 0n ? payload.amountMinor.slice(1) : payload.amountMinor;
-          const { goodsTotal, serviceTotal } = this.splitLineTotals(payload.lines, amount);
+          // The payload carries the net amount signed negative (PUR-2); the
+          // entry debits AP by the GROSS (net + tax, ACC-11).
+          const net = BigInt(payload.amountMinor) < 0n ? payload.amountMinor.slice(1) : payload.amountMinor;
+          const tax = payload.taxMinor ?? '0';
+          const gross = (BigInt(net) + BigInt(tax)).toString();
+          const { goodsTotal, serviceTotal } = this.splitLineTotals(payload.lines, net);
 
           const lines: { accountId: string; debitAmountMinor?: string; creditAmountMinor?: string }[] = [
-            { accountId: apAccountId, debitAmountMinor: amount },
+            { accountId: apAccountId, debitAmountMinor: gross },
           ];
           if (goodsTotal !== '0') lines.push({ accountId: inventoryAccountId, creditAmountMinor: goodsTotal });
           if (serviceTotal !== '0') lines.push({ accountId: expenseAccountId, creditAmountMinor: serviceTotal });
+          if (tax !== '0') lines.push({ accountId: inputVatAccountId, creditAmountMinor: tax });
 
           const posted = await this.postJournalEntry.postInTx(
             {

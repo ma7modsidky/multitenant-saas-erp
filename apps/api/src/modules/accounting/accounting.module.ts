@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
+import { TAX_RATE_READ_PORT } from '@modubiz/contracts';
 
 import { EntitlementsModule } from '../../core/entitlements/__init__.js';
+import { PortRegistry } from '../../core/ports/port-registry.js';
 
 import { AccountingController } from './api/index.js';
 import {
   ApplyPaymentUseCase,
   CreateAccountUseCase,
+  CreateTaxRateUseCase,
   EnsureDefaultChartOfAccountsUseCase,
   GenerateInvoiceFromPosSaleUseCase,
   GetAccountDetailUseCase,
@@ -24,12 +28,14 @@ import {
   ListInvoicesUseCase,
   ListJournalEntriesUseCase,
   ListPaymentsUseCase,
+  ListTaxRatesUseCase,
   PostJournalEntryUseCase,
   ReverseJournalEntryUseCase,
   UpdateAccountUseCase,
+  UpdateTaxRateUseCase,
 } from './application/index.js';
 import { ACCOUNTING_REPOSITORY } from './application/ports/index.js';
-import { DrizzleAccountingRepository } from './infrastructure/index.js';
+import { DrizzleAccountingRepository, TaxRateReadPortImpl } from './infrastructure/index.js';
 import {
   InventoryMovementRecordedHandler,
   PosSaleCompletedHandler,
@@ -56,12 +62,18 @@ import { EInvoiceStatusJob, GlReconciliationJob, OverdueInvoiceJob } from './job
   providers: [
     // Repository (infrastructure) bound to the port token.
     { provide: ACCOUNTING_REPOSITORY, useClass: DrizzleAccountingRepository },
+    // Level 2 read port: the centralized tax-rate catalog consumers resolve
+    // through PortRegistry (TAX_RATE_READ_PORT).
+    TaxRateReadPortImpl,
     // Use cases (application).
     GetStatusUseCase,
     EnsureDefaultChartOfAccountsUseCase,
     CreateAccountUseCase,
     GetAccountDetailUseCase,
     UpdateAccountUseCase,
+    CreateTaxRateUseCase,
+    ListTaxRatesUseCase,
+    UpdateTaxRateUseCase,
     GetInvoiceDetailUseCase,
     GetJournalEntryDetailUseCase,
     GetPaymentDetailUseCase,
@@ -84,8 +96,9 @@ import { EInvoiceStatusJob, GlReconciliationJob, OverdueInvoiceJob } from './job
     // GL event handlers (ACC-13, ACC-15) — registered via @HandleEvent.
     PosSaleCompletedHandler,
     InventoryMovementRecordedHandler,
-    // Phase 8 AP handlers (ACC-15) — post Dr Inventory/Expense · Cr AP / VAT,
-    // Dr AP · Cr Bank/Cash, and Dr AP · Cr Inventory idempotently.
+    // Phase 8 AP handlers (ACC-15) — post Dr Inventory/Expense/Input-VAT ·
+    // Cr AP, Dr AP · Cr Bank/Cash, and Dr AP · Cr Inventory/Input-VAT
+    // idempotently.
     PurchasingBillApprovedHandler,
     PurchasingPaymentRecordedHandler,
     PurchasingSupplierReturnApprovedHandler,
@@ -95,4 +108,14 @@ import { EInvoiceStatusJob, GlReconciliationJob, OverdueInvoiceJob } from './job
     EInvoiceStatusJob,
   ],
 })
-export class AccountingModule {}
+export class AccountingModule implements OnModuleInit {
+  constructor(
+    private readonly portRegistry: PortRegistry,
+    private readonly taxRateReadPort: TaxRateReadPortImpl,
+  ) {}
+
+  onModuleInit(): void {
+    // ACC-11: expose the tax-rate catalog read port for POS + purchasing.
+    this.portRegistry.register(TAX_RATE_READ_PORT, this.taxRateReadPort);
+  }
+}

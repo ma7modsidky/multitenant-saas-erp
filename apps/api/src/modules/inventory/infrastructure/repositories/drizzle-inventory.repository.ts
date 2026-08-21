@@ -46,6 +46,7 @@ type JsonVariant = {
   price_amount_minor?: string | number | null;
   price_currency?: string | null;
   reorder_point?: string | number | null;
+  tax_rate_bp?: unknown;
   is_active?: unknown;
 };
 
@@ -136,6 +137,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
             'price_amount_minor', v.price_amount_minor,
             'price_currency', v.price_currency,
             'reorder_point', v.reorder_point,
+            'tax_rate_bp', p.tax_rate_bp,
             'is_active', v.is_active
           )
           ORDER BY (v.deleted_at IS NULL) DESC, v.created_at DESC, v.id
@@ -146,7 +148,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
       FROM ${this.products} p
       LEFT JOIN ${this.variants} v ON v.product_id = p.id
       WHERE ${where}
-      GROUP BY p.id, p.name_default, p.name_i18n, p.description_i18n, p.created_at, p.updated_at`;
+      GROUP BY p.id, p.name_default, p.name_i18n, p.description_i18n, p.tax_rate_bp, p.created_at, p.updated_at`;
 
     const countRows = await db.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM (${select}) q`);
     const total = Number(countRows[0]?.n ?? 0);
@@ -169,6 +171,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
           priceAmountMinor: String(v.price_amount_minor ?? '0'),
           priceCurrency: v.price_currency ?? 'USD',
           reorderPoint: String(v.reorder_point ?? '0'),
+          taxRateBp: Number(v.tax_rate_bp ?? 0),
           isActive: Boolean(v.is_active),
         });
         return {
@@ -213,7 +216,8 @@ export class DrizzleInventoryRepository implements InventoryRepository {
         v.id AS variant_id,
         v.product_id,
         v.sku,
-        p.name_i18n
+        p.name_i18n,
+        p.tax_rate_bp
       FROM ${this.variants} v
       JOIN ${this.products} p ON p.id = v.product_id
       WHERE ${where}`;
@@ -232,6 +236,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
         productId: row.product_id as string,
         sku: row.sku as string,
         nameI18n: (row.name_i18n as Record<string, string>) ?? {},
+        taxRateBp: Number(row.tax_rate_bp ?? 0),
       })),
       total,
       page,
@@ -242,7 +247,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
   async findProductById(id: string, tx?: TxOrDb): Promise<ProductRow | undefined> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(sql`
-      SELECT id, name_i18n, description_i18n, is_active, created_at, updated_at, created_by, updated_by
+      SELECT id, name_i18n, description_i18n, is_active, tax_rate_bp, created_at, updated_at, created_by, updated_by
       FROM ${this.products}
       WHERE id = ${id} AND deleted_at IS NULL LIMIT 1
     `);
@@ -253,6 +258,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
       nameI18n: (row.name_i18n as Record<string, string>) ?? {},
       descriptionI18n: (row.description_i18n as Record<string, string>) ?? {},
       isActive: row.is_active as boolean,
+      taxRateBp: Number(row.tax_rate_bp ?? 0),
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,
       createdByUserId: (row.created_by as string | null) ?? null,
@@ -263,9 +269,11 @@ export class DrizzleInventoryRepository implements InventoryRepository {
   async listVariantsByProduct(productId: string, tx?: TxOrDb): Promise<ProductVariantData[]> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(sql`
-      SELECT * FROM ${this.variants}
-      WHERE product_id = ${productId}
-      ORDER BY created_at ASC
+      SELECT v.*, p.tax_rate_bp AS tax_rate_bp
+      FROM ${this.variants} v
+      JOIN ${this.products} p ON p.id = v.product_id
+      WHERE v.product_id = ${productId}
+      ORDER BY v.created_at ASC
     `);
     return rows.map((row) => this.rowToVariant(row));
   }
@@ -320,7 +328,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
          is_active, tax_rate_bp, tracking_mode, created_at, updated_at, created_by, updated_by)
       VALUES
         (${variant.productId}, ${organizationId}, ${JSON.stringify(nameI18n)}::jsonb, ${'{}'}::jsonb, NULL, ${uomId},
-         ${variant.isActive}, 0, 'quantity', ${toDbDate(variant.createdAt)}, ${toDbDate(variant.updatedAt)}, ${userId}, ${userId})
+         ${variant.isActive}, ${variant.taxRateBp ?? 0}, 'quantity', ${toDbDate(variant.createdAt)}, ${toDbDate(variant.updatedAt)}, ${userId}, ${userId})
     `);
 
     const rows = await db.execute<Record<string, unknown>>(sql`
@@ -1167,6 +1175,7 @@ export class DrizzleInventoryRepository implements InventoryRepository {
       costCurrency: row.cost_currency as string,
       reorderPoint: this.decimal(row.reorder_point),
       reorderQuantity: this.decimal(row.reorder_quantity),
+      taxRateBp: Number(row.tax_rate_bp ?? 0),
       isActive: Boolean(row.is_active),
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,

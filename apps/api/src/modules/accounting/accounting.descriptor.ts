@@ -74,6 +74,11 @@ export const accountingDescriptor: ModuleDescriptor = defineModule({
       href: '/m/accounting/reports',
       icon: 'bar-chart',
     },
+    {
+      labelKey: 'modules.accounting.nav.taxRates',
+      href: '/m/accounting/tax-rates',
+      icon: 'percent',
+    },
   ],
   publishes: [
     ACCOUNTING_EVENTS.INVOICE_ISSUED_V1,

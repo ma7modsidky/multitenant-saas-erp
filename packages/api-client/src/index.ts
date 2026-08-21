@@ -1796,6 +1796,38 @@ export interface paths {
     patch: operations['AccountingController_updateAccountRoute'];
     trace?: never;
   };
+  '/v1/accounting/tax-rates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['AccountingController_listTaxRatesRoute'];
+    put?: never;
+    post: operations['AccountingController_createTaxRateRoute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/accounting/tax-rates/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations['AccountingController_updateTaxRateRoute'];
+    trace?: never;
+  };
   '/v1/accounting/journal': {
     parameters: {
       query?: never;
@@ -2365,6 +2397,7 @@ export interface components {
         };
         receiptFooter: string | null;
         sellerTaxId: string | null;
+        taxEnabled: boolean;
         createdAt: string;
         updatedAt: string;
       } | null;
@@ -2398,6 +2431,7 @@ export interface components {
         };
         receiptFooter: string | null;
         sellerTaxId: string | null;
+        taxEnabled: boolean;
         createdAt: string;
         updatedAt: string;
       } | null;
@@ -2414,6 +2448,7 @@ export interface components {
       };
       receiptFooter?: string | null;
       sellerTaxId?: string | null;
+      taxEnabled?: boolean;
     };
     SettingsUpdateEnvelopeResponse: {
       data: {
@@ -2430,6 +2465,7 @@ export interface components {
         };
         receiptFooter: string | null;
         sellerTaxId: string | null;
+        taxEnabled: boolean;
         createdAt: string;
         updatedAt: string;
       };
@@ -3320,6 +3356,7 @@ export interface components {
             };
             reorderPoint: string;
             isActive: boolean;
+            taxRateBp: number;
           }[];
         }[];
         total: number;
@@ -3357,6 +3394,8 @@ export interface components {
       reorderPoint: string;
       /** @default 0 */
       reorderQuantity: string;
+      /** @default 0 */
+      taxRateBp: number;
     };
     ProductEnvelopeResponse: {
       data: {
@@ -3384,6 +3423,7 @@ export interface components {
           };
           reorderPoint: string;
           isActive: boolean;
+          taxRateBp: number;
         }[];
       };
     };
@@ -3419,6 +3459,7 @@ export interface components {
           reorderPoint: string;
           reorderQuantity: string;
           isActive: boolean;
+          taxRateBp: number;
           createdByUserId: string | null;
           updatedByUserId: string | null;
           stock: {
@@ -3528,6 +3569,7 @@ export interface components {
           nameI18n: {
             [key: string]: string;
           };
+          taxRateBp: number;
         }[];
         total: number;
         page: number;
@@ -3876,6 +3918,31 @@ export interface components {
       data: components['schemas']['AccountResponse'];
     };
     AccountUpdateEnvelopeResponse: {
+      data: Record<string, never>;
+    };
+    TaxRateResponse: {
+      id: string;
+      code: string;
+      nameI18n: Record<string, never>;
+      rateBp: number;
+      type: string;
+      taxBasis: string;
+      coaAccountId?: Record<string, never> | null;
+      coaAccountCode?: Record<string, never> | null;
+      coaAccountNameI18n?: Record<string, never> | null;
+      isDefault: boolean;
+      effectiveFrom: string;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+    TaxRateListEnvelopeResponse: {
+      data: components['schemas']['TaxRateResponse'][];
+    };
+    TaxRateEnvelopeResponse: {
+      data: Record<string, never>;
+    };
+    TaxRateUpdateEnvelopeResponse: {
       data: Record<string, never>;
     };
     JournalEntryResponse: {
@@ -7204,6 +7271,65 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['AccountUpdateEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_listTaxRatesRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TaxRateListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_createTaxRateRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TaxRateEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  AccountingController_updateTaxRateRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TaxRateUpdateEnvelopeResponse'];
         };
       };
     };

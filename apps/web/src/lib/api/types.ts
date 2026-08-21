@@ -186,6 +186,7 @@ export interface OrganizationSettingsResponse {
   datePreferences: Record<string, unknown>;
   receiptFooter: string | null;
   sellerTaxId: string | null;
+  taxEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }

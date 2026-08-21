@@ -93,14 +93,16 @@ export class ApproveSupplierReturnUseCase {
         );
       }
 
-      // PUR-11: approve the return + write the negative AP ledger entry.
+      // PUR-11: approve the return + write the negative AP ledger entry. The
+      // ledger entry is the GROSS reduction (net + tax, ACC-11) so the vendor
+      // balance matches the accounting AP debit.
       supplierReturn.approve(userId, now);
       const entry = VendorLedgerEntry.create({
         id: crypto.randomUUID(),
         organizationId,
         supplierId: supplierReturn.supplierId,
         type: LEDGER_ENTRY_TYPE.DEBIT_NOTE,
-        amountMinor: supplierReturn.amountMinor,
+        amountMinor: supplierReturn.totalMinor,
         currency: supplierReturn.currency,
         referenceType: 'supplier_return',
         referenceId: supplierReturn.id,
@@ -119,12 +121,16 @@ export class ApproveSupplierReturnUseCase {
         supplierReturn.reasonCode,
         supplierReturn.amountMinor,
         supplierReturn.currency,
-        // ACC-15: per-line detail so accounting credits Inventory (goods) vs
-        // Expense (service) on the reversal leg.
+        supplierReturn.taxMinor,
+        supplierReturn.supplierTaxIdSnapshot,
+        // ACC-15 + ACC-11: per-line detail so accounting credits Inventory
+        // (goods) vs Expense (service) and reverses the input-VAT leg.
         supplierReturn.lines.map((l) => ({
           variantId: l.variantId,
           quantity: l.quantity,
           unitCostAmountMinor: l.unitCostMinor,
+          taxRateBpSnapshot: l.taxRateBpSnapshot,
+          taxAmountMinor: l.taxAmountMinor,
         })),
         now,
       );

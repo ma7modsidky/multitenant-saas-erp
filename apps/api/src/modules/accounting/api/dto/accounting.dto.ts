@@ -93,6 +93,44 @@ export const issueInvoiceSchema = z.object({
   lines: z.array(invoiceLineSchema).min(1, 'an invoice requires at least one line'),
 });
 
+// ─── Tax rates (ACC-11) ─────────────────────────────────────────────────────
+
+export const createTaxRateSchema = z
+  .object({
+    code: z.string().trim().min(1).max(20),
+    nameI18n: z.record(z.string(), z.string()).optional(),
+    rateBp: z.number().int().nonnegative(),
+    type: z.enum(['standard', 'reduced', 'zero', 'exempt']).optional(),
+    taxBasis: z.enum(['exclusive', 'inclusive']).optional(),
+    coaAccountId: z.string().uuid().nullable().optional(),
+    isDefault: z.boolean().optional(),
+    effectiveFrom: isoDateSchema.optional(),
+  })
+  .strict();
+
+export const updateTaxRateSchema = z
+  .object({
+    nameI18n: z.record(z.string(), z.string()).optional(),
+    rateBp: z.number().int().nonnegative().optional(),
+    type: z.enum(['standard', 'reduced', 'zero', 'exempt']).optional(),
+    taxBasis: z.enum(['exclusive', 'inclusive']).optional(),
+    coaAccountId: z.string().uuid().nullable().optional(),
+    isDefault: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (patch) =>
+      patch.nameI18n !== undefined ||
+      patch.rateBp !== undefined ||
+      patch.type !== undefined ||
+      patch.taxBasis !== undefined ||
+      patch.coaAccountId !== undefined ||
+      patch.isDefault !== undefined ||
+      patch.isActive !== undefined,
+    { message: 'at least one field is required' },
+  );
+
 // ─── Payments (ACC-9) ──────────────────────────────────────────────────────
 
 export const applyPaymentSchema = z.object({
@@ -126,6 +164,8 @@ export type PostJournalEntryDto = z.infer<typeof postJournalEntrySchema>;
 export type IssueInvoiceDto = z.infer<typeof issueInvoiceSchema>;
 export type ApplyPaymentDto = z.infer<typeof applyPaymentSchema>;
 export type IssueCreditNoteDto = z.infer<typeof issueCreditNoteSchema>;
+export type CreateTaxRateDto = z.infer<typeof createTaxRateSchema>;
+export type UpdateTaxRateDto = z.infer<typeof updateTaxRateSchema>;
 
 // ─── Swagger response classes ───────────────────────────────────────────────
 
@@ -473,4 +513,35 @@ export class ArAgingEnvelopeResponse {
     buckets: AgingBucketResponse[];
     totalOutstandingMinor: string;
   };
+}
+
+// ─── Tax rates (ACC-11) ─────────────────────────────────────────────────────
+
+export class TaxRateResponse {
+  @ApiProperty() id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() nameI18n!: Record<string, string>;
+  @ApiProperty() rateBp!: number;
+  @ApiProperty() type!: string;
+  @ApiProperty() taxBasis!: string;
+  @ApiProperty({ nullable: true, required: false }) coaAccountId!: string | null;
+  @ApiProperty({ nullable: true, required: false }) coaAccountCode!: string | null;
+  @ApiProperty({ nullable: true, required: false }) coaAccountNameI18n!: Record<string, string> | null;
+  @ApiProperty() isDefault!: boolean;
+  @ApiProperty() effectiveFrom!: string;
+  @ApiProperty() isActive!: boolean;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class TaxRateListEnvelopeResponse {
+  @ApiProperty({ type: [TaxRateResponse] }) data!: { items: TaxRateResponse[] };
+}
+
+export class TaxRateEnvelopeResponse {
+  @ApiProperty() data!: { taxRateId: string; code: string };
+}
+
+export class TaxRateUpdateEnvelopeResponse {
+  @ApiProperty() data!: { taxRateId: string };
 }

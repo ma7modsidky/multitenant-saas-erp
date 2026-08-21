@@ -52,6 +52,7 @@ const SEEDED_COA_KEYS = new Set([
   'coa.inventory',
   'coa.accounts_payable',
   'coa.vat_payable',
+  'coa.vat_receivable',
   'coa.owner_equity',
   'coa.revenue',
   'coa.service_revenue',

@@ -1,5 +1,8 @@
 export { GetStatusUseCase } from './get-status.use-case.js';
 export { CreateAccountUseCase } from './create-account.use-case.js';
+export { CreateTaxRateUseCase } from './create-tax-rate.use-case.js';
+export { ListTaxRatesUseCase } from './list-tax-rates.use-case.js';
+export { UpdateTaxRateUseCase } from './update-tax-rate.use-case.js';
 export { GetAccountDetailUseCase } from './get-account-detail.use-case.js';
 export { UpdateAccountUseCase } from './update-account.use-case.js';
 export { GetInvoiceDetailUseCase } from './get-invoice-detail.use-case.js';

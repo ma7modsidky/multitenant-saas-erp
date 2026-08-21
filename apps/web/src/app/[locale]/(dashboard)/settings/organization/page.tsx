@@ -95,6 +95,7 @@ export default function OrganizationSettingsPage() {
   const [name, setName] = useState('');
   const [receiptFooter, setReceiptFooter] = useState('');
   const [sellerTaxId, setSellerTaxId] = useState('');
+  const [taxEnabled, setTaxEnabled] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -111,6 +112,7 @@ export default function OrganizationSettingsPage() {
     setName('');
     setReceiptFooter('');
     setSellerTaxId('');
+    setTaxEnabled(true);
     setCountryCode('');
     setBaseCurrency('');
     setTimezone('');
@@ -128,6 +130,7 @@ export default function OrganizationSettingsPage() {
     setBaseCurrency(org.baseCurrency);
     setReceiptFooter(settings?.receiptFooter ?? '');
     setSellerTaxId(settings?.sellerTaxId ?? '');
+    setTaxEnabled(settings?.taxEnabled ?? true);
     setHydrated(true);
   }, [org, settings, hydrated]);
 
@@ -169,6 +172,7 @@ export default function OrganizationSettingsPage() {
       await updateOrganizationSettings(organizationId, {
         receiptFooter: receiptFooter || null,
         sellerTaxId: sellerTaxId || null,
+        taxEnabled,
       });
       await queryClient.invalidateQueries({ queryKey: ['organization'] });
       setNotice('settings.saved');
@@ -374,6 +378,19 @@ export default function OrganizationSettingsPage() {
                 />
                 <p className="text-xs text-muted-foreground">{t('settings.org.sellerTaxIdHint')}</p>
               </div>
+              <label className="flex items-start gap-3 rounded-md border p-3">
+                <input
+                  id="org-tax-enabled"
+                  type="checkbox"
+                  checked={taxEnabled}
+                  onChange={(e) => setTaxEnabled(e.target.checked)}
+                  className="mt-0.5 size-4 accent-primary"
+                />
+                <span className="space-y-1">
+                  <span className="block text-sm font-medium">{t('settings.org.taxEnabled')}</span>
+                  <span className="block text-xs text-muted-foreground">{t('settings.org.taxEnabledHint')}</span>
+                </span>
+              </label>
               {error && (
                 <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {t(error)}

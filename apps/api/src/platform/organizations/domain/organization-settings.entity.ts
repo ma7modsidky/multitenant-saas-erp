@@ -20,6 +20,8 @@ export interface OrganizationSettingsData {
   receiptFooter: string | null;
   /** The organization's seller/company tax ID (ACC-6 — invoice header). */
   sellerTaxId: string | null;
+  /** ACC-11: whether the centralized tax engine is active for the org. */
+  taxEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +69,9 @@ export class OrganizationSettings {
   get sellerTaxId(): string | null {
     return this.data.sellerTaxId;
   }
+  get taxEnabled(): boolean {
+    return this.data.taxEnabled;
+  }
   get createdAt(): Date {
     return this.data.createdAt;
   }
@@ -94,6 +99,7 @@ export function defaultOrganizationSettings(organizationId: string, baseCurrency
     datePreferences: {},
     receiptFooter: null,
     sellerTaxId: null,
+    taxEnabled: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

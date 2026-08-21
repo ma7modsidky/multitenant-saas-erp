@@ -8,3 +8,4 @@ export { CreditNoteDetailView } from './credit-note-detail-view';
 export { PaymentsView } from './payments-view';
 export { PaymentDetailView } from './payment-detail-view';
 export { ReportsView } from './reports-view';
+export { TaxRatesView } from './tax-rates-view';

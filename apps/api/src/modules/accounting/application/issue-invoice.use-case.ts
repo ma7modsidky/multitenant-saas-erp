@@ -208,12 +208,26 @@ export class IssueInvoiceUseCase {
       const codeToId = new Map(accounts.map((a) => [a.code, a.id]));
       const arAccountId = codeToId.get('1200'); // Accounts Receivable
       const revenueAccountId = codeToId.get('4000'); // Revenue
-      const vatAccountId = codeToId.get('2100'); // VAT Payable
+      const vatAccountId = codeToId.get('2100'); // VAT Payable (output) — fallback
       if (!arAccountId || !revenueAccountId || !vatAccountId) {
         throw new AccountingDomainError(
           'ACCOUNTING_COA_INCOMPLETE',
           'The default chart of accounts is missing a required account (ACC-5).',
         );
+      }
+
+      // ACC-11: tax credits split by each line's tax-rate COA account so the
+      // GL records the right VAT account (the rate's coa_account_id, falling
+      // back to 2100 Output VAT when a rate is unmapped or unknown). Grouping
+      // keeps the entry to one leg per distinct tax account.
+      const rateRows = await this.repo.listTaxRates(tx);
+      const rateById = new Map(rateRows.map((r) => [r.id, r]));
+      const taxByAccount = new Map<string, bigint>();
+      for (const line of invoice.toJSON().lines) {
+        if (line.taxAmountMinor === '0') continue;
+        const rate = line.taxRateId ? rateById.get(line.taxRateId) : undefined;
+        const accountId = rate?.coaAccountId ?? vatAccountId;
+        taxByAccount.set(accountId, (taxByAccount.get(accountId) ?? 0n) + BigInt(line.taxAmountMinor));
       }
 
       const entryInput = {
@@ -226,9 +240,10 @@ export class IssueInvoiceUseCase {
         lines: [
           { accountId: arAccountId, debitAmountMinor: invoice.totalAmountMinor },
           { accountId: revenueAccountId, creditAmountMinor: invoice.toJSON().subtotalAmountMinor },
-          ...(invoice.toJSON().taxAmountMinor !== '0'
-            ? [{ accountId: vatAccountId, creditAmountMinor: invoice.toJSON().taxAmountMinor }]
-            : []),
+          ...Array.from(taxByAccount.entries()).map(([accountId, tax]) => ({
+            accountId,
+            creditAmountMinor: tax.toString(),
+          })),
         ],
       } satisfies Parameters<PostJournalEntryUseCase['postInTx']>[0];
 

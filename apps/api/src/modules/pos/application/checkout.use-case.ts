@@ -9,6 +9,7 @@ import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import { PosError, POS_ERROR_CODE, Register, Sale, type PaymentInput, type SaleLineInput } from '../domain/index.js';
 
 import { POS_REPOSITORY, type PosRepository } from './ports/index.js';
+import { DefaultTaxRateResolver } from './default-tax-rate.resolver.js';
 
 export interface CheckoutInput {
   registerId: string;
@@ -51,6 +52,7 @@ export class CheckoutUseCase {
     private readonly txManager: TransactionManager,
     private readonly unitOfWork: UnitOfWork,
     private readonly portRegistry: PortRegistry,
+    private readonly defaultTaxRate: DefaultTaxRateResolver,
   ) {}
 
   /**
@@ -95,6 +97,10 @@ export class CheckoutUseCase {
       const sequence = await this.repo.allocateReceiptNumber(input.registerId, tx);
       const receiptNumber = registerEntity.formatReceiptNumber(sequence);
 
+      // POS-17: apply the org's default tax rate to lines that carry no
+      // explicit rate (the client hardcodes 0) — ACC-11 via TAX_RATE_READ_PORT.
+      const lines = await this.resolveLineTaxes(input.lines);
+
       const sale = Sale.create({
         id: crypto.randomUUID(),
         organizationId,
@@ -103,7 +109,7 @@ export class CheckoutUseCase {
         receiptNumber,
         currency: input.currency,
         locale: input.locale,
-        lines: input.lines,
+        lines,
         payments: input.payments,
         soldAt: now,
         createdAt: now,
@@ -172,5 +178,22 @@ export class CheckoutUseCase {
       await this.unitOfWork.publishEvents();
     }
     return { saleId: committed.saleId, receiptNumber: committed.receiptNumber };
+  }
+
+  /** POS-17: resolve each line's effective tax rate (default-rate fallback). */
+  private async resolveLineTaxes(lines: SaleLineInput[]): Promise<SaleLineInput[]> {
+    // Resolve the default rate once and reuse it for every unrated line.
+    let defaultRateBp = 0;
+    let defaultResolved = false;
+    return Promise.all(
+      lines.map(async (line) => {
+        if (line.taxRateBp > 0) return line;
+        if (!defaultResolved) {
+          defaultRateBp = await this.defaultTaxRate.resolveTaxRateBp(0);
+          defaultResolved = true;
+        }
+        return { ...line, taxRateBp: defaultRateBp };
+      }),
+    );
   }
 }

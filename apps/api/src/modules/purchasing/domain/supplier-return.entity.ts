@@ -1,5 +1,5 @@
 import { PURCHASING_ERROR_CODE, PurchasingDomainError } from './errors.js';
-import { isPositiveQuantity, sumMinor } from './money.js';
+import { computeLineTax, isPositiveQuantity, sumMinor } from './money.js';
 
 export const RETURN_STATUS = {
   DRAFT: 'draft',
@@ -17,6 +17,12 @@ export interface SupplierReturnLineData {
   quantity: string;
   unitCostMinor: string;
   unitCostCurrency: string;
+  /** ACC-11: tax-rate snapshot inherited from the source bill line. */
+  taxRateBpSnapshot: number;
+  /** ACC-11: per-line tax, minor units. */
+  taxAmountMinor: string;
+  /** ACC-11: line net + tax, minor units. */
+  lineTotalMinor: string;
 }
 
 export interface SupplierReturnLineInput {
@@ -24,6 +30,7 @@ export interface SupplierReturnLineInput {
   quantity: string;
   unitCostMinor: string;
   unitCostCurrency?: string;
+  taxRateBpSnapshot?: number;
 }
 
 export interface SupplierReturnData {
@@ -35,7 +42,14 @@ export interface SupplierReturnData {
   grnLineId: string | null;
   reasonCode: string;
   status: SupplierReturnStatus;
+  /** Net returned value = Σ quantity × unit cost (PUR-11). */
   amountMinor: string;
+  /** ACC-11: Σ line taxes. */
+  taxMinor: string;
+  /** ACC-11: gross AP reduction = amountMinor + taxMinor. */
+  totalMinor: string;
+  /** The supplier's tax id from the source bill (ACC-11). */
+  supplierTaxIdSnapshot: string | null;
   currency: string;
   returnedAt: string | null;
   createdAt: string;
@@ -64,6 +78,8 @@ export class SupplierReturn {
     grnLineId?: string | null;
     reasonCode: string;
     currency: string;
+    /** ACC-11: the supplier's tax id inherited from the source bill. */
+    supplierTaxIdSnapshot?: string | null;
     lines: SupplierReturnLineInput[];
     now?: Date;
   }): SupplierReturn {
@@ -99,25 +115,32 @@ export class SupplierReturn {
           { index },
         );
       }
+      const unitCost = line.unitCostMinor;
+      const currency = (line.unitCostCurrency ?? input.currency.toUpperCase()).toUpperCase();
+      // PUR-11: line net = quantity × unit cost (exact integer math).
+      const lineNet = scaledMultiply(unitCost, line.quantity);
+      // ACC-11: line tax from the inherited rate (exclusive), rounded once.
+      const rateBp = line.taxRateBpSnapshot ?? 0;
+      const lineTax = rateBp === 0 ? '0' : computeLineTax(lineNet, rateBp);
       return {
         id: crypto.randomUUID(),
         organizationId,
         returnId,
         variantId: line.variantId ?? null,
         quantity: line.quantity,
-        unitCostMinor: line.unitCostMinor,
-        unitCostCurrency: (line.unitCostCurrency ?? input.currency.toUpperCase()).toUpperCase(),
+        unitCostMinor: unitCost,
+        unitCostCurrency: currency,
+        taxRateBpSnapshot: rateBp,
+        taxAmountMinor: lineTax,
+        lineTotalMinor: (BigInt(lineNet) + BigInt(lineTax)).toString(),
       };
     });
 
-    // Return value = Σ quantity × unit cost (exact integer math).
+    // Return net = Σ line nets; tax = Σ line taxes; total = net + tax.
     const amount = sumMinor(
-      lines.map((line) => {
-        const qty = parseQuantityScaled(line.quantity);
-        const gross = BigInt(line.unitCostMinor) * qty;
-        return ((gross + 5000n) / 10000n).toString();
-      }),
+      lines.map((line) => (BigInt(line.lineTotalMinor) - BigInt(line.taxAmountMinor)).toString()),
     );
+    const tax = sumMinor(lines.map((l) => l.taxAmountMinor));
 
     return new SupplierReturn({
       id: returnId,
@@ -129,6 +152,9 @@ export class SupplierReturn {
       reasonCode: input.reasonCode.trim(),
       status: RETURN_STATUS.DRAFT,
       amountMinor: amount,
+      taxMinor: tax,
+      totalMinor: (BigInt(amount) + BigInt(tax)).toString(),
+      supplierTaxIdSnapshot: input.supplierTaxIdSnapshot ?? null,
       currency: input.currency.toUpperCase(),
       returnedAt: null,
       createdAt: timestamp,
@@ -174,8 +200,27 @@ export class SupplierReturn {
     return this.data.amountMinor;
   }
 
+  /** ACC-11: the return's tax total (Σ line taxes). */
+  get taxMinor(): string {
+    return this.data.taxMinor;
+  }
+
+  /** ACC-11: the gross AP reduction (net + tax). */
+  get totalMinor(): string {
+    return this.data.totalMinor;
+  }
+
   get currency(): string {
     return this.data.currency;
+  }
+
+  /** ACC-11: the supplier's tax id snapshot from the source bill. */
+  get supplierTaxIdSnapshot(): string | null {
+    return this.data.supplierTaxIdSnapshot;
+  }
+
+  get returnedAt(): string | null {
+    return this.data.returnedAt;
   }
 
   get lines(): SupplierReturnLineData[] {
@@ -207,4 +252,11 @@ function parseQuantityScaled(value: string): bigint {
   const [whole = '0', frac = '0'] = value.split('.');
   const fracPadded = frac.padEnd(4, '0').slice(0, 4);
   return BigInt(whole) * 10000n + BigInt(fracPadded);
+}
+
+/** exact line net = unitCost × qty(4dp), rounded half-up — minor units (hard rule #3). */
+function scaledMultiply(unitCostMinor: string, quantity: string): string {
+  const qty = parseQuantityScaled(quantity);
+  const gross = BigInt(unitCostMinor) * qty;
+  return ((gross + 5000n) / 10000n).toString();
 }

@@ -50,6 +50,8 @@ export const ACCOUNTING_ERROR_CODE = {
   CREDIT_NOTE_EXCEEDS_INVOICE: 'ACCOUNTING_CREDIT_NOTE_EXCEEDS_INVOICE',
   /** ACC-11 — line tax does not match the sum of line taxes / rate snapshot. */
   TAX_MISMATCH: 'ACCOUNTING_TAX_MISMATCH',
+  /** ACC-11 — a tax rate with a non-integer or negative rate_bp. */
+  TAX_RATE_INVALID: 'ACCOUNTING_TAX_RATE_INVALID',
   /** ACC-13 — an invoice already exists for the source (idempotency). */
   DUPLICATE_SOURCE: 'ACCOUNTING_DUPLICATE_SOURCE',
   /** ACC-14 — goods lines require inventory entitlement. */

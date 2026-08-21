@@ -38,6 +38,26 @@ export class CreateSupplierReturnUseCase {
       const supplier = await this.repo.findSupplierById(input.supplierId, tx);
       if (!supplier) throw new NotFoundError('PURCHASING_SUPPLIER_NOT_FOUND', { supplierId: input.supplierId });
 
+      // ACC-11: inherit each line's tax rate + the supplier tax id from the
+      // referenced bill (matched by variant) so the return reverses the same
+      // input-VAT the bill recognized.
+      const bill = input.billId ? await this.repo.findBillById(input.billId, tx) : undefined;
+      const taxRateByVariant = new Map<string, number>();
+      if (bill) {
+        for (const line of bill.lines) {
+          if (line.variantId !== null && line.taxRateBpSnapshot > 0) {
+            taxRateByVariant.set(line.variantId, line.taxRateBpSnapshot);
+          }
+        }
+      }
+
+      const lines = input.lines.map((line) => ({
+        ...line,
+        ...(line.variantId !== null && line.variantId !== undefined
+          ? { taxRateBpSnapshot: taxRateByVariant.get(line.variantId) ?? 0 }
+          : {}),
+      }));
+
       const supplierReturn = SupplierReturn.create({
         id: crypto.randomUUID(),
         organizationId,
@@ -47,7 +67,8 @@ export class CreateSupplierReturnUseCase {
         grnLineId: input.grnLineId ?? null,
         reasonCode: input.reasonCode,
         currency: input.currency,
-        lines: input.lines,
+        supplierTaxIdSnapshot: bill?.supplierTaxIdSnapshot ?? null,
+        lines,
         now,
       });
 

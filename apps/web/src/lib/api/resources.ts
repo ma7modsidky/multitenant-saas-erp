@@ -79,6 +79,7 @@ export function updateOrganizationSettings(
     baseCurrency?: string;
     receiptFooter?: string | null;
     sellerTaxId?: string | null;
+    taxEnabled?: boolean;
   },
 ): Promise<OrganizationSettingsResponse> {
   return apiFetch<OrganizationSettingsResponse>(`/v1/organizations/${orgId}/settings`, {
@@ -653,6 +654,8 @@ export interface InventoryProduct {
     sku: string;
     price: { amountMinor: string; currency: string };
     reorderPoint: string;
+    /** ACC-11: product-level tax rate in basis points. */
+    taxRateBp: number;
     isActive: boolean;
   }>;
 }
@@ -663,6 +666,8 @@ export interface InventoryVariantOption {
   productId: string;
   sku: string;
   nameI18n: Record<string, string>;
+  /** ACC-11: product-level tax rate in basis points. */
+  taxRateBp: number;
 }
 
 /** Filters for the variants picker list. */
@@ -770,6 +775,8 @@ export function createInventoryProduct(input: {
   cost: { amountMinor: string; currency: string };
   reorderPoint: string;
   reorderQuantity: string;
+  /** ACC-11: product-level tax rate in basis points. */
+  taxRateBp?: number;
 }): Promise<{ productId: string; variantId: string }> {
   return apiFetch<{ productId: string; variantId: string }>('/v1/inventory/products', {
     method: 'POST',
@@ -806,6 +813,8 @@ export interface InventoryVariant {
   cost: { amountMinor: string; currency: string };
   reorderPoint: string;
   reorderQuantity: string;
+  /** ACC-11: product-level tax rate in basis points. */
+  taxRateBp: number;
   isActive: boolean;
   /** Actor stamps — who created / last edited this variant (audit trail). */
   createdByUserId: string | null;
@@ -1978,6 +1987,63 @@ export function issueAccountingInvoice(input: {
     method: 'POST',
     body: JSON.stringify(body),
     ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+  });
+}
+
+/** One tax rate in the org's tax catalog (ACC-11). */
+export interface AccountingTaxRate {
+  id: string;
+  code: string;
+  nameI18n: Record<string, string>;
+  rateBp: number;
+  type: 'standard' | 'reduced' | 'zero' | 'exempt';
+  taxBasis: 'exclusive' | 'inclusive';
+  coaAccountId: string | null;
+  coaAccountCode: string | null;
+  coaAccountNameI18n: Record<string, string> | null;
+  isDefault: boolean;
+  effectiveFrom: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Org tax catalog (ACC-11) — list. */
+export function getAccountingTaxRates(): Promise<{ items: AccountingTaxRate[] }> {
+  return apiFetch<{ items: AccountingTaxRate[] }>('/v1/accounting/tax-rates');
+}
+
+export function createAccountingTaxRate(input: {
+  code: string;
+  nameI18n?: Record<string, string>;
+  rateBp: number;
+  type?: 'standard' | 'reduced' | 'zero' | 'exempt';
+  taxBasis?: 'exclusive' | 'inclusive';
+  coaAccountId?: string | null;
+  isDefault?: boolean;
+  effectiveFrom?: string;
+}): Promise<{ taxRateId: string; code: string }> {
+  return apiFetch<{ taxRateId: string; code: string }>('/v1/accounting/tax-rates', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAccountingTaxRate(
+  id: string,
+  input: {
+    nameI18n?: Record<string, string>;
+    rateBp?: number;
+    type?: 'standard' | 'reduced' | 'zero' | 'exempt';
+    taxBasis?: 'exclusive' | 'inclusive';
+    coaAccountId?: string | null;
+    isDefault?: boolean;
+    isActive?: boolean;
+  },
+): Promise<{ taxRateId: string }> {
+  return apiFetch<{ taxRateId: string }>(`/v1/accounting/tax-rates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
   });
 }
 

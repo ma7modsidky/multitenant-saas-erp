@@ -29,7 +29,14 @@ import type {
   PaymentListRow,
   TaxRateRow,
 } from '../../application/ports/index.js';
-import type { AccountData, CreditNoteData, InvoiceData, JournalEntryData, TaxRateData } from '../../domain/index.js';
+import type {
+  AccountData,
+  CreditNoteData,
+  InvoiceData,
+  InvoiceLineData,
+  JournalEntryData,
+  TaxRateData,
+} from '../../domain/index.js';
 
 /**
  * Actor uuid for audit columns. System-driven paths (event handlers, jobs)
@@ -474,12 +481,55 @@ export class DrizzleAccountingRepository implements AccountingRepository {
     const userId = sanitizeActorId(TenantContext.getUserId());
     await db.execute(sql`
       INSERT INTO ${this.taxRates}
-        (id, organization_id, code, name_i18n, rate_bp, type, effective_from, is_active,
-         created_at, updated_at, created_by, updated_by)
+        (id, organization_id, code, name_i18n, rate_bp, type, tax_basis, coa_account_id, is_default,
+         effective_from, is_active, created_at, updated_at, created_by, updated_by)
       VALUES
         (${rate.id}, ${organizationId}, ${rate.code}, ${JSON.stringify(rate.nameI18n)}::jsonb,
-         ${rate.rateBp}, ${rate.type}, ${rate.effectiveFrom}, ${rate.isActive},
+         ${rate.rateBp}, ${rate.type}, ${rate.taxBasis}, ${rate.coaAccountId}, ${rate.isDefault},
+         ${rate.effectiveFrom}, ${rate.isActive},
          ${toDbDate(new Date(rate.createdAt))}, ${toDbDate(new Date(rate.updatedAt))}, ${userId}, ${userId})
+    `);
+  }
+
+  async findTaxRateById(id: string, tx?: TxOrDb): Promise<TaxRateRow | undefined> {
+    const db = this.getDb(tx);
+    const rows = await db.execute<Record<string, unknown>>(sql`
+      SELECT * FROM ${this.taxRates}
+      WHERE id = ${id} AND deleted_at IS NULL
+      LIMIT 1
+    `);
+    return rows[0] ? this.rowToTaxRate(rows[0]) : undefined;
+  }
+
+  /** ACC-11: the org's default rate (is_default), or undefined when none set. */
+  async getDefaultTaxRate(tx?: TxOrDb): Promise<TaxRateRow | undefined> {
+    const db = this.getDb(tx);
+    const rows = await db.execute<Record<string, unknown>>(sql`
+      SELECT * FROM ${this.taxRates}
+      WHERE is_default AND is_active AND deleted_at IS NULL
+      ORDER BY effective_from DESC
+      LIMIT 1
+    `);
+    return rows[0] ? this.rowToTaxRate(rows[0]) : undefined;
+  }
+
+  async updateTaxRate(id: string, patch: Partial<TaxRateData>, tx?: TxOrDb): Promise<void> {
+    const db = this.getDb(tx);
+    const organizationId = TenantContext.requireOrganizationId();
+    const userId = sanitizeActorId(TenantContext.getUserId());
+    await db.execute(sql`
+      UPDATE ${this.taxRates}
+      SET
+        name_i18n = COALESCE(${JSON.stringify(patch.nameI18n ?? {})}::jsonb, name_i18n),
+        rate_bp = COALESCE(${patch.rateBp ?? null}, rate_bp),
+        type = COALESCE(${patch.type ?? null}, type),
+        tax_basis = COALESCE(${patch.taxBasis ?? null}, tax_basis),
+        coa_account_id = ${patch.coaAccountId === undefined ? sql`coa_account_id` : patch.coaAccountId},
+        is_default = COALESCE(${patch.isDefault ?? null}, is_default),
+        is_active = COALESCE(${patch.isActive ?? null}, is_active),
+        updated_at = NOW(),
+        updated_by = ${userId}
+      WHERE id = ${id} AND organization_id = ${organizationId} AND deleted_at IS NULL
     `);
   }
 
@@ -685,14 +735,15 @@ export class DrizzleAccountingRepository implements AccountingRepository {
         INSERT INTO ${this.invoiceLines}
           (id, organization_id, invoice_id, variant_id, item_name_snapshot, description,
            quantity, unit_price_amount_minor, discount_amount_minor, tax_rate_id,
-           tax_rate_bp_snapshot, tax_type_snapshot, tax_amount_minor, line_total_amount_minor,
-           is_goods, created_at, created_by)
+           tax_rate_bp_snapshot, tax_type_snapshot, tax_basis_snapshot, tax_amount_minor,
+           line_total_amount_minor, is_goods, created_at, created_by)
         VALUES
           (${line.id}, ${invoice.organizationId}, ${invoice.id}, ${line.variantId},
            ${line.itemNameSnapshot}, ${line.description}, ${line.quantity},
            ${line.unitPriceAmountMinor}, ${line.discountAmountMinor}, ${line.taxRateId},
-           ${line.taxRateBpSnapshot}, ${line.taxTypeSnapshot}, ${line.taxAmountMinor},
-           ${line.lineTotalAmountMinor}, ${line.isGoods}, ${toDbDate(new Date(invoice.createdAt))}, ${userId})
+           ${line.taxRateBpSnapshot}, ${line.taxTypeSnapshot}, ${line.taxBasisSnapshot},
+           ${line.taxAmountMinor}, ${line.lineTotalAmountMinor}, ${line.isGoods},
+           ${toDbDate(new Date(invoice.createdAt))}, ${userId})
       `);
     }
   }
@@ -1188,6 +1239,7 @@ export class DrizzleAccountingRepository implements AccountingRepository {
         taxRateId: (line.tax_rate_id as string | null) ?? null,
         taxRateBpSnapshot: Number(line.tax_rate_bp_snapshot ?? 0),
         taxTypeSnapshot: line.tax_type_snapshot as string,
+        taxBasisSnapshot: (line.tax_basis_snapshot as InvoiceLineData['taxBasisSnapshot']) ?? 'exclusive',
         taxAmountMinor: this.minor(line, 'tax_amount_minor'),
         lineTotalAmountMinor: this.minor(line, 'line_total_amount_minor'),
         isGoods: Boolean(line.is_goods),
@@ -1286,6 +1338,9 @@ export class DrizzleAccountingRepository implements AccountingRepository {
       nameI18n: this.jsonb(row, 'name_i18n'),
       rateBp: Number(row.rate_bp ?? 0),
       type: row.type as TaxRateRow['type'],
+      taxBasis: (row.tax_basis as TaxRateRow['taxBasis']) ?? 'exclusive',
+      coaAccountId: (row.coa_account_id as string | null) ?? null,
+      isDefault: Boolean(row.is_default),
       effectiveFrom: row.effective_from as string,
       isActive: Boolean(row.is_active),
     };

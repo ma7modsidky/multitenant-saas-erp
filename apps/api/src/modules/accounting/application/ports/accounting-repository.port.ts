@@ -27,6 +27,12 @@ export interface TaxRateRow {
   nameI18n: Record<string, string>;
   rateBp: number;
   type: string;
+  /** ACC-11: exclusive | inclusive. */
+  taxBasis: string;
+  /** ACC-11: GL account absorbing this rate's tax (NULL = seeded VAT fallback). */
+  coaAccountId: string | null;
+  /** ACC-11: at most one default per org. */
+  isDefault: boolean;
   effectiveFrom: string;
   isActive: boolean;
 }
@@ -315,6 +321,10 @@ export interface AccountingRepository {
   // ─── Tax rates (ACC-11) ────────────────────────────────────────────────
   listTaxRates(tx?: TxOrDb): Promise<TaxRateRow[]>;
   insertTaxRate(rate: TaxRateData, tx?: TxOrDb): Promise<void>;
+  findTaxRateById(id: string, tx?: TxOrDb): Promise<TaxRateRow | undefined>;
+  /** ACC-11: the org's default rate (is_default), or undefined when none set. */
+  getDefaultTaxRate(tx?: TxOrDb): Promise<TaxRateRow | undefined>;
+  updateTaxRate(id: string, patch: Partial<TaxRateData>, tx?: TxOrDb): Promise<void>;
 
   // ─── Journal (ACC-1/2/3/4) ─────────────────────────────────────────────
   /** ACC-3: allocate the next entry number atomically (UPDATE ... RETURNING). */

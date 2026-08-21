@@ -27,6 +27,8 @@ const h = vi.hoisted(() => {
       timezone: 'UTC',
       baseCurrency: 'USD',
       receiptFooter: null,
+      sellerTaxId: null,
+      taxEnabled: true,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
@@ -175,6 +177,10 @@ describe('OrganizationSettingsPage — edit gating (AUTHZ-5 / BUSINESS_RULES §3
     await waitFor(() =>
       expect(updateOrganizationMock).toHaveBeenCalledWith('org-1', expect.objectContaining({ name: 'Acme Rebranded' })),
     );
-    expect(updateOrganizationSettingsMock).toHaveBeenCalledWith('org-1', { receiptFooter: null, sellerTaxId: null });
+    expect(updateOrganizationSettingsMock).toHaveBeenCalledWith('org-1', {
+      receiptFooter: null,
+      sellerTaxId: null,
+      taxEnabled: true,
+    });
   });
 });

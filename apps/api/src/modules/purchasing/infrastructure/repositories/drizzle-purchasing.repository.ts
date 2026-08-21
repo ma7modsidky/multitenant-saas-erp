@@ -894,22 +894,26 @@ export class DrizzlePurchasingRepository implements PurchasingRepository {
     await db.execute(sql`
       INSERT INTO ${this.supplierReturns}
         (id, organization_id, number, supplier_id, bill_id, grn_line_id, reason_code,
-         status, amount_minor, currency, returned_at, created_at, updated_at, created_by, updated_by)
+         status, amount_minor, subtotal_minor, tax_minor, total_minor,
+         supplier_tax_id_snapshot, currency, returned_at, created_at, updated_at, created_by, updated_by)
       VALUES
         (${supplierReturn.id}, ${supplierReturn.organizationId}, ${supplierReturn.number},
          ${supplierReturn.supplierId}, ${supplierReturn.billId}, ${supplierReturn.grnLineId},
          ${supplierReturn.reasonCode}, ${supplierReturn.status}, ${supplierReturn.amountMinor},
-         ${supplierReturn.currency}, ${supplierReturn.returnedAt ? toDbDate(new Date(supplierReturn.returnedAt)) : null},
+         ${supplierReturn.amountMinor}, ${supplierReturn.taxMinor}, ${supplierReturn.totalMinor},
+         ${supplierReturn.supplierTaxIdSnapshot}, ${supplierReturn.currency},
+         ${supplierReturn.returnedAt ? toDbDate(new Date(supplierReturn.returnedAt)) : null},
          ${toDbDate(new Date(supplierReturn.createdAt))}, ${toDbDate(new Date(supplierReturn.updatedAt))}, ${userId}, ${userId})
     `);
     for (const line of supplierReturn.lines) {
       await db.execute(sql`
         INSERT INTO ${this.supplierReturnLines}
           (id, organization_id, return_id, variant_id, quantity, unit_cost_minor,
-           unit_cost_currency, created_at, created_by)
+           unit_cost_currency, tax_rate_bp_snapshot, tax_amount_minor, line_total_minor, created_at, created_by)
         VALUES
           (${line.id}, ${supplierReturn.organizationId}, ${supplierReturn.id}, ${line.variantId},
            ${line.quantity}, ${line.unitCostMinor}, ${line.unitCostCurrency},
+           ${line.taxRateBpSnapshot}, ${line.taxAmountMinor}, ${line.lineTotalMinor},
            ${toDbDate(new Date(supplierReturn.createdAt))}, ${userId})
       `);
     }
@@ -1240,6 +1244,9 @@ export class DrizzlePurchasingRepository implements PurchasingRepository {
       reasonCode: row.reason_code as string,
       status: row.status as SupplierReturnData['status'],
       amountMinor: ((row.amount_minor as number) ?? 0).toString(),
+      taxMinor: ((row.tax_minor as number) ?? 0).toString(),
+      totalMinor: ((row.total_minor as number) ?? 0).toString(),
+      supplierTaxIdSnapshot: (row.supplier_tax_id_snapshot as string | null) ?? null,
       currency: (row.currency as string) ?? 'USD',
       returnedAt: row.returned_at ? isoOf(row.returned_at) : null,
       createdAt: isoOf(row.created_at),
@@ -1254,6 +1261,9 @@ export class DrizzlePurchasingRepository implements PurchasingRepository {
         quantity: (line.quantity as string) ?? '0',
         unitCostMinor: ((line.unit_cost_minor as number) ?? 0).toString(),
         unitCostCurrency: (line.unit_cost_currency as string) ?? 'USD',
+        taxRateBpSnapshot: Number(line.tax_rate_bp_snapshot ?? 0),
+        taxAmountMinor: ((line.tax_amount_minor as number) ?? 0).toString(),
+        lineTotalMinor: ((line.line_total_minor as number) ?? 0).toString(),
       })),
     };
   }

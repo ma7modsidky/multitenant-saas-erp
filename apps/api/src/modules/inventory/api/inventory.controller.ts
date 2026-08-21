@@ -187,6 +187,7 @@ export class InventoryController {
       costCurrency: dto.cost.currency,
       reorderPoint: dto.reorderPoint,
       reorderQuantity: dto.reorderQuantity,
+      taxRateBp: dto.taxRateBp,
     });
     return { data: { productId: result.productId, variantId: result.variantId } };
   }
@@ -631,6 +632,7 @@ function toProductResponse(row: {
     priceAmountMinor: string;
     priceCurrency: string;
     reorderPoint: string;
+    taxRateBp: number;
     isActive: boolean;
   }>;
 }): Record<string, unknown> {
@@ -651,6 +653,7 @@ function toProductResponse(row: {
       sku: variant.sku,
       price: { amountMinor: variant.priceAmountMinor, currency: variant.priceCurrency },
       reorderPoint: variant.reorderPoint,
+      taxRateBp: variant.taxRateBp,
       isActive: variant.isActive,
     })),
   };
@@ -680,6 +683,7 @@ function toProductDetailResponse(result: {
     costCurrency: string;
     reorderPoint: string;
     reorderQuantity: string;
+    taxRateBp?: number;
     isActive: boolean;
     /** Optional — ProductVariantData declares the stamps optional. */
     createdByUserId?: string | null;
@@ -728,6 +732,7 @@ function toProductDetailResponse(result: {
       cost: { amountMinor: variant.costAmountMinor, currency: variant.costCurrency },
       reorderPoint: variant.reorderPoint,
       reorderQuantity: variant.reorderQuantity,
+      taxRateBp: variant.taxRateBp ?? 0,
       isActive: variant.isActive,
       // The detail schema declares these stamps; the mapper must surface them
       // or the detail view renders "Created by —" for every variant.

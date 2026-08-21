@@ -7,6 +7,7 @@ import {
   CheckoutUseCase,
   CloseShiftUseCase,
   CreateRegisterUseCase,
+  DefaultTaxRateResolver,
   GetSaleUseCase,
   GetShiftReportUseCase,
   GetStatusUseCase,
@@ -36,6 +37,7 @@ import { DrizzlePosRepository } from './infrastructure/index.js';
     // Repository (infrastructure) bound to the port token.
     { provide: POS_REPOSITORY, useClass: DrizzlePosRepository },
     // Use cases (application).
+    DefaultTaxRateResolver,
     GetStatusUseCase,
     CreateRegisterUseCase,
     ListRegistersUseCase,

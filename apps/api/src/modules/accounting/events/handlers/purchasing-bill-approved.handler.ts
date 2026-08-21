@@ -20,8 +20,8 @@ import { ACCOUNTING_ERROR_CODE, AccountingDomainError } from '../../domain/index
  * The entry mirrors the invoice path (ACC-6) in the AP direction:
  *   Dr Inventory (1300)  — goods lines (variantId set), at line total
  *   Dr Expense   (5100)  — service lines, at line total
+ *   Dr Input VAT (2200)  — bill tax (ACC-11: purchases debit input VAT)
  *   Cr AP        (2000)  — bill total
- *   Cr VAT       (2100)  — bill tax
  * Per-line detail (PUR-6) lets the handler split Inventory vs Expense exactly;
  * the service debit absorbs any rounding remainder so the entry is balanced.
  *
@@ -81,8 +81,8 @@ export class PurchasingBillApprovedHandler {
           const inventoryAccountId = codeToId.get('1300');
           const expenseAccountId = codeToId.get('5100');
           const apAccountId = codeToId.get('2000');
-          const vatAccountId = codeToId.get('2100');
-          if (!inventoryAccountId || !expenseAccountId || !apAccountId || !vatAccountId) {
+          const inputVatAccountId = codeToId.get('2200');
+          if (!inventoryAccountId || !expenseAccountId || !apAccountId || !inputVatAccountId) {
             throw new AccountingDomainError(
               ACCOUNTING_ERROR_CODE.COA_INCOMPLETE,
               'The default chart of accounts is missing a required account (ACC-5).',
@@ -95,8 +95,8 @@ export class PurchasingBillApprovedHandler {
           const lines: { accountId: string; debitAmountMinor?: string; creditAmountMinor?: string }[] = [];
           if (goodsTotal !== '0') lines.push({ accountId: inventoryAccountId, debitAmountMinor: goodsTotal });
           if (serviceTotal !== '0') lines.push({ accountId: expenseAccountId, debitAmountMinor: serviceTotal });
+          if (tax !== '0') lines.push({ accountId: inputVatAccountId, debitAmountMinor: tax });
           lines.push({ accountId: apAccountId, creditAmountMinor: payload.totalAmountMinor });
-          if (tax !== '0') lines.push({ accountId: vatAccountId, creditAmountMinor: tax });
 
           const posted = await this.postJournalEntry.postInTx(
             {

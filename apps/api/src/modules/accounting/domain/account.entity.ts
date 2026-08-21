@@ -143,6 +143,7 @@ export const DEFAULT_SME_COA: ReadonlyArray<{
   // Liabilities
   { code: '2000', type: ACCOUNT_TYPE.LIABILITY, nameKey: 'coa.accounts_payable', isSystem: true },
   { code: '2100', type: ACCOUNT_TYPE.LIABILITY, nameKey: 'coa.vat_payable', isSystem: true },
+  { code: '2200', type: ACCOUNT_TYPE.ASSET, nameKey: 'coa.vat_receivable', isSystem: true },
   // Equity
   { code: '3000', type: ACCOUNT_TYPE.EQUITY, nameKey: 'coa.owner_equity', isSystem: true },
   // Revenue

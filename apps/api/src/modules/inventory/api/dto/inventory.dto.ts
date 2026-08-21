@@ -43,6 +43,8 @@ export const createProductSchema = z
       .default({ amountMinor: '0', currency: 'USD' }),
     reorderPoint: quantityString.optional().default('0'),
     reorderQuantity: quantityString.optional().default('0'),
+    /** ACC-11: product-level tax rate in basis points (1% = 100 bp). */
+    taxRateBp: z.number().int().min(0).optional().default(0),
   })
   .strict();
 
@@ -249,6 +251,8 @@ export const productResponseSchema = z.object({
       price: z.object({ amountMinor: z.string(), currency: z.string() }),
       reorderPoint: z.string(),
       isActive: z.boolean(),
+      /** ACC-11: product-level tax rate in basis points (POS catalog). */
+      taxRateBp: z.number().int().nonnegative(),
     }),
   ),
 });
@@ -272,6 +276,8 @@ export const variantListResponseSchema = z.object({
   productId: z.string(),
   sku: z.string(),
   nameI18n: z.record(z.string(), z.string()),
+  /** ACC-11: product-level tax rate in basis points. */
+  taxRateBp: z.number().int().nonnegative(),
 });
 
 export class VariantListResponse extends createZodDto(variantListResponseSchema) {}
@@ -412,6 +418,8 @@ export const productVariantResponseSchema = z.object({
   reorderPoint: z.string(),
   reorderQuantity: z.string(),
   isActive: z.boolean(),
+  /** ACC-11: product-level tax rate in basis points. */
+  taxRateBp: z.number().int().nonnegative(),
   /** Actor stamps — who created / last edited this variant (audit trail). */
   createdByUserId: z.string().nullable(),
   updatedByUserId: z.string().nullable(),

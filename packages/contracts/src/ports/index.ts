@@ -399,3 +399,44 @@ export interface FxRateReadPort {
    */
   getRate(baseCurrency: string, quoteCurrency: string): Promise<FxRateRead | undefined>;
 }
+
+// ─── Tax-rate read port (Level 2) ───────────────────────────────────────────
+//
+// Provided by the Accounting module (ACC-11), consumed by POS (POS-17) and
+// Purchasing (PUR-11) to resolve a line's tax rate from its stable id — or the
+// org's default rate — WITHOUT importing accounting source (hard rule #1).
+// The consuming module never imports the implementation, only this interface
+// + token, resolved through the platform PortRegistry.
+//
+// @see ARCHITECTURE.md §6 — Level 2: read-only query port
+// @see BUSINESS_RULES.md §15 — ACC-11 (tax engine), POS-17, PUR-11
+
+/** DI token for the tax-rate read port. */
+export const TAX_RATE_READ_PORT = 'TAX_RATE_READ_PORT' as const;
+
+/** A tax rate snapshot the central tax engine needs (ACC-11). */
+export interface TaxRateRead {
+  id: string;
+  /** ACC-11: rate in basis points (1% = 100 bp). */
+  rateBp: number;
+  /** standard | reduced | zero | exempt. */
+  type: 'standard' | 'reduced' | 'zero' | 'exempt';
+  /**
+   * ACC-11: whether the rate is exclusive (tax added on top of the line
+   * total) or inclusive (tax embedded in the line total).
+   */
+  taxBasis: 'exclusive' | 'inclusive';
+  /** GL account that absorbs this rate's tax (fallback = the default VAT). */
+  coaAccountId: string | null;
+}
+
+/**
+ * TaxRateReadPort — tax-rate reads (ACC-11). Returns undefined for unknown
+ * ids so the caller's domain can decide the error instead of a hard 404.
+ */
+export interface TaxRateReadPort {
+  /** Resolve a single rate by id, or undefined when unknown/inactive. */
+  getTaxRateById(taxRateId: string): Promise<TaxRateRead | undefined>;
+  /** The org's default rate (is_default), or undefined when none is set. */
+  getDefaultTaxRate(): Promise<TaxRateRead | undefined>;
+}

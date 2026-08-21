@@ -23,6 +23,7 @@ import { PublicRoute } from '../../../core/tenancy/system-context.decorator.js';
 import {
   ApplyPaymentUseCase,
   CreateAccountUseCase,
+  CreateTaxRateUseCase,
   EnsureDefaultChartOfAccountsUseCase,
   GetAccountDetailUseCase,
   GetArAgingUseCase,
@@ -40,18 +41,22 @@ import {
   ListInvoicesUseCase,
   ListJournalEntriesUseCase,
   ListPaymentsUseCase,
+  ListTaxRatesUseCase,
   PostJournalEntryUseCase,
   ReverseJournalEntryUseCase,
   UpdateAccountUseCase,
+  UpdateTaxRateUseCase,
 } from '../application/index.js';
 
 import type {
   ApplyPaymentDto,
   CreateAccountDto,
+  CreateTaxRateDto,
   IssueCreditNoteDto,
   IssueInvoiceDto,
   PostJournalEntryDto,
   UpdateAccountDto,
+  UpdateTaxRateDto,
 } from './dto/index.js';
 import {
   AccountDetailEnvelopeResponse,
@@ -72,13 +77,18 @@ import {
   PaymentDetailEnvelopeResponse,
   PaymentEnvelopeResponse,
   PaymentListEnvelopeResponse,
+  TaxRateEnvelopeResponse,
+  TaxRateListEnvelopeResponse,
+  TaxRateUpdateEnvelopeResponse,
   TrialBalanceEnvelopeResponse,
   applyPaymentSchema,
   createAccountSchema,
+  createTaxRateSchema,
   issueCreditNoteSchema,
   issueInvoiceSchema,
   postJournalEntrySchema,
   updateAccountSchema,
+  updateTaxRateSchema,
 } from './dto/index.js';
 
 /**
@@ -103,6 +113,9 @@ export class AccountingController {
     private readonly createAccount: CreateAccountUseCase,
     private readonly getAccountDetail: GetAccountDetailUseCase,
     private readonly updateAccount: UpdateAccountUseCase,
+    private readonly createTaxRate: CreateTaxRateUseCase,
+    private readonly listTaxRates: ListTaxRatesUseCase,
+    private readonly updateTaxRate: UpdateTaxRateUseCase,
     private readonly getInvoiceDetail: GetInvoiceDetailUseCase,
     private readonly getJournalEntryDetail: GetJournalEntryDetailUseCase,
     private readonly getPaymentDetail: GetPaymentDetailUseCase,
@@ -220,8 +233,59 @@ export class AccountingController {
     return { data: { accountId: result.accountId } };
   }
 
-  // ─── Journal (ACC-1/3/4, ACC-2 reversals) ───────────────────────────────
+  // ─── Tax rates (ACC-11) ────────────────────────────────────────────────
 
+  /** Tax-rate catalog — the resolution source for the tax engine (POS/invoicing). */
+  @Get('tax-rates')
+  @ApiOkResponse({ type: TaxRateListEnvelopeResponse })
+  @RequiresPermission('accounting:tax:manage')
+  async listTaxRatesRoute(): Promise<{ data: { items: Record<string, unknown>[] } }> {
+    const rates = await this.listTaxRates.execute();
+    return { data: { items: rates as unknown as Record<string, unknown>[] } };
+  }
+
+  @Post('tax-rates')
+  @ApiCreatedResponse({ type: TaxRateEnvelopeResponse })
+  @UsePipes(new ZodValidationPipe(createTaxRateSchema))
+  @RequiresPermission('accounting:tax:manage')
+  @Audit({ action: 'CREATE', entityType: 'tax_rate', captureAfter: true })
+  async createTaxRateRoute(@Body() dto: CreateTaxRateDto): Promise<{ data: { taxRateId: string; code: string } }> {
+    const result = await this.createTaxRate.execute({
+      code: dto.code,
+      nameI18n: dto.nameI18n ?? {},
+      rateBp: dto.rateBp,
+      ...(dto.type !== undefined ? { type: dto.type } : {}),
+      ...(dto.taxBasis !== undefined ? { taxBasis: dto.taxBasis } : {}),
+      ...(dto.coaAccountId !== undefined && dto.coaAccountId !== null ? { coaAccountId: dto.coaAccountId } : {}),
+      ...(dto.isDefault !== undefined ? { isDefault: dto.isDefault } : {}),
+      ...(dto.effectiveFrom !== undefined ? { effectiveFrom: dto.effectiveFrom } : {}),
+    });
+    return { data: result };
+  }
+
+  @Patch('tax-rates/:id')
+  @ApiOkResponse({ type: TaxRateUpdateEnvelopeResponse })
+  @UsePipes(new ZodValidationPipe(updateTaxRateSchema))
+  @RequiresPermission('accounting:tax:manage')
+  @Audit({ action: 'UPDATE', entityType: 'tax_rate', captureBefore: true, captureAfter: true })
+  async updateTaxRateRoute(
+    @Param('id') id: string,
+    @Body() dto: UpdateTaxRateDto,
+  ): Promise<{ data: { taxRateId: string } }> {
+    const result = await this.updateTaxRate.execute({
+      taxRateId: id,
+      ...(dto.nameI18n !== undefined ? { nameI18n: dto.nameI18n } : {}),
+      ...(dto.rateBp !== undefined ? { rateBp: dto.rateBp } : {}),
+      ...(dto.type !== undefined ? { type: dto.type } : {}),
+      ...(dto.taxBasis !== undefined ? { taxBasis: dto.taxBasis } : {}),
+      ...(dto.coaAccountId !== undefined ? { coaAccountId: dto.coaAccountId } : {}),
+      ...(dto.isDefault !== undefined ? { isDefault: dto.isDefault } : {}),
+      ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+    });
+    return { data: result };
+  }
+
+  // ─── Journal (ACC-1/3/4, ACC-2 reversals) ───────────────────────────────
   @Post('journal')
   @ApiCreatedResponse({ type: JournalEntryEnvelopeResponse })
   @UsePipes(new ZodValidationPipe(postJournalEntrySchema))
@@ -352,6 +416,7 @@ export class AccountingController {
         ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
         unitPriceAmountMinor: line.unitPrice.amountMinor,
         discountAmountMinor: line.discount?.amountMinor ?? '0',
+        ...(line.taxRateId !== undefined && line.taxRateId !== null ? { taxRateId: line.taxRateId } : {}),
         ...(line.taxRateBp !== undefined ? { taxRateBpSnapshot: line.taxRateBp } : {}),
         ...(line.taxType !== undefined ? { taxTypeSnapshot: line.taxType } : {}),
         ...(line.isGoods !== undefined ? { isGoods: line.isGoods } : {}),

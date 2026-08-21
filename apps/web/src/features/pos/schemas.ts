@@ -36,6 +36,8 @@ export const cartLineSchema = z.object({
   nameI18n: z.record(z.string(), z.string()),
   quantity: unsignedQuantity,
   unitPriceAmountMinor: amountMinor,
+  /** ACC-11: the product's tax rate in basis points (the backend falls back to the default). */
+  taxRateBp: z.number().int().min(0).optional(),
   currency,
 });
 

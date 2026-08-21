@@ -35,7 +35,7 @@ import { TransactionManager } from '../../apps/api/src/core/database/transaction
 import { UnitOfWork } from '../../apps/api/src/core/database/unit-of-work.js';
 import { PortRegistry } from '../../apps/api/src/core/ports/port-registry.js';
 import { TenantContext, type TenantContextData } from '../../apps/api/src/core/tenancy/tenant-context.js';
-import { INVENTORY_STOCK_PORT } from '../../packages/contracts/src/index.js';
+import { INVENTORY_STOCK_PORT, TAX_RATE_READ_PORT } from '../../packages/contracts/src/index.js';
 import { applyAllMigrations } from './helpers/migrations.js';
 import { DrizzleOrganizationRepository } from '../../apps/api/src/platform/organizations/infrastructure/repositories/drizzle-organization.repository.js';
 import { DrizzleRoleRepository } from '../../apps/api/src/platform/roles/infrastructure/repositories/drizzle-role.repository.js';
@@ -46,10 +46,13 @@ import { InventoryStockPortImpl } from '../../apps/api/src/modules/inventory/inf
 import { CreateProductUseCase } from '../../apps/api/src/modules/inventory/application/create-product.use-case.js';
 import { ReceiveStockUseCase } from '../../apps/api/src/modules/inventory/application/receive-stock.use-case.js';
 import { DrizzlePosRepository } from '../../apps/api/src/modules/pos/infrastructure/repositories/drizzle-pos.repository.js';
+import { DrizzleAccountingRepository } from '../../apps/api/src/modules/accounting/infrastructure/repositories/drizzle-accounting.repository.js';
+import { TaxRateReadPortImpl } from '../../apps/api/src/modules/accounting/infrastructure/ports/tax-rate-read.port.impl.js';
 import {
   CheckoutUseCase,
   CloseShiftUseCase,
   CreateRegisterUseCase,
+  DefaultTaxRateResolver,
   GetSaleUseCase,
   ListSalesUseCase,
   ListShiftsUseCase,
@@ -244,6 +247,9 @@ function buildPos(orgId: string) {
   const stockPort = new InventoryStockPortImpl(invRepo, txManager);
   const portRegistry = new PortRegistry();
   portRegistry.register(INVENTORY_STOCK_PORT, stockPort);
+  // Level 2 read port (ACC-11/POS-17): the real tax-rate catalog reader,
+  // scoped by RLS to the caller's tenant context.
+  portRegistry.register(TAX_RATE_READ_PORT, new TaxRateReadPortImpl(new DrizzleAccountingRepository(db)));
 
   return { repo, txManager, unitOfWork, portRegistry, stockPort };
 }
@@ -276,7 +282,13 @@ async function checkout(
   opts: { qty?: string; unitPriceMinor?: string; taxRateBp?: number; idempotencyKey?: string } = {},
 ): Promise<{ saleId: string; receiptNumber: string }> {
   const { repo, txManager, unitOfWork, portRegistry } = buildPos(orgId);
-  const checkoutUseCase = new CheckoutUseCase(repo, txManager, unitOfWork, portRegistry);
+  const checkoutUseCase = new CheckoutUseCase(
+    repo,
+    txManager,
+    unitOfWork,
+    portRegistry,
+    new DefaultTaxRateResolver(portRegistry),
+  );
   const qty = opts.qty ?? '1';
   const unitPrice = opts.unitPriceMinor ?? '1000';
   const taxRateBp = opts.taxRateBp ?? 0;
@@ -356,7 +368,13 @@ describe('POS application layer (integration)', () => {
     // not consume a number"). Over-available by 999 units → the whole sale
     // rolls back (POS-15) and the next receipt is still R-0003.
     const { repo, txManager, unitOfWork, portRegistry } = buildPos(orgId);
-    const checkoutUseCase = new CheckoutUseCase(repo, txManager, unitOfWork, portRegistry);
+    const checkoutUseCase = new CheckoutUseCase(
+      repo,
+      txManager,
+      unitOfWork,
+      portRegistry,
+      new DefaultTaxRateResolver(portRegistry),
+    );
     await expect(
       TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
         checkoutUseCase.execute({
@@ -590,7 +608,13 @@ describe('POS application layer (integration)', () => {
     const idempotencyKey = randomUUID();
     const buildSync = () => {
       const { repo, txManager, unitOfWork, portRegistry } = buildPos(orgId);
-      return new SyncOfflineSaleUseCase(repo, txManager, unitOfWork, portRegistry);
+      return new SyncOfflineSaleUseCase(
+        repo,
+        txManager,
+        unitOfWork,
+        portRegistry,
+        new DefaultTaxRateResolver(portRegistry),
+      );
     };
 
     observedEvents.length = 0;
@@ -679,7 +703,13 @@ describe('POS application layer (integration)', () => {
 
     const idempotencyKey = randomUUID();
     const { repo, txManager, unitOfWork, portRegistry } = buildPos(orgId);
-    const sync = new SyncOfflineSaleUseCase(repo, txManager, unitOfWork, portRegistry);
+    const sync = new SyncOfflineSaleUseCase(
+      repo,
+      txManager,
+      unitOfWork,
+      portRegistry,
+      new DefaultTaxRateResolver(portRegistry),
+    );
 
     const result = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
       sync.execute({
@@ -775,7 +805,13 @@ describe('POS application layer (integration)', () => {
 
     const idempotencyKey = randomUUID();
     const { repo, txManager, unitOfWork, portRegistry } = buildPos(orgId);
-    const sync = new SyncOfflineSaleUseCase(repo, txManager, unitOfWork, portRegistry);
+    const sync = new SyncOfflineSaleUseCase(
+      repo,
+      txManager,
+      unitOfWork,
+      portRegistry,
+      new DefaultTaxRateResolver(portRegistry),
+    );
 
     const result = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
       sync.execute({

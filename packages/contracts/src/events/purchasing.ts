@@ -157,9 +157,15 @@ export const purchasingSupplierReturnApprovedV1Schema = z.object({
   /**
    * Signed total value: a supplier return reduces AP, so the amount is
    * negative in the AP direction — carried as a signed minor-units string
-   * (PUR-2: bills +, payments −, debit notes −).
+   * (PUR-2: bills +, payments −, debit notes −). This is the NET value.
    */
   amountMinor: signedMinorUnitsString,
+  /** ACC-11: return tax (Σ line taxes). Absent on pre-tax events → treat as 0. */
+  taxMinor: minorUnitsString.optional(),
+  /** ACC-11: signed gross AP reduction = amountMinor + taxMinor. Absent on pre-tax events. */
+  totalMinor: signedMinorUnitsString.optional(),
+  /** ACC-11: supplier tax id snapshot from the source bill. */
+  supplierTaxIdSnapshot: z.string().nullable().optional(),
   currency: currencyCode,
   /**
    * Per-line detail so accounting credits Inventory (goods) vs Expense
@@ -171,6 +177,10 @@ export const purchasingSupplierReturnApprovedV1Schema = z.object({
         variantId: z.string().uuid().nullable().optional(),
         quantity: decimalString,
         unitCostAmountMinor: minorUnitsString,
+        /** ACC-11: tax-rate snapshot inherited from the bill line. */
+        taxRateBpSnapshot: z.number().int().min(0).optional(),
+        /** ACC-11: per-line tax, minor units. */
+        taxAmountMinor: minorUnitsString.optional(),
       }),
     )
     .min(1),

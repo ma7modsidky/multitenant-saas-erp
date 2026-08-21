@@ -1,4 +1,5 @@
 import { ACCOUNTING_ERROR_CODE, AccountingDomainError } from './errors.js';
+import { calculateLineTax, type TaxBasis, type TaxType } from './tax-engine.js';
 
 export const INVOICE_STATUS = {
   DRAFT: 'draft',
@@ -33,6 +34,8 @@ export interface InvoiceLineData {
   taxRateId: string | null;
   taxRateBpSnapshot: number;
   taxTypeSnapshot: string;
+  /** ACC-11: exclusive | inclusive — the basis the line tax was computed under. */
+  taxBasisSnapshot: TaxBasis;
   taxAmountMinor: string;
   lineTotalAmountMinor: string;
   /** ACC-14: goods lines deduct stock at issuance via the movement port. */
@@ -84,8 +87,11 @@ export interface InvoiceLineInput {
   quantity?: string;
   unitPriceAmountMinor: string;
   discountAmountMinor?: string;
+  taxRateId?: string | null;
   taxRateBpSnapshot?: number;
   taxTypeSnapshot?: string;
+  /** ACC-11: the basis the tax was computed under (defaults to exclusive). */
+  taxBasisSnapshot?: TaxBasis;
   /**
    * ACC-13 carry-over: when the tax is supplied directly (auto-invoice from a
    * POS sale whose line taxes were already computed per line, POS-17), it is
@@ -145,6 +151,7 @@ export class Invoice {
       const discount = line.discountAmountMinor ?? '0';
       const rateBp = line.taxRateBpSnapshot ?? 0;
       const taxType = line.taxTypeSnapshot ?? 'standard';
+      const taxBasis = line.taxBasisSnapshot ?? 'exclusive';
 
       if (!isNonNegativeMinor(unitPrice)) {
         throw new AccountingDomainError(
@@ -155,7 +162,8 @@ export class Invoice {
       }
 
       const lineTotal = computeLineTotal(unitPrice, quantity, discount);
-      // ACC-11: per-line tax, rounded once (CUR-8). 0 for exempt/zero rates.
+      // ACC-11: per-line tax, rounded once (CUR-8), exclusive or inclusive per
+      // the rate's basis. 0 for exempt/zero rates.
       // ACC-13: an explicit line tax (POS sale carry-over) wins over a
       // re-computation from the rate snapshot.
       const tax =
@@ -163,7 +171,7 @@ export class Invoice {
           ? line.taxAmountMinor
           : taxType === 'exempt' || rateBp === 0
             ? '0'
-            : computeLineTax(lineTotal, rateBp);
+            : calculateLineTax(lineTotal, { rateBp, type: taxType as TaxType, taxBasis }).taxAmountMinor;
       if (!/^\d+$/.test(tax)) {
         throw new AccountingDomainError(
           ACCOUNTING_ERROR_CODE.LINE_INVALID,
@@ -182,9 +190,10 @@ export class Invoice {
         quantity,
         unitPriceAmountMinor: unitPrice,
         discountAmountMinor: discount,
-        taxRateId: null,
+        taxRateId: line.taxRateId ?? null,
         taxRateBpSnapshot: rateBp,
         taxTypeSnapshot: taxType,
+        taxBasisSnapshot: taxBasis,
         taxAmountMinor: tax,
         lineTotalAmountMinor: lineTotal,
         isGoods: line.isGoods ?? false,
@@ -495,13 +504,6 @@ function computeLineTotal(unitPrice: string, quantity: string, discount: string)
   const rounded = (gross + 5000n) / 10000n;
   const total = rounded - BigInt(discount);
   return total < 0n ? '0' : total.toString();
-}
-
-/** ACC-11: tax = round(lineTotal × rateBp / 10000), once per line. */
-function computeLineTax(lineTotal: string, rateBp: number): string {
-  const numerator = BigInt(lineTotal) * BigInt(rateBp);
-  // Round half-up to a whole minor unit.
-  return ((numerator + 5000n) / 10000n).toString();
 }
 
 /** Parse a decimal string (e.g. "3.5000") into ×10⁴ integer units. */

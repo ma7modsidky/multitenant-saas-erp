@@ -112,6 +112,7 @@ export type {
   ReturnToSupplierMovementInput,
   AdjustCostMovementInput,
   InventoryMovementPort,
+  TaxRateRead,
 } from './ports/index.js';
 export {
   SEARCH_CONTRIBUTORS,
@@ -120,5 +121,6 @@ export {
   FX_RATE_READ_PORT,
   INVENTORY_STOCK_PORT,
   INVENTORY_MOVEMENT_PORT,
+  TAX_RATE_READ_PORT,
 } from './ports/index.js';
-export type { MembershipReadPort, OrganizationReadPort, FxRateReadPort } from './ports/index.js';
+export type { MembershipReadPort, OrganizationReadPort, FxRateReadPort, TaxRateReadPort } from './ports/index.js';

@@ -51,6 +51,8 @@ interface CatalogItem {
   sku: string;
   nameI18n: Record<string, string>;
   unitPriceAmountMinor: string;
+  /** ACC-11: the product's tax rate in basis points. */
+  taxRateBp: number;
 }
 
 export function CheckoutView() {
@@ -132,6 +134,7 @@ export function CheckoutView() {
           sku: variant.sku ?? '',
           nameI18n: product.nameI18n,
           unitPriceAmountMinor: variant.price.amountMinor,
+          taxRateBp: variant.taxRateBp,
         });
       }
     }
@@ -164,6 +167,7 @@ export function CheckoutView() {
           nameI18n: item.nameI18n,
           quantity: '1',
           unitPriceAmountMinor: item.unitPriceAmountMinor,
+          taxRateBp: item.taxRateBp,
           currency: baseCurrency,
         },
       ];
@@ -211,7 +215,7 @@ export function CheckoutView() {
         nameI18n: line.nameI18n,
         quantity: line.quantity,
         unitPrice: { amountMinor: line.unitPriceAmountMinor, currency: baseCurrency },
-        taxRateBp: 0,
+        taxRateBp: line.taxRateBp ?? 0,
         currency: baseCurrency,
       })),
       payments:

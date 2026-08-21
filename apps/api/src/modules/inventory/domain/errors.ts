@@ -35,6 +35,8 @@ export const INVENTORY_ERROR_CODE = {
   WAREHOUSE_DUPLICATE_CODE: 'INVENTORY_WAREHOUSE_DUPLICATE_CODE',
   /** INV-6 — only documented oversold paths may drive stock negative. */
   NEGATIVE_STOCK_NOT_ALLOWED: 'INVENTORY_NEGATIVE_STOCK_NOT_ALLOWED',
+  /** ACC-11 — a product tax rate must be a non-negative integer in basis points. */
+  TAX_RATE_INVALID: 'INVENTORY_TAX_RATE_INVALID',
 } as const;
 
 export type InventoryErrorCode = (typeof INVENTORY_ERROR_CODE)[keyof typeof INVENTORY_ERROR_CODE];

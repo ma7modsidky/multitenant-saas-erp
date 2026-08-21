@@ -27,6 +27,12 @@ export {
   IncomeStatementEnvelopeResponse,
   BalanceSheetEnvelopeResponse,
   ArAgingEnvelopeResponse,
+  TaxRateResponse,
+  TaxRateListEnvelopeResponse,
+  TaxRateEnvelopeResponse,
+  TaxRateUpdateEnvelopeResponse,
+  createTaxRateSchema,
+  updateTaxRateSchema,
 } from './accounting.dto.js';
 export type {
   CreateAccountDto,
@@ -35,4 +41,6 @@ export type {
   IssueInvoiceDto,
   ApplyPaymentDto,
   IssueCreditNoteDto,
+  CreateTaxRateDto,
+  UpdateTaxRateDto,
 } from './accounting.dto.js';

@@ -43,6 +43,7 @@ vi.mock('@/features/accounting/hooks', () => ({
     return { data: invoices, isPending: false };
   },
   useAccountingMutations: () => h.mutations,
+  useAccountingTaxRates: () => ({ data: { items: [] } }),
   useCurrencies: () => ({ data: [{ code: 'USD', exponent: 2 }] }),
   useOrgBaseCurrency: () => 'USD',
 }));

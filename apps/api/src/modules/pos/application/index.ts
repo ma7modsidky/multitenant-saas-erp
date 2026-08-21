@@ -1,4 +1,5 @@
 export { GetStatusUseCase } from './get-status.use-case.js';
+export { DefaultTaxRateResolver } from './default-tax-rate.resolver.js';
 export { CreateRegisterUseCase } from './create-register.use-case.js';
 export { ListRegistersUseCase } from './list-registers.use-case.js';
 export { OpenShiftUseCase } from './open-shift.use-case.js';

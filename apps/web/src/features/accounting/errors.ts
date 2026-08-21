@@ -32,6 +32,10 @@ export function accountingErrorKey(code: string): string {
       return 'errors.coaReadOnly';
     case 'ACCOUNTING_ACCOUNT_CODE_EXISTS':
       return 'errors.accountCodeExists';
+    case 'ACCOUNTING_TAX_CODE_EXISTS':
+      return 'taxRates.errorCodeExists';
+    case 'ACCOUNTING_TAX_RATE_INVALID':
+      return 'taxRates.errorRateInvalid';
     case 'INVENTORY_INSUFFICIENT_STOCK':
       return 'errors.insufficientStock';
     default:

@@ -79,6 +79,7 @@ export const updateOrganizationSettingsSchema = z
     datePreferences: z.record(z.string(), z.unknown()).optional(),
     receiptFooter: z.string().max(500).nullable().optional(),
     sellerTaxId: z.string().max(50).nullable().optional(),
+    taxEnabled: z.boolean().optional(),
   })
   .strict();
 
@@ -122,6 +123,7 @@ export const organizationSettingsResponseSchema = z.object({
   datePreferences: z.record(z.string(), z.unknown()),
   receiptFooter: z.string().nullable(),
   sellerTaxId: z.string().nullable(),
+  taxEnabled: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -216,6 +218,7 @@ export function settingsToResponse(settings: {
   datePreferences: Record<string, unknown>;
   receiptFooter: string | null;
   sellerTaxId: string | null;
+  taxEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }): OrganizationSettingsResponse {
@@ -229,6 +232,7 @@ export function settingsToResponse(settings: {
     datePreferences: settings.datePreferences,
     receiptFooter: settings.receiptFooter,
     sellerTaxId: settings.sellerTaxId,
+    taxEnabled: settings.taxEnabled,
     createdAt: settings.createdAt.toISOString(),
     updatedAt: settings.updatedAt.toISOString(),
   };

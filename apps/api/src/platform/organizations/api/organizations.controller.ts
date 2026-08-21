@@ -237,6 +237,7 @@ export class OrganizationsController {
       ...(dto.datePreferences !== undefined ? { datePreferences: dto.datePreferences } : {}),
       ...(dto.receiptFooter !== undefined ? { receiptFooter: dto.receiptFooter } : {}),
       ...(dto.sellerTaxId !== undefined ? { sellerTaxId: dto.sellerTaxId } : {}),
+      ...(dto.taxEnabled !== undefined ? { taxEnabled: dto.taxEnabled } : {}),
     });
 
     return {

@@ -34,6 +34,7 @@ export interface ProductListItemVariant {
   priceAmountMinor: string;
   priceCurrency: string;
   reorderPoint: string;
+  taxRateBp: number;
   isActive: boolean;
 }
 
@@ -43,6 +44,7 @@ export interface VariantListRow {
   productId: string;
   sku: string;
   nameI18n: Record<string, string>;
+  taxRateBp: number;
 }
 
 /** A product row without its variants (detail endpoint). */
@@ -51,6 +53,8 @@ export interface ProductRow {
   nameI18n: Record<string, string>;
   descriptionI18n: Record<string, string>;
   isActive: boolean;
+  /** ACC-11: product-level tax rate in basis points (inv_products.tax_rate_bp). */
+  taxRateBp: number;
   createdAt: Date;
   updatedAt: Date;
   /** Actor stamps (inv_products.created_by/updated_by) — audit trail. */

@@ -82,6 +82,7 @@ const ACTIVE_PRIMARY = {
   sku: 'WIDGET-2',
   price: { amountMinor: '1200', currency: 'USD' },
   reorderPoint: '5',
+  taxRateBp: 0,
   isActive: true,
 };
 const ACTIVE_SECONDARY = {
@@ -89,6 +90,7 @@ const ACTIVE_SECONDARY = {
   sku: 'WIDGET-1',
   price: { amountMinor: '1000', currency: 'USD' },
   reorderPoint: '5',
+  taxRateBp: 0,
   isActive: true,
 };
 
@@ -112,7 +114,14 @@ function product(id: string, name: string, variants: InventoryProduct['variants'
 
 const WIDGET_PRO = product('prod-1', 'Widget Pro', [ACTIVE_PRIMARY, ACTIVE_SECONDARY]);
 const OLD_WIDGET = product('prod-2', 'Old Widget', [
-  { id: 'var-3', sku: 'OLD-1', price: { amountMinor: '900', currency: 'USD' }, reorderPoint: '3', isActive: false },
+  {
+    id: 'var-3',
+    sku: 'OLD-1',
+    price: { amountMinor: '900', currency: 'USD' },
+    reorderPoint: '3',
+    taxRateBp: 0,
+    isActive: false,
+  },
 ]);
 
 /** The product-detail payload the edit flow fetches to prefill the form. */
@@ -137,6 +146,7 @@ function detailOf(prod: InventoryProduct): InventoryProductDetail {
       cost: { amountMinor: '400', currency: 'USD' },
       reorderPoint: variant.reorderPoint,
       reorderQuantity: '10',
+      taxRateBp: variant.taxRateBp,
       isActive: variant.isActive,
       createdByUserId: null,
       updatedByUserId: null,
