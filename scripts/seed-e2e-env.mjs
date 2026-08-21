@@ -13,7 +13,7 @@
  * that `apps/web/playwright.journey.config.ts` injects into the browser.
  *
  * Usage:
- *   pnpm e2e:seed                                  # crm + inventory + pos trials
+ *   pnpm e2e:seed                                  # accounting + crm + inventory + pos trials
  *   pnpm e2e:seed -- --modules inventory,pos       # narrower set
  *   pnpm e2e:seed -- --out /tmp/e2e-state.json     # custom state path
  *
@@ -42,7 +42,7 @@ function parseArg(name) {
 
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:4000';
 const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
-const requestedModules = (parseArg('--modules') ?? 'crm,inventory,pos').split(',').map((s) => s.trim()).filter(Boolean);
+const requestedModules = (parseArg('--modules') ?? 'accounting,crm,inventory,pos').split(',').map((s) => s.trim()).filter(Boolean);
 const outPath = resolve(REPO_ROOT, parseArg('--out') ?? 'apps/web/e2e/.e2e-state.json');
 const orgNamePrefix = parseArg('--org-name') ?? 'E2E Org';
 

@@ -17,11 +17,22 @@ test.describe('Accounting journey', () => {
     // Post a manual journal entry (one debit line, one credit line).
     await page.goto('/en/m/accounting/journal');
     await expect(page.getByRole('heading', { name: 'Journal' })).toBeVisible();
-    await page.getByRole('button', { name: 'Chart of accounts' }).first().click();
+    // The entry form is collapsed behind "New entry" (the entries table is
+    // the primary focus on page load).
+    await page.getByRole('button', { name: 'New entry' }).click();
+    // Line 1 — debit Cash. The account picker is a Combobox whose trigger
+    // carries the placeholder until an account is chosen.
+    await page
+      .getByRole('button', { name: /Select an account/ })
+      .first()
+      .click();
     await page.getByRole('option', { name: /Cash/ }).first().click();
-    await page.getByLabel('Debit').fill('10000');
-    await page.getByRole('button', { name: 'Add line' }).click();
-    await page.getByRole('button', { name: 'Select an account…' }).last().click();
+    await page.getByLabel('Debit').first().fill('10000');
+    // Line 2 — credit Revenue (the form starts with two empty lines).
+    await page
+      .getByRole('button', { name: /Select an account/ })
+      .last()
+      .click();
     await page
       .getByRole('option', { name: /Revenue/ })
       .first()
@@ -30,10 +41,13 @@ test.describe('Accounting journey', () => {
     await page.getByRole('button', { name: 'Post entry' }).click();
     await expect(page.getByText(/Entry JE-/)).toBeVisible();
 
-    // Issue an invoice for a customer with two lines.
+    // Issue an invoice for a customer with a single line.
     await page.goto('/en/m/accounting/invoices');
     await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
-    await page.getByLabel('Customer').fill('Acme Trading');
+    // The issue form is collapsed behind "Create invoice" (the invoices
+    // table is the primary focus on page load).
+    await page.getByRole('button', { name: 'Create invoice' }).click();
+    await page.getByLabel('Customer', { exact: true }).fill('Acme Trading');
     await page.getByLabel('Item').fill('Consulting services');
     await page.getByLabel('Unit price').fill('50000');
     await page.getByRole('button', { name: 'Issue invoice' }).click();
