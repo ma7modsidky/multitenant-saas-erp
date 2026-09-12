@@ -16,6 +16,7 @@ export interface ActivityData {
   relatedType: string | null;
   relatedId: string | null;
   assignedTo: string | null;
+  assignedTeamId: string | null;
   createdAt: Date;
   updatedAt: Date;
   createdBy: string | null;

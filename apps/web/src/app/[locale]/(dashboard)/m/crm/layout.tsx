@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, Building2, Handshake, Users } from 'lucide-react';
+import { Activity, Building2, GitBranch, Handshake, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 
@@ -15,6 +15,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
     { href: 'companies', label: t('nav.companies'), icon: Building2 },
     { href: 'deals', label: t('nav.deals'), icon: Handshake },
     { href: 'activities', label: t('nav.activities'), icon: Activity },
+    { href: 'pipelines', label: t('nav.pipelines'), icon: GitBranch },
   ];
   return (
     <ModuleGate moduleKey="crm">

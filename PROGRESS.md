@@ -1,7 +1,116 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 87 — **Phase 8 — Purchasing & Suppliers shipped (full
-stack) + accounting AP integration**.
+**Last updated:** Session 90 — **CRM-17 multi-pipeline support: multiple
+pipelines per org with team scoping, a pipelines management page with
+templates, pipeline switcher on the deals board/table, and per-stage success
+percentage (computed win rate → configured probability fallback).**
+
+**Session 90 — CRM-17: multiple pipelines, team-scoped, with stage success
+rates (full stack).**
+
+- **DB** — forward migration `crm/0005_pipeline_owner_team.sql` adds
+  `crm_pipelines.owner_team_id` (bare uuid, no cross-prefix FK, mirroring
+  0004) + `idx_crm_pipelines_org_team`. NULL = org-wide; set = visible to that
+  team's members + leaders and org OWNER/ADMIN.
+- **Domain** — `PipelineData.ownerTeamId` + pure `stageSuccessPercent()`:
+  computed win rate `won/(won+lost)` over deals that REACHED a stage (current
+  stage + history to AND from — the creation stage is the first move's
+  `from_stage_id`), falling back to the stage's configured `probability` while
+  no deal has resolved from it. 6 new rule-cited unit tests.
+- **Application** — new `pipeline-management.use-cases.ts`: List/Create
+  (domain-validated CRM-4/5 stage set; first pipeline auto-default), Update
+  (rename/team), ReorderStages (CRM-5 atomic rewrite validated by the domain
+  entity first), SetDefault (CRM-3 flip), Delete (CRM-3 guard + NEW
+  `CRM_PIPELINE_HAS_OPEN_DEALS` typed 422 — deals are never orphaned).
+  `GetPipelineBoardUseCase` now takes an optional pipelineId and decorates
+  stages with `successPercent` + `resolvedDeals`; new read-repo methods
+  `getPipelineById` + `getStageOutcomeCounts`.
+- **API** — `PipelinesController` full CRUD under `v1/crm/pipelines`: GET list
+  (visibility-filtered), GET default (compat), GET/:id, POST, PATCH,
+  POST/:id/stages/reorder, POST/:id/set-default, DELETE. Reads require
+  `crm:deal:read`; mutations require `crm:pipeline:manage` (the existing role
+  matrix "module configuration" permission) AND team visibility — a forged id
+  404s fail-closed (TEAM-6). Team assignment requires membership/leadership or
+  GLOBAL via `TEAM_READ_PORT`. All mutations audited. Deals list gains a
+  validated `pipelineId` filter.
+- **Frontend** — new **Pipelines management page** (`m/crm/pipelines`, nav
+  entry + `git-branch` icon): create from templates (B2B Sales / Simple) or
+  scratch with a stage editor (name, probability %, won/lost flags, reorder,
+  remove), team visibility picker, set-default + delete, per-stage success
+  bars. Deals board + table gain a **pipeline switcher** (shown when >1
+  pipeline is visible; board columns and the stage filter follow the selected
+  pipeline). Kanban column headers render the **success bar** (win rate, or
+  "expected %" fallback) with an i18n title. New `usePipelines` +
+  `usePipelineMutations` hooks; board query keys include the pipeline id.
+- **i18n** — `modules.crm.nav.pipelines`, `pipelines.*` catalog, and
+  `deals.pipeline/defaultSuffix/successRate/estimatedRate` keys in en/ar/fr/es
+  (completeness spec green).
+- **Docs** — BUSINESS_RULES CRM-17; DATA_MODEL §7 `crm_pipelines` columns.
+- **Tests** — API: 2 new Postgres integration tests (multi-pipeline create →
+  move → win-rate computation; full management lifecycle incl. CRM-3 + open-
+  deals guard), 6 win-rate unit tests; CRM suite 28/28. Web: full CRM suite
+  green (59). Typechecks clean both apps; arch 0 errors; prettier clean.
+  Pre-existing web lint `as`-cast baseline unchanged (verified identical on a
+  stashed tree).
+
+**Session 89 — Unified ownership preset chips across all CRM list pages; ScopeSwitcher removed.**
+
+- **One ownership filter everywhere (TEAM-4).** The deals board (kanban), the
+  deals table, the activities cards, and the activities table now use the exact
+  same `FilterPresetChips` component and placement as contacts/companies
+  (`All / Assigned to me / Team pool / Unassigned / Created recently`), rendered
+  on its own row above the other dropdown filters.
+- **New mapping `scopePresetListParams`** (`features/crm/hooks.ts`): chips map
+  to the clamped API selectors the deals/activities endpoints already accept —
+  `mine`→`scope=mine`, `teamPool`→`pool=team`, `unassigned`→`pool=global`,
+  `recent`→`createdFrom` (30 days) — reusing the existing repository filters;
+  no backend change. `isCrmListPreset` guards the URL param on the table pages.
+- **State simplification:** dropped `dealScope`/`dealPool`/`activityScope`
+  state, the scope-ceiling correction effect, and the
+  `canUseAll`/`canUseTeam` prop plumbing — the server clamps every preset.
+- **Removed** `ScopeSwitcher` from `table-shared.tsx` and the orphaned
+  `scope.*` + `deals.unassignedPool` i18n keys (en/ar/fr/es).
+- **Cache correctness:** `activitiesKey` now includes `pool`/`createdFrom`, and
+  the board query key includes the preset — no stale lists when switching
+  chips. "Clear filters" resets the preset; `hasActiveFilters` accounts for it.
+- **Claim preserved:** the Claim action still appears on unassigned-but-
+  team-owned cards, reachable via the Team pool chip.
+- Verified: web typecheck + root typecheck (7/7), web tests 417/417 (CRM 59/59,
+  incl. 5 new `scopePresetListParams`/`isCrmListPreset` tests), prettier clean.
+
+**Session 88 — CRM RBAC list clamp verified; Kanban board: persistent columns,
+per-column empty states, All-Time default; unified filter bars.**
+
+- **Backend RBAC (AUTHZ-9/10) verified on the two list endpoints.**
+  `GET /v1/crm/deals` and `GET /v1/crm/activities` resolve the `scope` query
+  param (`mine`/`team`/`all`, default `all`) through `api/scope.ts`
+  (`resolveScopeFilter` → `ownerUserId` / `ownerTeamIds`+`ownerUserIds` /
+  `ownPool`), and the read repository clamps every page SQL with those
+  predicates (composite own+pool OR-clauses) on top of RLS — a member can never
+  see another user's records even with a forged query. Mutating endpoints
+  fail-closed via `assertCanViewRecord` before running. `crm.scope.spec.ts` (11
+  cases) + `crm.controllers.spec.ts` (41) green.
+- **Kanban board always renders its columns.** The "every column empty →
+  generic Empty panel" early return is gone; each pipeline column now shows its
+  own dashed empty state (`deals.noDeals`, new key in en/ar/fr/es) or a loading
+  note while its query is in flight, so the board structure never collapses.
+- **Per-column date filters removed.** The Today/This week/This month/All time
+  dropdowns in the column headers are gone, along with `dealColumnDateRange`,
+  `DealColumnDateFilter` and the per-column date state; `useDealsBoard` now
+  issues each column query with NO date bounds (All Time by default) —
+  visibility is driven by the top-level search, scope switcher, and unassigned
+  pool filters. Removed the now-unused `deals.dateFilter`/`filterToday`/
+  `filterThisWeek`/`filterThisMonth`/`filterAllTime`/`resetDates`/`clearDates`
+  keys in all four locales; e2e journey comment updated.
+- **Unified CRM filter bars.** Contacts, Companies, Deals (board + table) and
+  Activities now share the same two-row shape: search + view toggle row, then a
+  single `items-end` filter row. Activities folds the scope switcher into its
+  filter row (Assignee dropdown retained); Contacts' company filter moved into
+  the labeled filter row; Companies' preset chips sit in the same row shape.
+- **Checks** — web typecheck clean, web unit suite 417/417 (CRM 54), API
+  crm.scope + crm.controllers 52/52, Prettier clean on changed files; full
+  lint/typecheck baseline unchanged (pre-existing project-wide `as`-cast
+  errors untouched).
 
 - **Contracts (Phase 8)** — `purchasing` module key + 9 permissions
   (`purchasing:supplier:read` … `purchasing:report:view`), 6 published events

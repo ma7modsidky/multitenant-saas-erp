@@ -13,6 +13,7 @@ export interface CreateActivityInput {
   relatedType?: string | null;
   relatedId?: string | null;
   assignedToUserId?: string | null;
+  assignedTeamId?: string | null;
   /**
    * CRM-14: ids of active members of the current organization. Resolved by the
    * API layer (Step 4.6) — the domain rejects any assignee outside this set.
@@ -54,6 +55,7 @@ export class CreateActivityUseCase {
       relatedType: input.relatedType ?? null,
       relatedId: input.relatedId ?? null,
       assignedTo: null,
+      assignedTeamId: input.assignedTeamId ?? null,
       createdAt: now,
       updatedAt: now,
       createdBy: userId,

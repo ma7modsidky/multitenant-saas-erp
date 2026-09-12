@@ -165,6 +165,7 @@ export class MembershipsController {
       name: dto.name,
       email: dto.email,
       roleId: dto.roleId,
+      ...(dto.teamIds !== undefined ? { teamIds: dto.teamIds } : {}),
       organizationId: orgId,
       invitedBy: userId,
     });

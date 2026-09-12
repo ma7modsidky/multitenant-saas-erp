@@ -9,6 +9,11 @@ import {
   createCrmContact,
   createCrmDeal,
   createCrmNote,
+  createCrmPipeline,
+  deleteCrmCompany,
+  deleteCrmContact,
+  deleteCrmPipeline,
+  updateDealOwnership,
   getActiveOrganization,
   getCrmActivities,
   getCrmActivity,
@@ -17,6 +22,7 @@ import {
   getCrmContact,
   getCrmContacts,
   getCrmNotes,
+  getCrmPipelines,
   getCurrencies,
   getFxRate,
   getCrmDeal,
@@ -24,15 +30,19 @@ import {
   getCrmPipeline,
   mergeCrmContacts,
   moveCrmDeal,
+  reorderCrmPipelineStages,
+  setDefaultCrmPipeline,
   updateCrmActivity,
   updateCrmCompany,
   updateCrmContact,
+  updateCrmPipeline,
   type CrmActivityUpdate,
   CRM_PAGE_SIZE,
   type CrmContactListParams,
   type CrmListParams,
 } from '@/lib/api/resources';
 import { useSession } from '@/lib/auth/session-context';
+import { getTeams } from '@/lib/api/resources';
 
 // Shared member-name resolver — moved to lib/hooks so other modules (e.g.
 // inventory) can render audit stamps without importing CRM feature code.
@@ -47,6 +57,11 @@ export function contactsKey(params: CrmContactListParams = {}): string[] {
     'contacts',
     params.search ?? '',
     params.companyId ?? '',
+    params.ownerUserId ?? '',
+    params.unassigned ? 'unassigned' : '',
+    params.pool ?? '',
+    params.createdFrom ?? '',
+    params.scope ?? '',
     keyPart(params.sortBy),
     keyPart(params.sortDir),
     String(params.page ?? 1),
@@ -60,6 +75,11 @@ export function companiesKey(params: CrmListParams = {}): string[] {
     'crm',
     'companies',
     params.search ?? '',
+    params.ownerUserId ?? '',
+    params.unassigned ? 'unassigned' : '',
+    params.pool ?? '',
+    params.createdFrom ?? '',
+    params.scope ?? '',
     keyPart(params.sortBy),
     keyPart(params.sortDir),
     String(params.page ?? 1),
@@ -76,10 +96,13 @@ function dealsKey(params: CrmListParams = {}): string[] {
     'crm',
     'deals',
     keyPart(params.search),
+    keyPart(params.pipelineId),
     keyPart(params.stageId),
     keyPart(params.status),
     keyPart(params.fromDate),
     keyPart(params.toDate),
+    keyPart((params as Record<string, string | undefined>).scope),
+    (params as Record<string, boolean | undefined>).unassignedUser ? 'unassignedUser' : '',
     keyPart(params.sortBy),
     keyPart(params.sortDir),
     String(params.page ?? 1),
@@ -101,6 +124,9 @@ export function activitiesKey(params: CrmListParams = {}): string[] {
     params.assigneeUserId ?? '',
     params.unassigned ? 'unassigned' : '',
     params.completed === undefined ? '' : String(params.completed),
+    (params as Record<string, string | undefined>).scope ?? '',
+    (params as Record<string, string | undefined>).pool ?? '',
+    (params as Record<string, string | undefined>).createdFrom ?? '',
     String(params.page ?? 1),
     String(params.pageSize ?? CRM_PAGE_SIZE),
   ];
@@ -134,66 +160,38 @@ export function useDealsList(params: CrmListParams = {}, enabled = true) {
   });
 }
 
-/** Column date-filter presets for the pipeline board. */
-export type DealColumnDateFilter = 'today' | 'week' | 'month' | 'all';
-
-/**
- * UTC-day range (YYYY-MM-DD) for a board column preset, on `updated_at`
- * (deals touched in the period). `all` means no date bounds at all.
- * - today → [today, today]
- * - week  → [today − 6 days, today] (rolling week)
- * - month → [1st of this month, today]
- *
- * Dates are computed in UTC to match the API: deals store `updated_at` as a
- * UTC instant and the read repository casts these dates in the database
- * session timezone (UTC). Using local-time dates shifted the window by the
- * browser's UTC offset, so a deal created in the early hours (local) landed
- * on "yesterday" in UTC and vanished from the default "today" column — the
- * board then showed "Nothing here yet" while the table listed it (see the
- * crm-journey e2e note). Computing in UTC guarantees a deal created now is
- * always inside its column's today window, in any browser timezone.
- */
-export function dealColumnDateRange(
-  filter: DealColumnDateFilter,
-  now: Date = new Date(),
-): { fromDate?: string; toDate?: string } {
-  // The optional `now` argument is for deterministic tests; callers rely on
-  // the default (the current instant).
-  const iso = (date: Date) =>
-    `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-  const today = iso(now);
-  if (filter === 'all') return {};
-  if (filter === 'today') return { fromDate: today, toDate: today };
-  if (filter === 'week') {
-    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6));
-    return { fromDate: iso(start), toDate: today };
-  }
-  return { fromDate: `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`, toDate: today };
-}
-
 /**
  * Per-column board queries — one `GET /v1/crm/deals` per pipeline stage with
- * that column's date range. Each result carries its own exact `total` and
- * `totalValueBaseMinor` (server-side sum, independent of the 100-row clamp).
- * The returned array aligns with `stages`; pass `undefined` before the
+ * NO date bounds (All Time by default): the board always shows every deal in
+ * the caller's scope, and narrowing is done through the top-level filters
+ * (search, scope, unassigned pool). Each result carries its own exact `total`
+ * and `totalValueBaseMinor` (server-side sum, independent of the 100-row
+ * clamp). The returned array aligns with `stages`; pass `undefined` before the
  * pipeline has loaded (yields an empty array, no requests).
  */
 export function useDealsBoard(
   stages: Array<{ id: string }> | undefined,
-  filters: Record<string, DealColumnDateFilter>,
   search = '',
+  /** TEAM-4 ownership preset — same chips as the contacts/companies lists. */
+  preset: CrmListPreset = 'all',
+  /** CRM-17: the pipeline whose stages the columns belong to. */
+  pipelineId?: string,
 ) {
+  const presetParams = scopePresetListParams(preset);
   return useQueries({
     queries: (stages ?? []).map((stage) => {
-      const { fromDate, toDate } = dealColumnDateRange(filters[stage.id] ?? 'today');
       return {
-        queryKey: ['crm', 'deals', 'board', stage.id, fromDate ?? '', toDate ?? '', search, String(100)],
+        // The preset MUST be part of the key, or react-query serves the cached
+        // column when the user switches ownership chips. The pipeline id is
+        // part of the key too — switching pipelines never shows another
+        // pipeline's cached column.
+        queryKey: ['crm', 'deals', 'board', pipelineId ?? '', stage.id, search, preset, String(100)],
         queryFn: () =>
           getCrmDeals({
             stageId: stage.id,
             pageSize: 100,
-            ...(fromDate ? { fromDate } : {}),
-            ...(toDate ? { toDate } : {}),
+            ...presetParams,
+            ...(pipelineId ? { pipelineId } : {}),
             ...(search ? { search } : {}),
           }),
         placeholderData: keepPreviousData,
@@ -209,6 +207,107 @@ export function useActivitiesList(params: CrmListParams = {}) {
     queryFn: () => getCrmActivities(params),
     placeholderData: keepPreviousData,
   });
+}
+
+/** Broad recent-activities window (the API's ~10-page clamp) for client-side
+    "last activity" joins on contact/company rows. Shares the same cache entry
+    as `useCrmData().activities`, so mounting both never doubles the request. */
+/** Active teams of the organization (pickers + scope labels). */
+export function useTeams() {
+  const { organizationId } = useSession();
+  return useQuery({
+    queryKey: ['teams', organizationId],
+    queryFn: () => getTeams(organizationId!),
+    enabled: !!organizationId,
+  });
+}
+
+export function useRecentActivities() {
+  const pageSize = CRM_PAGE_SIZE * 10;
+  return useQuery({
+    queryKey: activitiesKey({ page: 1, pageSize }),
+    queryFn: () => getCrmActivities({ page: 1, pageSize }),
+  });
+}
+
+/** ISO date (UTC) `days` before `now` — the "created recently" preset bound. */
+function isoDaysAgo(days: number, now: Date): string {
+  const from = new Date(now.getTime() - days * 86_400_000);
+  return `${from.getUTCFullYear()}-${String(from.getUTCMonth() + 1).padStart(2, '0')}-${String(from.getUTCDate()).padStart(2, '0')}`;
+}
+
+export type CrmListPreset = 'all' | 'mine' | 'teamPool' | 'unassigned' | 'recent';
+
+/**
+ * Map a filter-preset chip to the list params it sends to the API.
+ *
+ * Unified ownership filters (TEAM-4): everyone gets one coherent set —
+ * - `all`       → everything visible to the caller (server clamps to ceiling)
+ * - `mine`      → records assigned to me
+ * - `teamPool`  → unassigned records owned by one of my teams (admins: any team)
+ * - `unassigned`→ records with no owner and no team (the global pool)
+ * - `recent`    → created in the last 30 days
+ */
+export function presetListParams(
+  preset: CrmListPreset,
+  myUserId: string | undefined,
+  now: Date = new Date(),
+): { ownerUserId?: string; pool?: 'team' | 'global'; createdFrom?: string } {
+  if (preset === 'mine' && myUserId) return { ownerUserId: myUserId };
+  if (preset === 'teamPool') return { pool: 'team' };
+  if (preset === 'unassigned') return { pool: 'global' };
+  if (preset === 'recent') return { createdFrom: isoDaysAgo(30, now) };
+  return {};
+}
+
+/**
+ * Map a filter-preset chip to the list params of the deals/activities
+ * endpoints (TEAM-4). Those endpoints express ownership through the clamped
+ * `scope` and `pool` selectors rather than `ownerUserId`:
+ * - `mine`       → scope=mine (strictly records assigned to me)
+ * - `teamPool`   → pool=team (unassigned but owned by one of my teams)
+ * - `unassigned` → pool=global (no owner and no team — the global pool)
+ * - `recent`     → createdFrom (created in the last 30 days)
+ * The server clamps every choice to the caller's ceiling, so one chip set
+ * covers members, leaders, and admins.
+ */
+export function scopePresetListParams(
+  preset: CrmListPreset,
+  now: Date = new Date(),
+): { scope?: 'mine' | 'team' | 'all'; pool?: 'team' | 'global'; createdFrom?: string } {
+  if (preset === 'mine') return { scope: 'mine' };
+  if (preset === 'teamPool') return { pool: 'team' };
+  if (preset === 'unassigned') return { pool: 'global' };
+  if (preset === 'recent') return { createdFrom: isoDaysAgo(30, now) };
+  return {};
+}
+
+/** Type guard for the `preset` URL param shared by every CRM list view. */
+export function isCrmListPreset(value: string | null): value is CrmListPreset {
+  return value === 'all' || value === 'mine' || value === 'teamPool' || value === 'unassigned' || value === 'recent';
+}
+
+/** Most recent activity timestamp (ISO) touching the given record, or null. */
+export function lastActivityAt(
+  activities: Array<{
+    relatedType: string | null;
+    relatedId: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+    dueAt?: string | null;
+  }>,
+  relatedType: string,
+  relatedId: string,
+): string | null {
+  let latest: number | null = null;
+  for (const activity of activities) {
+    if (activity.relatedType !== relatedType || activity.relatedId !== relatedId) continue;
+    const iso = activity.updatedAt ?? activity.createdAt ?? activity.dueAt ?? null;
+    if (!iso) continue;
+    const ms = Date.parse(iso);
+    if (Number.isFinite(ms) && (latest === null || ms > latest)) latest = ms;
+  }
+  return latest === null ? null : new Date(latest).toISOString();
 }
 
 export function useCrmData() {
@@ -236,6 +335,35 @@ export function useCrmData() {
       queryFn: () => getCrmActivities({ page: 1, pageSize: CRM_PAGE_SIZE * 10 }),
     }),
     pipeline: useQuery({ queryKey: ['crm', 'pipeline'], queryFn: getCrmPipeline }),
+  };
+}
+
+/** CRM-17: every pipeline visible to the caller (org-wide + own teams). */
+export function usePipelines() {
+  return useQuery({ queryKey: ['crm', 'pipelines'], queryFn: getCrmPipelines });
+}
+
+/**
+ * CRM-17 pipeline management mutations. All of them invalidate the whole CRM
+ * cache — the board, table, selector caches, and the pipelines list all
+ * derive from the pipeline set.
+ */
+export function usePipelineMutations() {
+  const client = useQueryClient();
+  const invalidate = () => client.invalidateQueries({ queryKey: ['crm'] });
+  return {
+    createPipeline: useMutation({ mutationFn: createCrmPipeline, onSuccess: invalidate }),
+    updatePipeline: useMutation({
+      mutationFn: (v: { id: string; input: { nameI18n?: Record<string, string>; ownerTeamId?: string | null } }) =>
+        updateCrmPipeline(v.id, v.input),
+      onSuccess: invalidate,
+    }),
+    reorderStages: useMutation({
+      mutationFn: (v: { id: string; stageIds: string[] }) => reorderCrmPipelineStages(v.id, v.stageIds),
+      onSuccess: invalidate,
+    }),
+    setDefault: useMutation({ mutationFn: (id: string) => setDefaultCrmPipeline(id), onSuccess: invalidate }),
+    deletePipeline: useMutation({ mutationFn: (id: string) => deleteCrmPipeline(id), onSuccess: invalidate }),
   };
 }
 
@@ -328,8 +456,15 @@ export function useCrmMutations() {
       mutationFn: (v: { id: string; input: Parameters<typeof updateCrmContact>[1] }) => updateCrmContact(v.id, v.input),
       onSuccess: invalidate,
     }),
+    deleteContact: useMutation({ mutationFn: (id: string) => deleteCrmContact(id), onSuccess: invalidate }),
     updateCompany: useMutation({
       mutationFn: (v: { id: string; input: Parameters<typeof updateCrmCompany>[1] }) => updateCrmCompany(v.id, v.input),
+      onSuccess: invalidate,
+    }),
+    deleteCompany: useMutation({ mutationFn: (id: string) => deleteCrmCompany(id), onSuccess: invalidate }),
+    updateDealOwnership: useMutation({
+      mutationFn: (v: { id: string; input: { ownerUserId?: string | null; ownerTeamId?: string | null } }) =>
+        updateDealOwnership(v.id, v.input),
       onSuccess: invalidate,
     }),
     createNote: useMutation({

@@ -4,6 +4,7 @@ import { Module, type OnModuleInit } from '@nestjs/common';
 import { AuditBeforeStateRegistry, tableRowLoader } from '../../core/audit/__init__.js';
 import { AuthModule } from '../../core/auth/auth.module.js';
 import { PortRegistry } from '../../core/ports/port-registry.js';
+import { TeamsModule } from '../teams/teams.module.js';
 import { UsersModule } from '../users/users.module.js';
 
 import { MembershipsController } from './api/index.js';
@@ -21,7 +22,7 @@ import { DrizzleMembershipRepository } from './infrastructure/repositories/drizz
 import { INVITATION_REPOSITORY, MEMBERSHIP_REPOSITORY } from './ports/index.js';
 
 @Module({
-  imports: [AuthModule, UsersModule],
+  imports: [AuthModule, UsersModule, TeamsModule],
   controllers: [MembershipsController],
   providers: [
     // Repositories

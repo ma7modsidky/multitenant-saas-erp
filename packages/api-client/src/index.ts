@@ -372,6 +372,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/organizations/{orgId}/teams': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['TeamsController_list'];
+    put?: never;
+    post: operations['TeamsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/organizations/{orgId}/teams/{teamId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations['TeamsController_delete'];
+    options?: never;
+    head?: never;
+    patch: operations['TeamsController_update'];
+    trace?: never;
+  };
+  '/v1/organizations/{orgId}/teams/{teamId}/members': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['TeamsController_addMember'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/organizations/{orgId}/teams/{teamId}/members/{userId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations['TeamsController_removeMember'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/organizations/{orgId}/roles': {
     parameters: {
       query?: never;
@@ -974,7 +1038,7 @@ export interface paths {
     get: operations['ContactsController_getById'];
     put?: never;
     post?: never;
-    delete?: never;
+    delete: operations['ContactsController_delete'];
     options?: never;
     head?: never;
     patch: operations['ContactsController_update'];
@@ -1022,7 +1086,7 @@ export interface paths {
     get: operations['CompaniesController_getById'];
     put?: never;
     post?: never;
-    delete?: never;
+    delete: operations['CompaniesController_delete'];
     options?: never;
     head?: never;
     patch: operations['CompaniesController_update'];
@@ -1057,7 +1121,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    patch?: never;
+    patch: operations['DealsController_updateOwnership'];
     trace?: never;
   };
   '/v1/crm/deals/{id}/move-stage': {
@@ -1156,6 +1220,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/crm/pipelines': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PipelinesController_list'];
+    put?: never;
+    post: operations['PipelinesController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/crm/pipelines/default': {
     parameters: {
       query?: never;
@@ -1166,6 +1246,54 @@ export interface paths {
     get: operations['PipelinesController_getDefault'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/pipelines/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['PipelinesController_getById'];
+    put?: never;
+    post?: never;
+    delete: operations['PipelinesController_remove'];
+    options?: never;
+    head?: never;
+    patch: operations['PipelinesController_update'];
+    trace?: never;
+  };
+  '/v1/crm/pipelines/{id}/stages/reorder': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PipelinesController_reorderStages'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/crm/pipelines/{id}/set-default': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['PipelinesController_setDefault'];
     delete?: never;
     options?: never;
     head?: never;
@@ -2510,6 +2638,7 @@ export interface components {
       email: string;
       /** Format: uuid */
       roleId: string;
+      teamIds?: string[];
     };
     InvitationCreatedEnvelopeResponse: {
       data: {
@@ -2617,6 +2746,24 @@ export interface components {
         expiresAt: string;
         current: boolean;
       }[];
+    };
+    CreateTeamDto: {
+      name: string;
+      description?: string | null;
+      /** Format: uuid */
+      leaderUserId?: string | null;
+      memberUserIds?: string[];
+    };
+    UpdateTeamDto: {
+      name?: string;
+      description?: string | null;
+      /** Format: uuid */
+      leaderUserId?: string | null;
+      memberUserIds?: string[];
+    };
+    TeamMemberDto: {
+      /** Format: uuid */
+      userId: string;
     };
     RolesEnvelopeResponse: {
       data: {
@@ -3005,6 +3152,7 @@ export interface components {
           secondaryPhone: string | null;
           companyId: string | null;
           ownerUserId: string | null;
+          ownerTeamId?: string | null;
           preferredLocale: string | null;
           preferredCurrency: string | null;
           createdByUserId?: string | null;
@@ -3025,6 +3173,7 @@ export interface components {
         secondaryPhone: string | null;
         companyId: string | null;
         ownerUserId: string | null;
+        ownerTeamId?: string | null;
         preferredLocale: string | null;
         preferredCurrency: string | null;
         createdByUserId?: string | null;
@@ -3042,6 +3191,8 @@ export interface components {
       companyId?: string | null;
       /** Format: uuid */
       ownerUserId?: string | null;
+      /** Format: uuid */
+      ownerTeamId?: string | null;
       preferredLocale?: string | null;
       preferredCurrency?: string | null;
     };
@@ -3056,6 +3207,8 @@ export interface components {
       companyId?: string | null;
       /** Format: uuid */
       ownerUserId?: string | null;
+      /** Format: uuid */
+      ownerTeamId?: string | null;
       preferredLocale?: string | null;
       preferredCurrency?: string | null;
     };
@@ -3075,6 +3228,7 @@ export interface components {
         secondaryPhone: string | null;
         companyId: string | null;
         ownerUserId: string | null;
+        ownerTeamId?: string | null;
         preferredLocale: string | null;
         preferredCurrency: string | null;
         createdByUserId?: string | null;
@@ -3092,6 +3246,7 @@ export interface components {
             [key: string]: unknown;
           };
           ownerUserId: string | null;
+          ownerTeamId?: string | null;
           createdByUserId?: string | null;
           updatedByUserId?: string | null;
         }[];
@@ -3110,6 +3265,7 @@ export interface components {
           [key: string]: unknown;
         };
         ownerUserId: string | null;
+        ownerTeamId?: string | null;
         createdByUserId?: string | null;
         updatedByUserId?: string | null;
       };
@@ -3124,6 +3280,8 @@ export interface components {
       };
       /** Format: uuid */
       ownerUserId?: string | null;
+      /** Format: uuid */
+      ownerTeamId?: string | null;
     };
     UpdateCompanyDto: {
       name?: string;
@@ -3135,6 +3293,8 @@ export interface components {
       };
       /** Format: uuid */
       ownerUserId?: string | null;
+      /** Format: uuid */
+      ownerTeamId?: string | null;
     };
     DealListEnvelopeResponse: {
       data: {
@@ -3158,6 +3318,7 @@ export interface components {
           closedAt: string | null;
           expectedCloseDate: string | null;
           ownerUserId: string | null;
+          ownerTeamId?: string | null;
           createdByUserId?: string | null;
           updatedByUserId?: string | null;
           createdAt?: string | null;
@@ -3190,6 +3351,7 @@ export interface components {
         closedAt: string | null;
         expectedCloseDate: string | null;
         ownerUserId: string | null;
+        ownerTeamId?: string | null;
         createdByUserId?: string | null;
         updatedByUserId?: string | null;
         createdAt?: string | null;
@@ -3214,6 +3376,14 @@ export interface components {
       expectedCloseDate?: string | null;
       /** Format: uuid */
       ownerUserId?: string | null;
+      /** Format: uuid */
+      ownerTeamId?: string | null;
+    };
+    UpdateDealOwnershipDto: {
+      /** Format: uuid */
+      ownerUserId?: string | null;
+      /** Format: uuid */
+      ownerTeamId?: string | null;
     };
     MoveDealStageDto: {
       /** Format: uuid */
@@ -3237,6 +3407,7 @@ export interface components {
           relatedType: string | null;
           relatedId: string | null;
           assignedToUserId: string | null;
+          assignedTeamId?: string | null;
           relatedName?: string | null;
           dealStageId?: string | null;
           dealStageNameI18n?: {
@@ -3264,6 +3435,8 @@ export interface components {
       relatedId?: string | null;
       /** Format: uuid */
       assignedToUserId?: string | null;
+      /** Format: uuid */
+      assignedTeamId?: string | null;
     };
     ActivityEnvelopeResponse: {
       data: {
@@ -3276,6 +3449,7 @@ export interface components {
         relatedType: string | null;
         relatedId: string | null;
         assignedToUserId: string | null;
+        assignedTeamId?: string | null;
         relatedName?: string | null;
         dealStageId?: string | null;
         dealStageNameI18n?: {
@@ -3295,6 +3469,52 @@ export interface components {
       dueAt?: string | null;
       /** Format: uuid */
       assignedToUserId?: string | null;
+      /** Format: uuid */
+      assignedTeamId?: string | null;
+    };
+    PipelineListEnvelopeResponse: {
+      data: {
+        id: string;
+        nameI18n: {
+          [key: string]: string;
+        };
+        isDefault: boolean;
+        ownerTeamId?: string | null;
+        stages: {
+          id: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          position: number;
+          probability: number;
+          isWon: boolean;
+          isLost: boolean;
+          successPercent?: number;
+          resolvedDeals?: number;
+        }[];
+      }[];
+    };
+    PipelineEnvelopeResponse: {
+      data: {
+        id: string;
+        nameI18n: {
+          [key: string]: string;
+        };
+        isDefault: boolean;
+        ownerTeamId?: string | null;
+        stages: {
+          id: string;
+          nameI18n: {
+            [key: string]: string;
+          };
+          position: number;
+          probability: number;
+          isWon: boolean;
+          isLost: boolean;
+          successPercent?: number;
+          resolvedDeals?: number;
+        }[];
+      };
     };
     CreateNoteDto: {
       body: string;
@@ -4887,6 +5107,138 @@ export interface operations {
       };
     };
   };
+  TeamsController_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Teams with their member user ids */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateTeamDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        teamId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        teamId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateTeamDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_addMember: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        teamId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TeamMemberDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_removeMember: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        teamId: string;
+        userId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   RolesController_listRoles: {
     parameters: {
       query?: never;
@@ -5792,6 +6144,11 @@ export interface operations {
         sortDir: string;
         page: string;
         pageSize: string;
+        ownerUserId: string;
+        unassigned: string;
+        createdFrom: string;
+        scope: string;
+        pool: string;
       };
       header?: never;
       path?: never;
@@ -5853,6 +6210,25 @@ export interface operations {
       };
     };
   };
+  ContactsController_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   ContactsController_update: {
     parameters: {
       query?: never;
@@ -5909,6 +6285,11 @@ export interface operations {
         sortDir: string;
         page: string;
         pageSize: string;
+        ownerUserId: string;
+        unassigned: string;
+        createdFrom: string;
+        scope: string;
+        pool: string;
       };
       header?: never;
       path?: never;
@@ -5970,6 +6351,25 @@ export interface operations {
       };
     };
   };
+  CompaniesController_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   CompaniesController_update: {
     parameters: {
       query?: never;
@@ -5999,6 +6399,7 @@ export interface operations {
     parameters: {
       query: {
         search: string;
+        pipelineId: string;
         stageId: string;
         status: string;
         fromDate: string;
@@ -6007,6 +6408,10 @@ export interface operations {
         sortDir: string;
         page: string;
         pageSize: string;
+        scope: string;
+        unassignedUser: string;
+        pool: string;
+        createdFrom: string;
       };
       header?: never;
       path?: never;
@@ -6057,6 +6462,31 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DealEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  DealsController_updateOwnership: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateDealOwnershipDto'];
+      };
+    };
     responses: {
       200: {
         headers: {
@@ -6152,6 +6582,9 @@ export interface operations {
         sortDir: string;
         page: string;
         pageSize: string;
+        scope: string;
+        pool: string;
+        createdFrom: string;
       };
       header?: never;
       path?: never;
@@ -6259,6 +6692,42 @@ export interface operations {
       };
     };
   };
+  PipelinesController_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PipelineListEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PipelinesController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   PipelinesController_getDefault: {
     parameters: {
       query?: never;
@@ -6269,6 +6738,105 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PipelineEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PipelinesController_getById: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PipelineEnvelopeResponse'];
+        };
+      };
+    };
+  };
+  PipelinesController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PipelinesController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PipelinesController_reorderStages: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PipelinesController_setDefault: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };

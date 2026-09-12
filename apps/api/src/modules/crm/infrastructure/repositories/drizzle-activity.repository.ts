@@ -42,12 +42,12 @@ export class DrizzleActivityRepository implements ActivityRepository {
       sql`
         INSERT INTO ${this.table}
           (id, organization_id, type, subject, due_at, completed_at,
-           related_type, related_id, assigned_to,
+           related_type, related_id, assigned_to, assigned_team_id,
            created_at, updated_at, created_by, updated_by)
         VALUES
           (${data.id}, ${data.organizationId}, ${data.type}, ${data.subject},
            ${toDbDate(data.dueAt)}, ${toDbDate(data.completedAt)},
-           ${data.relatedType}, ${data.relatedId}, ${data.assignedTo},
+           ${data.relatedType}, ${data.relatedId}, ${data.assignedTo}, ${data.assignedTeamId ?? null},
            ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)}, ${data.createdBy}, ${data.updatedBy})
         RETURNING *
       `,
@@ -68,6 +68,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
     if (data.relatedType !== undefined) setFragments.push(sql`related_type = ${data.relatedType}`);
     if (data.relatedId !== undefined) setFragments.push(sql`related_id = ${data.relatedId}`);
     if (data.assignedTo !== undefined) setFragments.push(sql`assigned_to = ${data.assignedTo}`);
+    if (data.assignedTeamId !== undefined) setFragments.push(sql`assigned_team_id = ${data.assignedTeamId}`);
     if (data.updatedBy !== undefined) setFragments.push(sql`updated_by = ${data.updatedBy}`);
 
     const setClause = sql.join(setFragments, sql.raw(', '));
@@ -99,6 +100,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
       relatedType: (row.related_type as string | null) ?? null,
       relatedId: (row.related_id as string | null) ?? null,
       assignedTo: (row.assigned_to as string | null) ?? null,
+      assignedTeamId: (row.assigned_team_id as string | null) ?? null,
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,
       createdBy: (row.created_by as string | null) ?? null,

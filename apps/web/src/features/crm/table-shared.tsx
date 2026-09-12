@@ -6,13 +6,24 @@
 // behaves; `SortHeader` renders a sortable column header; `ViewToggle` is the
 // Cards/Table switch that appears on both the card and table pages.
 
+import { Download, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ArrowDown, ArrowUp, ArrowUpDown, LayoutGrid, List } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { crmErrorKey } from './errors';
+
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Select, SelectItem } from '@/components/ui/select';
 
 import Link from 'next/link';
+
+import { useSession } from '@/lib/auth/session-context';
+import { hasPermission } from '@/lib/permissions';
+
+import { useOrgMembers, useTeams, type CrmListPreset } from './hooks';
 
 export type SortDir = 'asc' | 'desc';
 
@@ -170,5 +181,183 @@ export function ViewToggle({
         </Link>
       </Button>
     </div>
+  );
+}
+
+const PRESET_ITEMS: Array<{ key: CrmListPreset; labelKey: string }> = [
+  { key: 'all', labelKey: 'presets.all' },
+  { key: 'mine', labelKey: 'presets.mine' },
+  { key: 'teamPool', labelKey: 'presets.teamPool' },
+  { key: 'unassigned', labelKey: 'presets.unassigned' },
+  { key: 'recent', labelKey: 'presets.recent' },
+];
+
+/**
+ * Unified ownership filter chips (TEAM-4): All / Assigned to me / Team pool /
+ * Unassigned / Created recently. The server clamps every choice to the
+ * caller's ceiling, so one control covers members, leaders, and admins —
+ * and "My work" no longer duplicates "Assigned to me".
+ */
+export function FilterPresetChips({
+  value,
+  onChange,
+}: {
+  value: CrmListPreset;
+  onChange: (preset: CrmListPreset) => void;
+}) {
+  const t = useTranslations('modules.crm');
+  return (
+    <div role="group" className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1">
+      {PRESET_ITEMS.map((preset) => (
+        <Button
+          key={preset.key}
+          variant={value === preset.key ? 'secondary' : 'ghost'}
+          size="sm"
+          className="h-8"
+          aria-pressed={value === preset.key}
+          onClick={() => onChange(preset.key)}
+        >
+          {t(preset.labelKey)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Bulk-actions bar for checkbox selections. Appears once at least one row is
+ * selected; hosts Export, Delete selected (confirm-dialog guarded), and
+ * Reassign owner (active-members select), plus any entity-specific action via
+ * `children` (e.g. "Merge selected" on contacts).
+ */
+export function BulkActionsBar({
+  count,
+  canWrite,
+  busy,
+  failures,
+  lastError,
+  onExport,
+  onDelete,
+  onReassign,
+  onClear,
+  children,
+}: {
+  count: number;
+  /** Caller resolves the module write permission; false hides destructive actions. */
+  canWrite: boolean;
+  busy: boolean;
+  failures: number;
+  lastError?: unknown;
+  onExport: () => void;
+  onDelete: () => Promise<unknown>;
+  onReassign: (ownerUserId: string) => Promise<unknown>;
+  onClear: () => void;
+  children?: React.ReactNode;
+}) {
+  const t = useTranslations('modules.crm');
+  const { data: members } = useOrgMembers();
+  const { data: teams } = useTeams();
+  const { user, permissions } = useSession();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const isAdmin = hasPermission(permissions ?? [], 'platform:members:assign-role');
+  // For team-scoped reassign, show only members of my teams (leader/member) unless admin
+  const myTeamMemberIds = (() => {
+    if (isAdmin) return null; // null = show all
+    const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    const ids = new Set<string>();
+    for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
+    // Always include self even if not in team list edge
+    if (user?.id) ids.add(user.id);
+    return [...ids];
+  })();
+  const activeMembers = (members ?? [])
+    .filter((member) => member.status === 'active')
+    .filter((member) => !myTeamMemberIds || myTeamMemberIds.includes(member.userId));
+  const succeeded = count - failures;
+  const errorMessage = (() => {
+    if (!lastError) return null;
+    try {
+      return t(crmErrorKey(lastError));
+    } catch {
+      return null;
+    }
+  })();
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+        <p className="text-sm font-medium" aria-live="polite">
+          {t('bulk.selectedCount', { count })}
+        </p>
+        <div className="ms-auto flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" disabled={busy} onClick={onExport}>
+            <Download />
+            {t('bulk.export')}
+          </Button>
+          {canWrite && (
+            <>
+              {children}
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  if (value === '__unassigned__') void onReassign('__unassigned__');
+                  else if (value) void onReassign(value);
+                }}
+                aria-label={t('bulk.reassign')}
+                className="w-44"
+                disabled={busy}
+              >
+                <SelectItem value="">{t('bulk.reassign')}</SelectItem>
+                <SelectItem value="__unassigned__">{t('common.none')}</SelectItem>
+                {activeMembers.map((member) => (
+                  <SelectItem key={member.userId} value={member.userId}>
+                    {member.name || member.email}
+                  </SelectItem>
+                ))}
+              </Select>
+              <Button variant="destructive" size="sm" disabled={busy} onClick={() => setConfirmOpen(true)}>
+                <Trash2 />
+                {t('bulk.delete')}
+              </Button>
+            </>
+          )}
+          <Button variant="ghost" size="sm" disabled={busy} onClick={onClear}>
+            {t('contacts.clearSelection')}
+          </Button>
+        </div>
+      </div>
+      {failures > 0 && failures < count && (
+        <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <p className="font-medium">{t('bulk.partialFailed', { failed: failures, total: count, succeeded })}</p>
+          {errorMessage && <p className="mt-1 text-xs opacity-90">{errorMessage}</p>}
+        </div>
+      )}
+      {failures > 0 && failures === count && (
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="font-medium">{t('bulk.allFailed')}</p>
+          {errorMessage ? (
+            <p className="mt-1 text-xs opacity-90">{errorMessage}</p>
+          ) : (
+            <p className="mt-1 text-xs opacity-90">{t('bulk.failed', { count: failures })}</p>
+          )}
+        </div>
+      )}
+      <ConfirmDialog
+        open={confirmOpen}
+        title={t('bulk.deleteTitle')}
+        description={t('bulk.deleteBody', { count })}
+        confirmLabel={t('bulk.deleteConfirm')}
+        cancelLabel={t('common.cancel')}
+        closeLabel={t('common.close')}
+        destructive
+        loading={busy}
+        onConfirm={() => {
+          void onDelete();
+          setConfirmOpen(false);
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </>
   );
 }

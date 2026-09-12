@@ -52,15 +52,30 @@ export class DrizzlePipelineRepository implements PipelineRepository {
     return this.rowToPipeline(row, stages);
   }
 
+  async listAll(tx?: TxOrDb): Promise<PipelineData[]> {
+    const db = this.getDb(tx);
+    const rows = await db.execute<Record<string, unknown>>(
+      sql`SELECT * FROM ${this.pipelinesTable}
+          WHERE deleted_at IS NULL
+          ORDER BY is_default DESC, created_at ASC`,
+    );
+    const pipelines: PipelineData[] = [];
+    for (const row of rows) {
+      const stages = await this.loadStages(db, row.id as string);
+      pipelines.push(this.rowToPipeline(row, stages));
+    }
+    return pipelines;
+  }
+
   async insert(data: PipelineData, tx?: TxOrDb): Promise<PipelineData> {
     const db = this.getDb(tx);
     const rows = await db.execute<Record<string, unknown>>(
       sql`
         INSERT INTO ${this.pipelinesTable}
-          (id, organization_id, name_i18n, is_default, created_at, updated_at, created_by, updated_by)
+          (id, organization_id, name_i18n, is_default, owner_team_id, created_at, updated_at, created_by, updated_by)
         VALUES
           (${data.id}, ${data.organizationId}, ${JSON.stringify(data.nameI18n)}::jsonb,
-           ${data.isDefault}, ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)},
+           ${data.isDefault}, ${data.ownerTeamId ?? null}, ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)},
            ${data.createdBy}, ${data.updatedBy})
         RETURNING *
       `,
@@ -87,6 +102,75 @@ export class DrizzlePipelineRepository implements PipelineRepository {
     return this.rowToPipeline(row, stages);
   }
 
+  async update(
+    id: string,
+    data: Partial<Pick<PipelineData, 'nameI18n' | 'ownerTeamId' | 'updatedBy'>>,
+    tx?: TxOrDb,
+  ): Promise<PipelineData | undefined> {
+    const db = this.getDb(tx);
+    const setFragments: ReturnType<typeof sql>[] = [sql`updated_at = NOW()`];
+    if (data.nameI18n !== undefined) setFragments.push(sql`name_i18n = ${JSON.stringify(data.nameI18n)}::jsonb`);
+    if (data.ownerTeamId !== undefined) setFragments.push(sql`owner_team_id = ${data.ownerTeamId}`);
+    if (data.updatedBy !== undefined) setFragments.push(sql`updated_by = ${data.updatedBy}`);
+    const setClause = sql.join(setFragments, sql.raw(', '));
+    const rows = await db.execute<Record<string, unknown>>(
+      sql`UPDATE ${this.pipelinesTable} SET ${setClause}
+          WHERE id = ${id} AND deleted_at IS NULL
+          RETURNING *`,
+    );
+    const row = rows[0];
+    if (!row) return undefined;
+    const stages = await this.loadStages(db, id);
+    return this.rowToPipeline(row, stages);
+  }
+
+  async setDefault(id: string, tx?: TxOrDb): Promise<void> {
+    const db = this.getDb(tx);
+    // The partial unique index on (organization_id) WHERE is_default enforces
+    // CRM-3; clearing others first keeps the flip valid inside the caller's
+    // transaction.
+    await db.execute(sql`UPDATE ${this.pipelinesTable} SET is_default = false, updated_at = NOW()
+                        WHERE is_default = true AND deleted_at IS NULL`);
+    await db.execute(sql`UPDATE ${this.pipelinesTable} SET is_default = true, updated_at = NOW()
+                        WHERE id = ${id} AND deleted_at IS NULL`);
+  }
+
+  async softDelete(id: string, tx?: TxOrDb): Promise<void> {
+    const db = this.getDb(tx);
+    await db.execute(
+      sql`UPDATE ${this.pipelinesTable} SET deleted_at = NOW(), updated_at = NOW()
+          WHERE id = ${id} AND deleted_at IS NULL`,
+    );
+  }
+
+  async reorderStages(
+    pipelineId: string,
+    orderedStageIds: readonly string[],
+    updatedBy: string | null,
+    tx?: TxOrDb,
+  ): Promise<PipelineData | undefined> {
+    const db = this.getDb(tx);
+    // One UPDATE per stage; the caller's transaction makes the rewrite
+    // atomic (CRM-5) — a failure rolls every position back together.
+    for (let position = 0; position < orderedStageIds.length; position++) {
+      await db.execute(
+        sql`UPDATE ${this.stagesTable}
+            SET position = ${position}, updated_at = NOW(), updated_by = ${updatedBy}
+            WHERE pipeline_id = ${pipelineId} AND id = ${orderedStageIds[position]} AND deleted_at IS NULL`,
+      );
+    }
+    return this.findById(pipelineId, tx);
+  }
+
+  async countOpenDeals(pipelineId: string, tx?: TxOrDb): Promise<number> {
+    const db = this.getDb(tx);
+    const rows = await db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM crm_deals
+          WHERE pipeline_id = ${pipelineId} AND status = 'open' AND deleted_at IS NULL`,
+    );
+    return Number(rows[0]?.n ?? 0);
+  }
+
   private async loadStages(db: PostgresJsDatabase, pipelineId: string): Promise<PipelineStageData[]> {
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT * FROM ${this.stagesTable}
@@ -102,6 +186,7 @@ export class DrizzlePipelineRepository implements PipelineRepository {
       organizationId: row.organization_id as string,
       nameI18n: row.name_i18n as Record<string, string>,
       isDefault: row.is_default as boolean,
+      ownerTeamId: (row.owner_team_id as string | null) ?? null,
       stages,
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,

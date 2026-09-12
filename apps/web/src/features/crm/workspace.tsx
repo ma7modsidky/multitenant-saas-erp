@@ -7,7 +7,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Handshake,
+  Mail,
   Merge,
+  Phone,
   Plus,
   Search,
   User,
@@ -17,8 +19,7 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Badge } from '@/components/ui/badge';
@@ -37,21 +38,25 @@ import { DueBadge } from './due-badge';
 import { crmErrorKey } from './errors';
 import { ActivityForm, DealForm, Field, FormCard } from './forms';
 import {
+  presetListParams,
+  scopePresetListParams,
   useActivitiesList,
   useCompaniesList,
   useContactsList,
   useCrmData,
+  usePipelines,
+  useTeams,
   useCrmMutations,
   useCurrencies,
   useDealsBoard,
   useOrgBaseCurrency,
   useOrgMembers,
-  type DealColumnDateFilter,
+  type CrmListPreset,
 } from './hooks';
 import { formatMinorAmount } from './money';
 import { MergeContactsDialog } from './merge-contacts-dialog';
 import { MoveDealDialog } from './move-deal-dialog';
-import { ViewToggle } from './table-shared';
+import { FilterPresetChips, ViewToggle } from './table-shared';
 import { companyFormSchema, contactFormSchema, type CompanyFormValues, type ContactFormValues } from './schemas';
 import { StageMenu } from './stage-menu';
 
@@ -62,7 +67,7 @@ const ACTIVITY_ASSIGNEE_UNASSIGNED = '__unassigned__';
 
 export function CrmWorkspace({ view }: { view: CrmView }) {
   const t = useTranslations('modules.crm');
-  const { user } = useSession();
+  const { user, permissions } = useSession();
   const data = useCrmData();
   const mutations = useCrmMutations();
   const [showForm, setShowForm] = useState(false);
@@ -71,14 +76,21 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
   const [contactSearch, setContactSearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [contactPage, setContactPage] = useState(1);
+  const [contactPreset, setContactPreset] = useState<CrmListPreset>('all');
   const [companySearch, setCompanySearch] = useState('');
   const [companyPage, setCompanyPage] = useState(1);
+  const [companyPreset, setCompanyPreset] = useState<CrmListPreset>('all');
+  // TEAM-4: ownership filtering on the deals board and activities cards uses
+  // the SAME unified preset chips as the contacts/companies lists — the server
+  // clamps each preset to the caller's ceiling, so no scope state is needed.
+  const [dealPreset, setDealPreset] = useState<CrmListPreset>('all');
   const [dealSearch, setDealSearch] = useState('');
-  // Per-column date presets — each column defaults to today's deals; picking
-  // 'all' navigates to the table view instead of loading every deal.
-  const [dealColumnFilters, setDealColumnFilters] = useState<Record<string, DealColumnDateFilter>>({});
+  // CRM-17: which pipeline the kanban shows. Empty = the org default (first
+  // in the list — the API orders the default first).
+  const [dealPipelineId, setDealPipelineId] = useState('');
+  const [activityPreset, setActivityPreset] = useState<CrmListPreset>('all');
   const [activitySearch, setActivitySearch] = useState('');
-  // Unfiltered by default — activities due on any date (or undated) all
+  // Unfiltered by default ? activities due on any date (or undated) all
   // appear; the From/To inputs narrow the range when the user sets them.
   const [activityFromDate, setActivityFromDate] = useState('');
   const [activityToDate, setActivityToDate] = useState('');
@@ -92,23 +104,29 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
   const contactsList = useContactsList({
     page: contactPage,
     pageSize: CRM_PAGE_SIZE,
+    ...presetListParams(contactPreset, user?.id),
     ...(contactSearch ? { search: contactSearch } : {}),
     ...(companyFilter ? { companyId: companyFilter } : {}),
   });
   const companiesList = useCompaniesList({
     page: companyPage,
     pageSize: CRM_PAGE_SIZE,
+    ...presetListParams(companyPreset, user?.id),
     ...(companySearch ? { search: companySearch } : {}),
   });
-  // The board fetches one query per pipeline stage with that column's date
-  // range — each response carries its own exact count and value total
-  // (server-side sum, independent of the API's 100-row clamp). The search box
-  // narrows every column. "All time" deliberately has no column state: it
-  // navigates to the table view (see DealsSection).
-  const dealsBoard = useDealsBoard(data.pipeline.data?.stages, dealColumnFilters, dealSearch);
+  // CRM-17: the pipelines the caller can see, and the one currently on the
+  // board (the default when nothing is picked).
+  const pipelines = usePipelines();
+  const activePipeline = pipelines.data?.find((p) => p.id === dealPipelineId) ?? pipelines.data?.[0] ?? null;
+  // The board fetches one query per pipeline stage — each response carries its
+  // own exact count and value total (server-side sum, independent of the API's
+  // 100-row clamp). Columns are All Time by default (no date bounds); the
+  // search box and scope/pool toggles narrow every column.
+  const dealsBoard = useDealsBoard(activePipeline?.stages, dealSearch, dealPreset, activePipeline?.id);
   const activitiesList = useActivitiesList({
     page: activityPage,
     pageSize: CRM_PAGE_SIZE,
+    ...scopePresetListParams(activityPreset),
     ...(activitySearch ? { search: activitySearch } : {}),
     ...(activityFromDate ? { fromDate: activityFromDate } : {}),
     ...(activityToDate ? { toDate: activityToDate } : {}),
@@ -159,7 +177,7 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
         <div className="flex flex-wrap gap-2">
           {view === 'activities' && user?.id && (
             <Button
-              // `secondary` reads as a pressed filter chip — distinct from the
+              // `secondary` reads as a pressed filter chip ? distinct from the
               // primary "Add activity" action next to it.
               variant={activityAssignee === user.id ? 'secondary' : 'outline'}
               aria-pressed={activityAssignee === user.id}
@@ -221,9 +239,11 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
                 phone: v.phone || null,
                 secondaryPhone: v.secondaryPhone || null,
                 companyId: v.companyId || null,
+                ...(v.ownerUserId ? { ownerUserId: v.ownerUserId } : v.ownerUserId === '' ? { ownerUserId: null } : {}),
+                ...(v.ownerTeamId ? { ownerTeamId: v.ownerTeamId } : v.ownerTeamId === '' ? { ownerTeamId: null } : {}),
                 preferredLocale: v.preferredLocale || null,
                 preferredCurrency: v.preferredCurrency || null,
-              }),
+              } as never),
               () => setShowForm(false),
             )
           }
@@ -246,7 +266,9 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
                   postalCode: v.addressPostalCode || null,
                   country: v.addressCountry || null,
                 },
-              }),
+                ...(v.ownerUserId ? { ownerUserId: v.ownerUserId } : v.ownerUserId === '' ? { ownerUserId: null } : {}),
+                ...(v.ownerTeamId ? { ownerTeamId: v.ownerTeamId } : v.ownerTeamId === '' ? { ownerTeamId: null } : {}),
+              } as never),
               () => setShowForm(false),
             )
           }
@@ -265,7 +287,20 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
                 contactId: v.contactId || null,
                 companyId: v.companyId || null,
                 value: { amountMinor: v.amountMinor, currency: v.currency },
-              }),
+                // CRM-17: '' = the org default pipeline / its first stage.
+                ...(v.pipelineId ? { pipelineId: v.pipelineId } : {}),
+                ...(v.stageId ? { stageId: v.stageId } : {}),
+                ...((v as Record<string, string>).ownerUserId
+                  ? { ownerUserId: (v as Record<string, string>).ownerUserId }
+                  : (v as Record<string, string>).ownerUserId === ''
+                    ? { ownerUserId: null }
+                    : {}),
+                ...((v as Record<string, string>).ownerTeamId
+                  ? { ownerTeamId: (v as Record<string, string>).ownerTeamId }
+                  : (v as Record<string, string>).ownerTeamId === ''
+                    ? { ownerTeamId: null }
+                    : {}),
+              } as never),
               () => setShowForm(false),
             )
           }
@@ -305,6 +340,11 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
             setCompanyFilter(value);
             setContactPage(1);
           }}
+          preset={contactPreset}
+          onPreset={(preset) => {
+            setContactPreset(preset);
+            setContactPage(1);
+          }}
           page={contactPage}
           onPage={setContactPage}
         />
@@ -312,9 +352,15 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
       {view === 'companies' && (
         <CompaniesSection
           list={companiesList}
+          deals={data.deals.data?.items ?? []}
           search={companySearch}
           onSearch={(value) => {
             setCompanySearch(value);
+            setCompanyPage(1);
+          }}
+          preset={companyPreset}
+          onPreset={(preset) => {
+            setCompanyPreset(preset);
             setCompanyPage(1);
           }}
           page={companyPage}
@@ -324,11 +370,20 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
       {view === 'deals' && (
         <DealsSection
           board={dealsBoard}
-          pipeline={data.pipeline.data}
+          pipeline={activePipeline}
+          pipelines={pipelines.data}
+          activePipelineId={activePipeline?.id ?? ''}
+          onPipeline={setDealPipelineId}
           search={dealSearch}
           onSearch={setDealSearch}
-          dateFilters={dealColumnFilters}
-          onDateFilter={(stageId, filter) => setDealColumnFilters((prev) => ({ ...prev, [stageId]: filter }))}
+          preset={dealPreset}
+          onPreset={setDealPreset}
+          onClaim={(dealId) => {
+            void submit(
+              mutations.updateDealOwnership.mutateAsync({ id: dealId, input: { ownerUserId: user?.id ?? null } }),
+              () => {},
+            );
+          }}
           movePending={mutations.moveDeal.isPending}
           onMove={(dealId, stageId, lostReasonCode) =>
             submit(
@@ -344,6 +399,11 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
           search={activitySearch}
           onSearch={(value) => {
             setActivitySearch(value);
+            setActivityPage(1);
+          }}
+          preset={activityPreset}
+          onPreset={(preset) => {
+            setActivityPreset(preset);
             setActivityPage(1);
           }}
           fromDate={activityFromDate}
@@ -379,12 +439,28 @@ export function ContactForm({
 }: {
   onSubmit: (v: ContactFormValues) => Promise<unknown>;
   pending: boolean;
-  /** Optional close button next to the submit action — closes the form. */
+  /** Optional close button next to the submit action ? closes the form. */
   onClose?: () => void;
 }) {
   const t = useTranslations('modules.crm');
   const { data: currencies } = useCurrencies();
   const data = useCrmData();
+  const { user, permissions } = useSession();
+  const { data: teams } = useTeams();
+  const { data: membersData } = useOrgMembers();
+  const isAdminForOwner = hasPermission(permissions ?? [], 'platform:members:assign-role');
+  const myTeamMemberIds = (() => {
+    if (isAdminForOwner) return null;
+    const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    const ids = new Set<string>();
+    for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
+    if (user?.id) ids.add(user.id);
+    return [...ids];
+  })();
+  const teamMembers = (membersData ?? [])
+    .filter((m) => m.status === 'active')
+    .filter((m) => !myTeamMemberIds || myTeamMemberIds.includes(m.userId));
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
@@ -396,10 +472,19 @@ export function ContactForm({
       companyId: '',
       preferredLocale: '',
       preferredCurrency: '',
+      ownerUserId: user?.id ?? '',
+      ownerTeamId: teams?.[0]?.id ?? '',
     },
   });
   const phoneError = form.formState.errors.phone ? t('errors.invalidPhone') : undefined;
   const secondaryPhoneError = form.formState.errors.secondaryPhone ? t('errors.invalidPhone') : undefined;
+  // Default owner to current user + primary team once session/teams load
+  useEffect(() => {
+    if (user?.id && !form.getValues('ownerUserId')) form.setValue('ownerUserId', user.id);
+  }, [user?.id]);
+  useEffect(() => {
+    if (teams?.[0]?.id && !form.getValues('ownerTeamId')) form.setValue('ownerTeamId', teams[0].id);
+  }, [teams]);
   return (
     <FormCard>
       <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}>
@@ -432,6 +517,34 @@ export function ContactForm({
             {data.companies.data?.items?.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.name}
+              </SelectItem>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('fields.owner')} error={undefined}>
+          <Select
+            value={form.watch('ownerUserId') ?? ''}
+            onValueChange={(v) => form.setValue('ownerUserId', v)}
+            {...form.register('ownerUserId')}
+          >
+            <SelectItem value="">{t('common.none')}</SelectItem>
+            {teamMembers.map((m) => (
+              <SelectItem key={m.userId} value={m.userId}>
+                {m.name || m.email}
+              </SelectItem>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('fields.ownerTeam')} error={undefined}>
+          <Select
+            value={form.watch('ownerTeamId') ?? ''}
+            onValueChange={(v) => form.setValue('ownerTeamId', v)}
+            {...form.register('ownerTeamId')}
+          >
+            <SelectItem value="">{t('common.none')}</SelectItem>
+            {(teams ?? []).map((team) => (
+              <SelectItem key={team.id} value={team.id}>
+                {team.name}
               </SelectItem>
             ))}
           </Select>
@@ -484,10 +597,26 @@ export function CompanyForm({
 }: {
   onSubmit: (v: CompanyFormValues) => Promise<unknown>;
   pending: boolean;
-  /** Optional close button next to the submit action — closes the form. */
+  /** Optional close button next to the submit action ? closes the form. */
   onClose?: () => void;
 }) {
   const t = useTranslations('modules.crm');
+  const { user, permissions } = useSession();
+  const { data: teams } = useTeams();
+  const { data: membersData } = useOrgMembers();
+  const isAdminForOwner = hasPermission(permissions ?? [], 'platform:members:assign-role');
+  const myTeamMemberIds = (() => {
+    if (isAdminForOwner) return null;
+    const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    const ids = new Set<string>();
+    for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
+    if (user?.id) ids.add(user.id);
+    return [...ids];
+  })();
+  const teamMembers = (membersData ?? [])
+    .filter((m) => m.status === 'active')
+    .filter((m) => !myTeamMemberIds || myTeamMemberIds.includes(m.userId));
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companyFormSchema),
     defaultValues: {
@@ -499,8 +628,16 @@ export function CompanyForm({
       addressState: '',
       addressPostalCode: '',
       addressCountry: '',
+      ownerUserId: user?.id ?? '',
+      ownerTeamId: teams?.[0]?.id ?? '',
     },
   });
+  useEffect(() => {
+    if (user?.id && !form.getValues('ownerUserId')) form.setValue('ownerUserId', user.id);
+  }, [user?.id]);
+  useEffect(() => {
+    if (teams?.[0]?.id && !form.getValues('ownerTeamId')) form.setValue('ownerTeamId', teams[0].id);
+  }, [teams]);
   return (
     <FormCard>
       <form className="grid gap-4" onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}>
@@ -535,6 +672,36 @@ export function CompanyForm({
             </Field>
           </div>
         </fieldset>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label={t('fields.owner')} error={undefined}>
+            <Select
+              value={form.watch('ownerUserId') ?? ''}
+              onValueChange={(v) => form.setValue('ownerUserId', v)}
+              {...form.register('ownerUserId')}
+            >
+              <SelectItem value="">{t('common.none')}</SelectItem>
+              {teamMembers.map((m) => (
+                <SelectItem key={m.userId} value={m.userId}>
+                  {m.name || m.email}
+                </SelectItem>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('fields.ownerTeam')} error={undefined}>
+            <Select
+              value={form.watch('ownerTeamId') ?? ''}
+              onValueChange={(v) => form.setValue('ownerTeamId', v)}
+              {...form.register('ownerTeamId')}
+            >
+              <SelectItem value="">{t('common.none')}</SelectItem>
+              {(teams ?? []).map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </Select>
+          </Field>
+        </div>
         <div className="flex flex-wrap gap-2 justify-self-start">
           <Button loading={pending}>{t('companies.create')}</Button>
           {onClose && (
@@ -597,6 +764,8 @@ function ContactsSection({
   onSearch,
   companyFilter,
   onCompanyFilter,
+  preset,
+  onPreset,
   page,
   onPage,
 }: {
@@ -606,6 +775,8 @@ function ContactsSection({
   onSearch: (value: string) => void;
   companyFilter: string;
   onCompanyFilter: (value: string) => void;
+  preset: CrmListPreset;
+  onPreset: (preset: CrmListPreset) => void;
   page: number;
   onPage: (page: number) => void;
 }) {
@@ -623,19 +794,6 @@ function ContactsSection({
             className="ps-9"
           />
         </div>
-        <Select
-          value={companyFilter}
-          onValueChange={onCompanyFilter}
-          aria-label={t('contacts.filterCompany')}
-          className="w-48"
-        >
-          <SelectItem value="">{t('contacts.allCompanies')}</SelectItem>
-          {companies.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.name}
-            </SelectItem>
-          ))}
-        </Select>
         <ViewToggle
           cardsHref={`/${locale}/m/crm/contacts`}
           tableHref={`/${locale}/m/crm/contacts/table`}
@@ -643,6 +801,27 @@ function ContactsSection({
           cardsLabel={t('contacts.viewCards')}
           tableLabel={t('contacts.viewTable')}
         />
+      </div>
+      {/* Same two-row filter-bar shape as the other CRM list pages: search row,
+          then a single filter row with labeled controls. */}
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">{t('contacts.filterCompany')}</Label>
+          <Select
+            value={companyFilter}
+            onValueChange={onCompanyFilter}
+            aria-label={t('contacts.filterCompany')}
+            className="h-9 w-48"
+          >
+            <SelectItem value="">{t('contacts.allCompanies')}</SelectItem>
+            {companies.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </Select>
+        </div>
+        <FilterPresetChips value={preset} onChange={onPreset} />
       </div>
       <ContactList
         items={list.data?.items ?? []}
@@ -659,14 +838,25 @@ function ContactsSection({
 
 function CompaniesSection({
   list,
+  deals,
   search,
   onSearch,
+  preset,
+  onPreset,
   page,
   onPage,
 }: {
   list: ReturnType<typeof useCompaniesList>;
+  deals: Array<{
+    companyId: string | null;
+    status: 'open' | 'won' | 'lost';
+    value: { amountMinor: string; currency: string };
+    baseAmountMinor?: string | null;
+  }>;
   search: string;
   onSearch: (value: string) => void;
+  preset: CrmListPreset;
+  onPreset: (preset: CrmListPreset) => void;
   page: number;
   onPage: (page: number) => void;
 }) {
@@ -692,8 +882,14 @@ function CompaniesSection({
           tableLabel={t('companies.viewTable')}
         />
       </div>
+      {/* Same two-row filter-bar shape as the other CRM list pages: search row,
+          then a single filter row. */}
+      <div className="flex flex-wrap items-end gap-2">
+        <FilterPresetChips value={preset} onChange={onPreset} />
+      </div>
       <CompanyList
         items={list.data?.items ?? []}
+        deals={deals}
         loading={list.isPending}
         total={list.data?.total ?? 0}
         page={page}
@@ -707,25 +903,36 @@ function CompaniesSection({
 function DealsSection({
   board,
   pipeline,
+  pipelines,
+  activePipelineId,
+  onPipeline,
   search,
   onSearch,
-  dateFilters,
-  onDateFilter,
+  preset,
+  onPreset,
+  onClaim,
   movePending,
   onMove,
 }: {
   board: ReturnType<typeof useDealsBoard>;
-  pipeline: { stages: PipelineStage[] } | null | undefined;
+  /** The pipeline currently on the board (CRM-17). */
+  pipeline: { stages: PipelineStage[]; id?: string } | null | undefined;
+  /** Every pipeline visible to the caller (CRM-17 switcher). */
+  pipelines:
+    | Array<{ id: string; nameI18n: Record<string, string>; isDefault?: boolean; ownerTeamId?: string | null }>
+    | undefined;
+  activePipelineId: string;
+  onPipeline: (pipelineId: string) => void;
   search: string;
   onSearch: (value: string) => void;
-  dateFilters: Record<string, DealColumnDateFilter>;
-  onDateFilter: (stageId: string, filter: DealColumnDateFilter) => void;
+  preset: CrmListPreset;
+  onPreset: (preset: CrmListPreset) => void;
+  onClaim: (dealId: string) => void;
   movePending: boolean;
   onMove: (dealId: string, stageId: string, lostReasonCode?: string) => Promise<unknown>;
 }) {
   const t = useTranslations('modules.crm');
   const locale = useLocale();
-  const router = useRouter();
   const baseCurrency = useOrgBaseCurrency();
   const { data: currencies } = useCurrencies();
   const baseExponent = currencies?.find((c) => c.code === baseCurrency)?.exponent ?? 2;
@@ -741,7 +948,7 @@ function DealsSection({
             className="ps-9"
           />
         </div>
-        {/* Board / Table view switch — both pages carry it so the All-time
+        {/* Board / Table view switch ? both pages carry it so the All-time
             shortcut and the toggle always land on the matching view. */}
         <ViewToggle
           cardsHref={`/${locale}/m/crm/deals`}
@@ -751,16 +958,35 @@ function DealsSection({
           tableLabel={t('deals.viewTable')}
         />
       </div>
+      {/* Pipeline switcher + ownership chips share the filter row (CRM-17). */}
+      <div className="flex flex-wrap items-end gap-2">
+        {(pipelines?.length ?? 0) > 1 && (
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">{t('deals.pipeline')}</Label>
+            <Select
+              value={activePipelineId}
+              onValueChange={onPipeline}
+              aria-label={t('deals.pipeline')}
+              className="h-9 w-52"
+            >
+              {pipelines?.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {(p.nameI18n[locale] ?? p.nameI18n.en) + (p.isDefault ? t('deals.defaultSuffix') : '')}
+                </SelectItem>
+              ))}
+            </Select>
+          </div>
+        )}
+        <FilterPresetChips value={preset} onChange={onPreset} />
+      </div>
       <PipelineBoard
         pipeline={pipeline}
         board={board}
-        dateFilters={dateFilters}
-        onDateFilter={onDateFilter}
-        onAllTime={(stageId) => router.push(`/${locale}/m/crm/deals/table?stage=${stageId}`)}
         baseCurrency={baseCurrency}
         baseExponent={baseExponent}
         movePending={movePending}
         onMove={onMove}
+        onClaim={onClaim}
       />
     </div>
   );
@@ -770,6 +996,8 @@ function ActivitiesSection({
   list,
   search,
   onSearch,
+  preset,
+  onPreset,
   fromDate,
   toDate,
   onFromDate,
@@ -786,6 +1014,8 @@ function ActivitiesSection({
   list: ReturnType<typeof useActivitiesList>;
   search: string;
   onSearch: (value: string) => void;
+  preset: CrmListPreset;
+  onPreset: (preset: CrmListPreset) => void;
   fromDate: string;
   toDate: string;
   onFromDate: (value: string) => void;
@@ -796,7 +1026,7 @@ function ActivitiesSection({
   /** '' = all, 'open' = not completed, 'completed' = completed. */
   status: string;
   onStatus: (value: string) => void;
-  /** Current user id — powers the "Assigned to me" shortcut. */
+  /** Current user id ? powers the "Assigned to me" shortcut. */
   myUserId: string | undefined;
   page: number;
   onPage: (page: number) => void;
@@ -829,7 +1059,10 @@ function ActivitiesSection({
           tableLabel={t('activities.viewTable')}
         />
       </div>
-
+      {/* Ownership chips on their own row — the exact same component and
+          placement as the contacts/companies list pages (TEAM-4). The labeled
+          dropdown filters stay in the row below. */}
+      <FilterPresetChips value={preset} onChange={onPreset} />
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">{t('activities.assigneeFilter')}</Label>
@@ -921,6 +1154,7 @@ function ContactList({
   pageSize: number;
   onPage: (page: number) => void;
 }) {
+  const t = useTranslations('modules.crm');
   const locale = useLocale();
   if (total === 0 && !loading) return <Empty loading={false} />;
   return (
@@ -929,22 +1163,28 @@ function ContactList({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((item) => {
             const companyName = companies.find((c) => c.id === item.companyId)?.name;
+            // The card root is NOT a link so the mailto:/tel: quick actions
+            // stay separate interactive elements; the name carries navigation.
             return (
-              <Link
-                key={item.id}
-                href={`/${locale}/m/crm/contacts/${item.id}`}
-                className="group"
-                // Remember this list location so the detail page's Back button
-                // returns here (cards/table + filters), not a fixed default.
-                onClick={() =>
-                  sessionStorage.setItem('crm.contacts.back', `${window.location.pathname}${window.location.search}`)
-                }
-              >
+              <div key={item.id} className="group">
                 <Card className="h-full transition-colors group-hover:border-primary/50 group-hover:bg-accent">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle dir="auto" className="truncate">
-                        {item.firstName} {item.lastName}
+                        <Link
+                          href={`/${locale}/m/crm/contacts/${item.id}`}
+                          className="hover:underline"
+                          // Remember this list location so the detail page's
+                          // Back button returns here, not a fixed default.
+                          onClick={() =>
+                            sessionStorage.setItem(
+                              'crm.contacts.back',
+                              `${window.location.pathname}${window.location.search}`,
+                            )
+                          }
+                        >
+                          {item.firstName} {item.lastName}
+                        </Link>
                       </CardTitle>
                       {companyName && (
                         <Badge variant="outline" className="shrink-0 truncate text-xs">
@@ -954,8 +1194,38 @@ function ContactList({
                     </div>
                     <CardDescription>{item.email ?? item.phone}</CardDescription>
                   </CardHeader>
+                  {(item.email || item.phone) && (
+                    <CardContent className="flex flex-wrap items-center gap-1 pt-0">
+                      {item.email && (
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label={t('contacts.emailAction')}
+                        >
+                          <a href={`mailto:${item.email}`}>
+                            <Mail className="size-4" />
+                          </a>
+                        </Button>
+                      )}
+                      {item.phone && (
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label={t('contacts.callAction')}
+                        >
+                          <a href={`tel:${item.phone.replace(/\s+/g, '')}`}>
+                            <Phone className="size-4" />
+                          </a>
+                        </Button>
+                      )}
+                    </CardContent>
+                  )}
                 </Card>
-              </Link>
+              </div>
             );
           })}
         </div>
@@ -969,6 +1239,7 @@ function ContactList({
 
 function CompanyList({
   items,
+  deals,
   loading,
   total,
   page,
@@ -976,37 +1247,71 @@ function CompanyList({
   onPage,
 }: {
   items: Array<{ id: string; name: string; domain: string | null; industry: string | null }>;
+  deals: Array<{
+    companyId: string | null;
+    status: 'open' | 'won' | 'lost';
+    value: { amountMinor: string; currency: string };
+    baseAmountMinor?: string | null;
+  }>;
   loading: boolean;
   total: number;
   page: number;
   pageSize: number;
   onPage: (page: number) => void;
 }) {
+  const t = useTranslations('modules.crm');
   const locale = useLocale();
+  const baseCurrency = useOrgBaseCurrency();
+  // Active-deal metrics per company. Sums use the org-base snapshot when the
+  // FX-converted amount exists and the deal's own minor units otherwise ?
+  // integer minor units only, never floating-point money.
+  const openMetricsById = new Map<string, { count: number; totalMinor: string }>();
+  for (const deal of deals) {
+    if (!deal.companyId || deal.status !== 'open') continue;
+    const entry = openMetricsById.get(deal.companyId) ?? { count: 0, totalMinor: '0' };
+    entry.count += 1;
+    entry.totalMinor = (BigInt(entry.totalMinor) + BigInt(deal.baseAmountMinor ?? deal.value.amountMinor)).toString();
+    openMetricsById.set(deal.companyId, entry);
+  }
   if (total === 0 && !loading) return <Empty loading={false} />;
   return (
     <div className="space-y-4">
       {items.length ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
-            <Link
-              key={item.id}
-              href={`/${locale}/m/crm/companies/${item.id}`}
-              className="group"
-              // Remember this list location so the detail page's Back button
-              // returns here (cards/table + filters), not a fixed default.
-              onClick={() =>
-                sessionStorage.setItem('crm.companies.back', `${window.location.pathname}${window.location.search}`)
-              }
-            >
-              <Card className="h-full transition-colors group-hover:border-primary/50 group-hover:bg-accent">
-                <CardHeader>
-                  <CardTitle dir="auto">{item.name}</CardTitle>
-                  <CardDescription>{item.domain ?? item.industry}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+          {items.map((item) => {
+            const metrics = openMetricsById.get(item.id);
+            return (
+              <Link
+                key={item.id}
+                href={`/${locale}/m/crm/companies/${item.id}`}
+                className="group"
+                // Remember this list location so the detail page's Back button
+                // returns here (cards/table + filters), not a fixed default.
+                onClick={() =>
+                  sessionStorage.setItem('crm.companies.back', `${window.location.pathname}${window.location.search}`)
+                }
+              >
+                <Card className="h-full transition-colors group-hover:border-primary/50 group-hover:bg-accent">
+                  <CardHeader>
+                    <CardTitle dir="auto">{item.name}</CardTitle>
+                    <CardDescription>{item.domain ?? item.industry}</CardDescription>
+                  </CardHeader>
+                  {metrics && (
+                    <CardContent className="flex flex-wrap items-center gap-2 pt-0">
+                      <Badge variant="secondary">{t('companies.activeDeals', { count: metrics.count })}</Badge>
+                      <Badge
+                        variant="outline"
+                        aria-label={`${t('companies.openValue')}: ${formatMinorAmount(metrics.totalMinor, baseCurrency, { locale })}`}
+                        className="font-mono tabular-nums"
+                      >
+                        {formatMinorAmount(metrics.totalMinor, baseCurrency, { locale })}
+                      </Badge>
+                    </CardContent>
+                  )}
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <Empty loading={loading} />
@@ -1026,27 +1331,30 @@ type DealCard = {
   status: string;
 };
 
-type PipelineStage = { id: string; nameI18n: Record<string, string>; isLost: boolean };
+type PipelineStage = {
+  id: string;
+  nameI18n: Record<string, string>;
+  isLost: boolean;
+  /** CRM-17: computed win rate, or the configured probability while no deal has resolved. */
+  probability?: number;
+  successPercent?: number;
+  resolvedDeals?: number;
+};
 
 function PipelineBoard({
   pipeline,
   board,
-  dateFilters,
-  onDateFilter,
-  onAllTime,
   baseCurrency,
   baseExponent,
+  onClaim,
   movePending,
   onMove,
 }: {
   pipeline: { stages: PipelineStage[] } | null | undefined;
   board: ReturnType<typeof useDealsBoard>;
-  dateFilters: Record<string, DealColumnDateFilter>;
-  onDateFilter: (stageId: string, filter: DealColumnDateFilter) => void;
-  /** Picking "All time" on a column opens the table view for that stage. */
-  onAllTime: (stageId: string) => void;
   baseCurrency: string;
   baseExponent: number;
+  onClaim: (dealId: string) => void;
   movePending: boolean;
   onMove: (dealId: string, stageId: string, lostReasonCode?: string) => Promise<unknown>;
 }) {
@@ -1056,15 +1364,11 @@ function PipelineBoard({
   const canMove = hasPermission(permissions, 'crm:deal:write');
   const [pendingMove, setPendingMove] = useState<{ deal: DealCard; toStage: PipelineStage } | null>(null);
 
-  const loading = board.some((column) => column.isPending);
   // undefined = the pipeline query is still in flight (no column queries were
   // created yet, so `board` is empty); null = the org genuinely has no
   // pipeline yet — an empty board.
   if (pipeline === undefined) return <Empty loading />;
   if (pipeline === null) return <Empty loading={false} />;
-  if (!loading && pipeline.stages.every((_, index) => (board[index]?.data?.items.length ?? 0) === 0)) {
-    return <Empty loading={false} />;
-  }
 
   const stageName = (stage: PipelineStage) => stage.nameI18n[locale] ?? stage.nameI18n.en ?? '';
   // All cards across every column, for the drop handler and lost-stage dialog.
@@ -1076,7 +1380,7 @@ function PipelineBoard({
     lost: 'detail.statusLost',
   };
 
-  /** Lost stages need a reason (CRM-7) — collect it in the dialog first. */
+  /** Lost stages need a reason (CRM-7) ? collect it in the dialog first. */
   function requestMove(deal: DealCard, toStage: PipelineStage) {
     if (!canMove || toStage.id === deal.stageId) return;
     if (toStage.isLost) setPendingMove({ deal, toStage });
@@ -1089,10 +1393,9 @@ function PipelineBoard({
         const column = board[index];
         const columnDeals = column?.data?.items ?? [];
         // Exact count + org-base value total come from the server (per-column
-        // query), not from the rendered slice — clamping never skews them.
+        // query), not from the rendered slice ? clamping never skews them.
         const total = column?.data?.total ?? 0;
         const totalValue = column?.data?.totalValueBaseMinor ?? '0';
-        const filter = dateFilters[stage.id] ?? 'today';
         return (
           <section
             key={stage.id}
@@ -1109,25 +1412,30 @@ function PipelineBoard({
           >
             <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
               <h2 className="font-semibold">{stageName(stage)}</h2>
-              <div className="flex items-center gap-1.5">
-                <Select
-                  value={filter}
-                  aria-label={t('deals.dateFilter')}
-                  onValueChange={(value) => {
-                    if (value === 'all') onAllTime(stage.id);
-                    else if (value === 'today' || value === 'week' || value === 'month') {
-                      onDateFilter(stage.id, value);
-                    }
-                  }}
-                  className="w-32 [&>button]:h-8 [&>button]:text-xs"
-                >
-                  <SelectItem value="today">{t('deals.filterToday')}</SelectItem>
-                  <SelectItem value="week">{t('deals.filterThisWeek')}</SelectItem>
-                  <SelectItem value="month">{t('deals.filterThisMonth')}</SelectItem>
-                  <SelectItem value="all">{t('deals.filterAllTime')}</SelectItem>
-                </Select>
-                <Badge variant="secondary">{total}</Badge>
+              <Badge variant="secondary">{total}</Badge>
+            </div>
+            {/* CRM-17: stage success bar — computed win rate once any deal
+                has resolved from the stage, the configured probability
+                otherwise (resolvedDeals = 0 marks the fallback). */}
+            <div
+              className="mb-2"
+              title={
+                (stage.resolvedDeals ?? 0) > 0
+                  ? t('deals.successRate', { percent: stage.successPercent ?? 0 })
+                  : t('deals.estimatedRate', { percent: stage.successPercent ?? 0 })
+              }
+            >
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, Math.max(0, stage.successPercent ?? 0))}%` }}
+                />
               </div>
+              <p className="mt-1 text-start text-[11px] text-muted-foreground">
+                {(stage.resolvedDeals ?? 0) > 0
+                  ? t('deals.successRate', { percent: stage.successPercent ?? 0 })
+                  : t('deals.estimatedRate', { percent: stage.successPercent ?? 0 })}
+              </p>
             </div>
             <p className="mb-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>{t('deals.columnTotal')}</span>
@@ -1137,6 +1445,13 @@ function PipelineBoard({
             </p>
             {/* Internal scroll per column — long columns never push the board */}
             <div className="max-h-[calc(100vh-300px)] min-h-24 space-y-2 overflow-y-auto pe-1">
+              {columnDeals.length === 0 && (
+                // Per-column empty state — the board structure always stays
+                // visible, even when every column is filtered to zero.
+                <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                  {column?.isPending ? t('common.loading') : t('deals.noDeals')}
+                </p>
+              )}
               {columnDeals.map((deal) => (
                 <article
                   key={deal.id}
@@ -1164,6 +1479,16 @@ function PipelineBoard({
                           {t(statusLabels[deal.status] ?? 'detail.statusOpen')}
                         </Badge>
                       )}
+                      {onClaim && deal.ownerUserId === null && deal.ownerTeamId && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => onClaim(deal.id)}
+                        >
+                          {t('deals.claim')}
+                        </Button>
+                      )}
                       <Can permission="crm:deal:write">
                         <StageMenu
                           options={pipeline.stages.map((s) => ({
@@ -1187,7 +1512,7 @@ function PipelineBoard({
                   </p>
                   {(deal.contactName || deal.companyName) && (
                     <p className="mt-1.5 truncate text-xs text-muted-foreground" dir="auto">
-                      {[deal.contactName, deal.companyName].filter(Boolean).join(' · ')}
+                      {[deal.contactName, deal.companyName].filter(Boolean).join(' ? ')}
                     </p>
                   )}
                 </article>

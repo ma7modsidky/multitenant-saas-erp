@@ -16,6 +16,7 @@ export interface ContactData {
   phone: string | null;
   secondaryPhone: string | null;
   ownerUserId: string | null;
+  ownerTeamId: string | null;
   preferredLocale: string | null;
   preferredCurrency: string | null;
   createdAt: Date;
@@ -77,6 +78,9 @@ export class Contact {
   get secondaryPhone(): string | null {
     return this.data.secondaryPhone;
   }
+  get ownerTeamId(): string | null {
+    return this.data.ownerTeamId ?? null;
+  }
   get ownerUserId(): string | null {
     return this.data.ownerUserId;
   }
@@ -109,6 +113,7 @@ export class Contact {
     secondaryPhone?: string | null;
     companyId?: string | null;
     ownerUserId?: string | null;
+    ownerTeamId?: string | null;
     preferredLocale?: string | null;
     preferredCurrency?: string | null;
     updatedBy: string;
@@ -122,6 +127,7 @@ export class Contact {
       secondaryPhone: props.secondaryPhone === undefined ? this.data.secondaryPhone : props.secondaryPhone,
       companyId: props.companyId === undefined ? this.data.companyId : props.companyId,
       ownerUserId: props.ownerUserId === undefined ? this.data.ownerUserId : props.ownerUserId,
+      ownerTeamId: props.ownerTeamId === undefined ? this.data.ownerTeamId : props.ownerTeamId,
       preferredLocale: props.preferredLocale === undefined ? this.data.preferredLocale : props.preferredLocale,
       preferredCurrency: props.preferredCurrency === undefined ? this.data.preferredCurrency : props.preferredCurrency,
       updatedBy: props.updatedBy,

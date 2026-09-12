@@ -40,10 +40,9 @@ test.describe('CRM journey', () => {
     await page.getByRole('option', { name: contactName }).click();
     await page.getByLabel('Amount in minor units').fill('250000');
     await page.getByRole('button', { name: 'Add deal' }).last().click();
-    // The board columns default to a "today" date filter, now computed in UTC
-    // (the API stores updated_at as UTC instants). A deal created here is
-    // always inside today's window, so it must appear on its stage column
-    // immediately — the table view also lists it.
+    // The board columns are All Time by default (no date bounds), so a deal
+    // created here appears on its stage column immediately — the table view
+    // also lists it.
     await expect(page.getByRole('link', { name: dealTitle })).toBeVisible();
     await page.goto('/en/m/crm/deals/table');
     await expect(page.getByRole('link', { name: dealTitle })).toBeVisible();

@@ -4,12 +4,14 @@ import { NotFoundError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 
+import { stageSuccessPercent } from '../domain/index.js';
 import {
   CRM_READ_REPOSITORY,
   type ActivityListFilter,
   type ContactListFilter,
   type CompanyListFilter,
   type CrmCompanyRecord,
+  type CrmPipelineRecord,
   type CrmReadRepository,
   type DealListFilter,
   type DealListPage,
@@ -118,8 +120,35 @@ export class GetPipelineBoardUseCase {
     @Inject(CRM_READ_REPOSITORY) private readonly repo: CrmReadRepository,
     private readonly tx: TransactionManager,
   ) {}
-  execute() {
-    return this.tx.run((db) => this.repo.getDefaultPipeline(db));
+  /**
+   * CRM-17: board data for one pipeline (the org default when `pipelineId`
+   * is omitted), with per-stage success percentages (CRM-17): the computed
+   * win rate where resolved deals exist, the configured probability
+   * otherwise. Kept for backwards compatibility with the existing frontend.
+   */
+  async execute(pipelineId?: string): Promise<
+    | (CrmPipelineRecord & {
+        stages: Array<CrmPipelineRecord['stages'][number] & { successPercent: number }>;
+      })
+    | undefined
+  > {
+    return this.tx.run(async (db) => {
+      const pipeline = pipelineId
+        ? await this.repo.getPipelineById(pipelineId, db)
+        : await this.repo.getDefaultPipeline(db);
+      if (!pipeline) return undefined;
+      const counts = await this.repo.getStageOutcomeCounts(pipeline.id, db);
+      const stages = pipeline.stages.map((stage) => {
+        const stageCounts = counts.get(stage.id);
+        const resolved = stageCounts ? stageCounts.won + stageCounts.lost : 0;
+        return {
+          ...stage,
+          successPercent: stageSuccessPercent(stage, stageCounts),
+          resolvedDeals: resolved,
+        };
+      });
+      return { ...pipeline, stages };
+    });
   }
 }
 

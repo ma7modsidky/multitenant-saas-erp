@@ -17,6 +17,8 @@ export const CRM_ERROR_CODE = {
   PIPELINE_INVALID_STAGES: 'CRM_PIPELINE_INVALID_STAGES',
   /** CRM-5 — stage positions are contiguous and unique within a pipeline. */
   PIPELINE_POSITIONS_NOT_CONTIGUOUS: 'CRM_PIPELINE_POSITIONS_NOT_CONTIGUOUS',
+  /** CRM-17 — a pipeline with open deals cannot be deleted; move or close them first. */
+  PIPELINE_HAS_OPEN_DEALS: 'CRM_PIPELINE_HAS_OPEN_DEALS',
   /** CRM-10 — a deal must reference a contact or a company. */
   DEAL_REQUIRES_REFERENCE: 'CRM_DEAL_REQUIRES_REFERENCE',
   /** CRM-7 — moving to a lost stage requires a lost_reason_code. */

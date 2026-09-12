@@ -6,13 +6,31 @@ import {
   type OrganizationReadPort,
 } from '@modubiz/contracts';
 import { Money } from '@modubiz/money';
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  UsePipes,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { Audit } from '../../../core/audit/__init__.js';
 import { RequiresModule, RequiresPermission } from '../../../core/authorization/__init__.js';
 import { ZodValidationPipe } from '../../../core/common/zod-validation.pipe.js';
+import {
+  assertCanViewRecord,
+  assertOwnershipChange,
+  parseCrmScope,
+  resolveOwnershipDefaults,
+  resolveScopeFilter,
+} from './scope.js';
 import { PortRegistry } from '../../../core/ports/port-registry.js';
 import { TenantContext } from '../../../core/tenancy/tenant-context.js';
 import {
@@ -22,12 +40,15 @@ import {
   ListDealsUseCase,
   MoveDealStageUseCase,
   ReopenDealUseCase,
+  UpdateDealUseCase,
 } from '../application/index.js';
 import type { DealListPage } from '../application/ports/index.js';
 
 import {
   CloseDealDto,
   CreateDealDto,
+  UpdateDealOwnershipDto,
+  updateDealOwnershipSchema,
   DealEnvelopeResponse,
   DealListEnvelopeResponse,
   MoveDealStageDto,
@@ -64,6 +85,7 @@ export class DealsController {
     private readonly moveDealStageUseCase: MoveDealStageUseCase,
     private readonly closeDealUseCase: CloseDealUseCase,
     private readonly reopenDealUseCase: ReopenDealUseCase,
+    private readonly updateDealUseCase: UpdateDealUseCase,
     private readonly portRegistry: PortRegistry,
   ) {}
 
@@ -72,6 +94,7 @@ export class DealsController {
   @RequiresPermission('crm:deal:read')
   async list(
     @Query('search') search?: string,
+    @Query('pipelineId') pipelineId?: string,
     @Query('stageId') stageId?: string,
     @Query('status') status?: string,
     @Query('fromDate') fromDate?: string,
@@ -80,6 +103,10 @@ export class DealsController {
     @Query('sortDir') sortDir?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('scope') scope?: string,
+    @Query('unassignedUser') unassignedUser?: string,
+    @Query('pool') pool?: string,
+    @Query('createdFrom') createdFrom?: string,
   ): Promise<{ data: DealListPage }> {
     // Query params are interpolated into SQL below, so every one must be
     // validated here — a malformed value would otherwise surface as a 500
@@ -88,6 +115,9 @@ export class DealsController {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (stageId !== undefined && !uuid.test(stageId)) {
       throw new BadRequestException('stageId must be a valid UUID');
+    }
+    if (pipelineId !== undefined && !uuid.test(pipelineId)) {
+      throw new BadRequestException('pipelineId must be a valid UUID');
     }
     if (status !== undefined && status !== 'open' && status !== 'won' && status !== 'lost') {
       throw new BadRequestException('status must be one of open, won, lost');
@@ -110,14 +140,41 @@ export class DealsController {
     if (sortDir !== undefined && sortDir !== 'asc' && sortDir !== 'desc') {
       throw new BadRequestException('sortDir must be asc or desc');
     }
+    // AUTHZ-9/10: always enforce scope — see contacts.controller.ts.
+    const scopeValue = parseCrmScope(scope) ?? 'all';
+    const scopeFilter = await resolveScopeFilter(scopeValue, this.portRegistry);
+    let unassignedUserFlag: boolean | undefined;
+    if (unassignedUser !== undefined) {
+      if (unassignedUser !== 'true' && unassignedUser !== 'false') {
+        throw new BadRequestException('unassignedUser must be true or false');
+      }
+      unassignedUserFlag = unassignedUser === 'true';
+    }
+    // TEAM-4 pool selector: 'team' = unassigned but team-owned, 'global' =
+    // unassigned with no owner and no team. ANDed with the scope clamp below.
+    let poolValue: 'team' | 'global' | undefined;
+    if (pool !== undefined) {
+      if (pool !== 'team' && pool !== 'global') {
+        throw new BadRequestException('pool must be team or global');
+      }
+      poolValue = pool;
+    }
+    if (createdFrom !== undefined && !isoDate.test(createdFrom)) {
+      throw new BadRequestException('createdFrom must be an ISO date (YYYY-MM-DD)');
+    }
     const result = await this.listDealsUseCase.execute({
       // The validation throws above have narrowed each value to its safe
       // shape (literal union), so no casts are needed here.
       ...(search !== undefined ? { search } : {}),
+      ...(pipelineId !== undefined ? { pipelineId } : {}),
       ...(stageId !== undefined ? { stageId } : {}),
       ...(status !== undefined ? { status } : {}),
       ...(fromDate !== undefined ? { fromDate } : {}),
       ...(toDate !== undefined ? { toDate } : {}),
+      ...(scopeFilter ?? {}),
+      ...(unassignedUserFlag !== undefined ? { unassignedUser: unassignedUserFlag } : {}),
+      ...(poolValue !== undefined ? { pool: poolValue } : {}),
+      ...(createdFrom !== undefined ? { createdFrom } : {}),
       ...(sortBy !== undefined ? { sortBy } : {}),
       ...(sortDir !== undefined ? { sortDir } : {}),
       ...(page !== undefined ? { page: Number(page) } : {}),
@@ -133,7 +190,9 @@ export class DealsController {
   @ApiOkResponse({ type: DealEnvelopeResponse })
   @RequiresPermission('crm:deal:read')
   async getById(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
-    return { data: await this.getDealUseCase.execute(id) };
+    const data = await this.getDealUseCase.execute(id);
+    await assertCanViewRecord(this.portRegistry, data);
+    return { data };
   }
 
   /**
@@ -164,6 +223,10 @@ export class DealsController {
       }
     }
 
+    const ownership = await resolveOwnershipDefaults(this.portRegistry, {
+      ...(dto.ownerUserId !== undefined ? { ownerUserId: dto.ownerUserId } : {}),
+      ...(dto.ownerTeamId !== undefined ? { ownerTeamId: dto.ownerTeamId } : {}),
+    });
     const result = await this.createDealUseCase.execute({
       title: dto.title,
       contactId: dto.contactId ?? null,
@@ -174,7 +237,46 @@ export class DealsController {
       baseCurrency,
       fxRate,
       expectedCloseDate: dto.expectedCloseDate ? new Date(dto.expectedCloseDate) : null,
-      ownerUserId: dto.ownerUserId ?? null,
+      ownerUserId: ownership.ownerUserId,
+      ownerTeamId: ownership.ownerTeamId,
+    });
+    return { data: toDealResponse(result.deal.toJSON()) };
+  }
+
+  /**
+   * PATCH /v1/crm/deals/:id — ownership edits only (TEAM-5): claim a pooled
+   * deal or reassign its user/team owners. Gated by crm:deal:write; audited
+   * with a before-snapshot.
+   */
+  @Patch(':id')
+  @ApiOkResponse({ type: DealEnvelopeResponse })
+  @UsePipes(new ZodValidationPipe(updateDealOwnershipSchema))
+  @RequiresPermission('crm:deal:write')
+  @Audit({ action: 'UPDATE', entityType: 'deal', captureBefore: true, captureAfter: true })
+  async updateOwnership(
+    @Param('id') id: string,
+    @Body() dto: UpdateDealOwnershipDto,
+  ): Promise<{ data: Record<string, unknown> }> {
+    const input: Record<string, unknown> = { updatedByUserId: TenantContext.requireUserId() };
+    if (dto.ownerUserId !== undefined) input.ownerUserId = dto.ownerUserId;
+    if (dto.ownerTeamId !== undefined) input.ownerTeamId = dto.ownerTeamId;
+    // CRM-16 ownership-transition guard.
+    const current = await this.getDealUseCase.execute(id);
+    // AUTHZ-9/TEAM-6: fail-closed visibility — a record the actor cannot view
+    // behaves as nonexistent, exactly like GET /:id.
+    await assertCanViewRecord(this.portRegistry, current);
+    await assertOwnershipChange(this.portRegistry, {
+      organizationId: TenantContext.requireOrganizationId(),
+      actorUserId: TenantContext.requireUserId(),
+      currentOwnerUserId: (current.ownerUserId as string | null) ?? null,
+      currentOwnerTeamId: (current.ownerTeamId as string | null) ?? null,
+      nextOwnerUserId: dto.ownerUserId,
+      nextOwnerTeamId: dto.ownerTeamId,
+    });
+    const result = await this.updateDealUseCase.execute({
+      dealId: id,
+      ...(dto.ownerUserId !== undefined ? { ownerUserId: dto.ownerUserId } : {}),
+      ...(dto.ownerTeamId !== undefined ? { ownerTeamId: dto.ownerTeamId } : {}),
     });
     return { data: toDealResponse(result.deal.toJSON()) };
   }
@@ -188,6 +290,9 @@ export class DealsController {
   @RequiresPermission('crm:deal:write')
   @Audit({ action: 'UPDATE', entityType: 'deal', captureAfter: true, captureBefore: true })
   async moveStage(@Param('id') id: string, @Body() dto: MoveDealStageDto): Promise<{ data: Record<string, unknown> }> {
+    // AUTHZ-9/TEAM-6: fail-closed visibility before mutating.
+    const current = await this.getDealUseCase.execute(id);
+    await assertCanViewRecord(this.portRegistry, current);
     const result = await this.moveDealStageUseCase.execute({
       dealId: id,
       toStageId: dto.toStageId,
@@ -207,6 +312,9 @@ export class DealsController {
   @RequiresPermission('crm:deal:write')
   @Audit({ action: 'UPDATE', entityType: 'deal', captureAfter: true, captureBefore: true })
   async close(@Param('id') id: string, @Body() dto: CloseDealDto): Promise<{ data: Record<string, unknown> }> {
+    // AUTHZ-9/TEAM-6: fail-closed visibility before mutating.
+    const current = await this.getDealUseCase.execute(id);
+    await assertCanViewRecord(this.portRegistry, current);
     const result = await this.closeDealUseCase.execute({
       dealId: id,
       outcome: dto.outcome,
@@ -225,6 +333,9 @@ export class DealsController {
   @RequiresPermission('crm:deal:write')
   @Audit({ action: 'UPDATE', entityType: 'deal', captureBefore: true })
   async reopen(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
+    // AUTHZ-9/TEAM-6: fail-closed visibility before mutating.
+    const current = await this.getDealUseCase.execute(id);
+    await assertCanViewRecord(this.portRegistry, current);
     const result = await this.reopenDealUseCase.execute({ dealId: id });
     return { data: toDealResponse(result.deal.toJSON()) };
   }
@@ -250,6 +361,7 @@ function toDealResponse(data: {
   closedAt: Date | null;
   expectedCloseDate: Date | null;
   ownerUserId: string | null;
+  ownerTeamId?: string | null;
 }): Record<string, unknown> {
   return {
     id: data.id,
@@ -268,5 +380,6 @@ function toDealResponse(data: {
     closedAt: data.closedAt === null ? null : data.closedAt.toISOString(),
     expectedCloseDate: data.expectedCloseDate === null ? null : data.expectedCloseDate.toISOString(),
     ownerUserId: data.ownerUserId,
+    ownerTeamId: data.ownerTeamId ?? null,
   };
 }

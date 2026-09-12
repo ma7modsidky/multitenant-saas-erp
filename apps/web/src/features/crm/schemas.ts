@@ -20,6 +20,8 @@ export const contactFormSchema = z
     companyId: z.string().trim(),
     preferredLocale: z.string().trim(),
     preferredCurrency: z.string().trim(),
+    ownerUserId: z.string().uuid().or(z.literal('')).optional(),
+    ownerTeamId: z.string().uuid().or(z.literal('')).optional(),
   })
   .refine((value) => value.email !== '' || value.phone !== '', { path: ['email'] });
 
@@ -32,6 +34,8 @@ export const companyFormSchema = z.object({
   addressState: z.string().trim(),
   addressPostalCode: z.string().trim(),
   addressCountry: z.string().trim(),
+  ownerUserId: z.string().uuid().or(z.literal('')).optional(),
+  ownerTeamId: z.string().uuid().or(z.literal('')).optional(),
 });
 
 export const dealFormSchema = z
@@ -41,6 +45,12 @@ export const dealFormSchema = z
     companyId: z.string().uuid().or(z.literal('')),
     amountMinor: z.string().regex(/^\d+$/),
     currency: z.string().regex(/^[A-Z]{3}$/),
+    /** CRM-17: target pipeline; '' = the org default (server resolves it). */
+    pipelineId: z.string().uuid().or(z.literal('')).optional(),
+    /** CRM-17: entry stage in the target pipeline; '' = the first stage. */
+    stageId: z.string().uuid().or(z.literal('')).optional(),
+    ownerUserId: z.string().uuid().or(z.literal('')).optional(),
+    ownerTeamId: z.string().uuid().or(z.literal('')).optional(),
   })
   .refine((value) => value.contactId !== '' || value.companyId !== '', { path: ['contactId'] });
 

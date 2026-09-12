@@ -1,46 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { activitiesKey, companiesKey, contactsKey, dealColumnDateRange } from '../hooks';
-
-/**
- * Board column date presets. Deals store `updated_at` as a UTC instant and
- * the read repository filters `updated_at >= fromDate::date AND updated_at <
- * (toDate::date + interval '1 day')` in the database session timezone (UTC).
- * The presets must therefore be computed in UTC — a local-time computation
- * shifted the window by the browser's UTC offset, hiding deals created in the
- * early hours (local) from the default "today" column and leaving the board
- * stuck on "Nothing here yet" while the table listed them.
- */
-const FIXED = new Date('2026-08-13T14:30:00.000Z');
-
-describe('dealColumnDateRange', () => {
-  it('computes the "today" window from the instant\'s UTC date', () => {
-    expect(dealColumnDateRange('today', FIXED)).toEqual({ fromDate: '2026-08-13', toDate: '2026-08-13' });
-  });
-
-  it('keeps a deal created at the same instant inside the "today" window (boundary regression)', () => {
-    const { fromDate, toDate } = dealColumnDateRange('today', FIXED);
-    // The deal's updated_at is the same UTC instant; the repository bound is
-    // [fromDate::date, toDate::date + 1 day) in UTC.
-    const now = FIXED.toISOString();
-    expect(now >= `${fromDate}T00:00:00.000Z`).toBe(true);
-    const dayAfter = new Date(`${toDate}T00:00:00.000Z`);
-    dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
-    expect(new Date(now).getTime()).toBeLessThan(dayAfter.getTime());
-  });
-
-  it('spans the rolling 7 UTC days for "week", ending today', () => {
-    expect(dealColumnDateRange('week', FIXED)).toEqual({ fromDate: '2026-08-07', toDate: '2026-08-13' });
-  });
-
-  it('starts "month" on the first day of the current UTC month', () => {
-    expect(dealColumnDateRange('month', FIXED)).toEqual({ fromDate: '2026-08-01', toDate: '2026-08-13' });
-  });
-
-  it('returns no date bounds for "all"', () => {
-    expect(dealColumnDateRange('all', FIXED)).toEqual({});
-  });
-});
+import { activitiesKey, companiesKey, contactsKey, isCrmListPreset, scopePresetListParams } from '../hooks';
 
 describe('table list query keys include the sort (sort-header regression)', () => {
   it('changes the contacts key when sortBy/sortDir change, so react-query refetches', () => {
@@ -67,5 +27,33 @@ describe('table list query keys include the sort (sort-header regression)', () =
     const sorted = activitiesKey({ page: 1, sortBy: 'dueAt', sortDir: 'asc' });
     expect(sorted).not.toEqual(base);
     expect(sorted).toContain('dueAt');
+  });
+});
+
+describe('scopePresetListParams — TEAM-4 chips map to the deals/activities API params', () => {
+  it('maps "Assigned to me" to scope=mine (strictly records assigned to me)', () => {
+    expect(scopePresetListParams('mine')).toEqual({ scope: 'mine' });
+  });
+
+  it('maps "Team pool" to pool=team and "Unassigned" to pool=global', () => {
+    expect(scopePresetListParams('teamPool')).toEqual({ pool: 'team' });
+    expect(scopePresetListParams('unassigned')).toEqual({ pool: 'global' });
+  });
+
+  it('maps "Created recently" to a 30-day createdFrom bound', () => {
+    const params = scopePresetListParams('recent', new Date('2026-01-31T12:00:00Z'));
+    expect(params.createdFrom).toBe('2026-01-01');
+  });
+
+  it('sends no ownership params for the All preset', () => {
+    expect(scopePresetListParams('all')).toEqual({});
+  });
+
+  it('isCrmListPreset accepts only the five chip values', () => {
+    for (const value of ['all', 'mine', 'teamPool', 'unassigned', 'recent']) {
+      expect(isCrmListPreset(value)).toBe(true);
+    }
+    expect(isCrmListPreset('bogus')).toBe(false);
+    expect(isCrmListPreset(null)).toBe(false);
   });
 });

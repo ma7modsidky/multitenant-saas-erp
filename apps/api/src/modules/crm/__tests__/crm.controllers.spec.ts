@@ -19,15 +19,31 @@ import { PipelinesController } from '../api/pipelines.controller.js';
  */
 
 function makeContactsController(): ContactsController {
-  return new ContactsController(null as never, null as never, null as never, null as never, null as never);
+  return new ContactsController(
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+  );
 }
 
 function makeCompaniesController(): CompaniesController {
-  return new CompaniesController(null as never, null as never, null as never, null as never);
+  return new CompaniesController(
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+  );
 }
 
 function makeDealsController(): DealsController {
   return new DealsController(
+    null as never,
     null as never,
     null as never,
     null as never,
@@ -100,6 +116,39 @@ describe('ContactsController — permission metadata', () => {
     const c = makeContactsController();
     expect(permissionsFor(c.merge as (...args: never[]) => unknown)).toEqual(['crm:contact:write']);
     expect(auditFor(c.merge as (...args: never[]) => unknown)).toBeDefined();
+  });
+
+  it('DELETE /v1/crm/contacts/:id requires crm:contact:write (CRM-11) with a before-snapshot', () => {
+    const c = makeContactsController();
+    expect(permissionsFor(c.delete as (...args: never[]) => unknown)).toEqual(['crm:contact:write']);
+    expect(auditFor(c.delete as (...args: never[]) => unknown)).toMatchObject({
+      action: 'DELETE',
+      entityType: 'contact',
+      captureBefore: true,
+    });
+  });
+});
+
+describe('ContactsController — list preset filters', () => {
+  it('rejects a malformed ownerUserId with 400 before touching the use case', async () => {
+    const c = makeContactsController();
+    await expect(
+      c.list('', undefined, undefined, undefined, undefined, undefined, 'not-a-uuid'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a malformed unassigned flag with 400', async () => {
+    const c = makeContactsController();
+    await expect(
+      c.list('', undefined, undefined, undefined, undefined, undefined, undefined, 'maybe'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a malformed createdFrom date with 400', async () => {
+    const c = makeContactsController();
+    await expect(
+      c.list('', undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'garbage-date'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
@@ -198,6 +247,29 @@ describe('CompaniesController — list validation', () => {
   });
 });
 
+describe('CompaniesController — list preset filters', () => {
+  it('rejects a malformed ownerUserId with 400 before touching the use case', async () => {
+    const c = makeCompaniesController();
+    await expect(c.list('', undefined, undefined, undefined, undefined, 'not-a-uuid')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a malformed unassigned flag with 400', async () => {
+    const c = makeCompaniesController();
+    await expect(c.list('', undefined, undefined, undefined, undefined, undefined, 'maybe')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a malformed createdFrom date with 400', async () => {
+    const c = makeCompaniesController();
+    await expect(
+      c.list('', undefined, undefined, undefined, undefined, undefined, undefined, 'garbage-date'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
 describe('CompaniesController — permission metadata', () => {
   it('GET /v1/crm/companies requires crm:company:read', () => {
     expect(permissionsFor(makeCompaniesController().list as (...args: never[]) => unknown)).toEqual([
@@ -215,6 +287,16 @@ describe('CompaniesController — permission metadata', () => {
       expect(permissionsFor(method)).toEqual(['crm:company:write']);
       expect(auditFor(method)).toBeDefined();
     }
+  });
+
+  it('DELETE /v1/crm/companies/:id requires crm:company:write (CRM-15) with a before-snapshot', () => {
+    const c = makeCompaniesController();
+    expect(permissionsFor(c.delete as (...args: never[]) => unknown)).toEqual(['crm:company:write']);
+    expect(auditFor(c.delete as (...args: never[]) => unknown)).toMatchObject({
+      action: 'DELETE',
+      entityType: 'company',
+      captureBefore: true,
+    });
   });
 });
 

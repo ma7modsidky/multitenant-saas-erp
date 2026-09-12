@@ -28,6 +28,9 @@ export class DrizzleInvitationRepository implements InvitationRepository {
       name: (row.name as string | null) ?? null,
       email: row.email as string,
       roleId: row.role_id as string,
+      // jsonb uuid[] (migration 0020) — tolerate legacy NULLs from rows
+      // written before the column existed.
+      teamIds: Array.isArray(row.team_ids) ? (row.team_ids as string[]) : [],
       tokenHash: row.token_hash as string,
       expiresAt: fromDbDate(row.expires_at) as Date,
       acceptedAt: fromDbDate(row.accepted_at),
@@ -83,10 +86,10 @@ export class DrizzleInvitationRepository implements InvitationRepository {
     const rows = await db.execute<Record<string, unknown>>(
       sql`
         INSERT INTO ${this.table}
-          (id, organization_id, name, email, role_id, token_hash, expires_at,
+          (id, organization_id, name, email, role_id, team_ids, token_hash, expires_at,
            invited_by, created_at, updated_at)
         VALUES
-          (${data.id}, ${data.organizationId}, ${data.name ?? null}, ${data.email}, ${data.roleId}, ${data.tokenHash}, ${toDbDate(data.expiresAt)},
+          (${data.id}, ${data.organizationId}, ${data.name ?? null}, ${data.email}, ${data.roleId}, ${JSON.stringify(data.teamIds ?? [])}::jsonb, ${data.tokenHash}, ${toDbDate(data.expiresAt)},
            ${data.invitedBy}, ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)})
         RETURNING *
       `,

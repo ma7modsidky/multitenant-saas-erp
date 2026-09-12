@@ -34,6 +34,7 @@ export const createContactSchema = z
     secondaryPhone: z.string().trim().max(32).regex(PHONE_PATTERN, 'Invalid phone number').nullable().optional(),
     companyId: z.string().uuid('Company ID must be a valid UUID').nullable().optional(),
     ownerUserId: z.string().uuid('Owner user ID must be a valid UUID').nullable().optional(),
+    ownerTeamId: z.string().uuid('Owner team ID must be a valid UUID').nullable().optional(),
     preferredLocale: z.string().max(10).nullable().optional(),
     preferredCurrency: currencyCode.nullable().optional(),
   })
@@ -59,6 +60,7 @@ export const updateContactSchema = z
     secondaryPhone: z.string().trim().max(32).regex(PHONE_PATTERN, 'Invalid phone number').nullable().optional(),
     companyId: z.string().uuid('Company ID must be a valid UUID').nullable().optional(),
     ownerUserId: z.string().uuid('Owner user ID must be a valid UUID').nullable().optional(),
+    ownerTeamId: z.string().uuid('Owner team ID must be a valid UUID').nullable().optional(),
     preferredLocale: z.string().max(10).nullable().optional(),
     preferredCurrency: currencyCode.nullable().optional(),
   })
@@ -107,6 +109,7 @@ export const createDealSchema = z
       .strict(),
     expectedCloseDate: z.string().datetime('expectedCloseDate must be an ISO 8601 datetime').nullable().optional(),
     ownerUserId: z.string().uuid('Owner user ID must be a valid UUID').nullable().optional(),
+    ownerTeamId: z.string().uuid('Owner team ID must be a valid UUID').nullable().optional(),
   })
   .strict()
   .refine((d) => (d.contactId ?? null) !== null || (d.companyId ?? null) !== null, {
@@ -157,6 +160,7 @@ export const createActivitySchema = z
     relatedType: z.enum(['contact', 'company', 'deal']).nullable().optional(),
     relatedId: z.string().uuid('relatedId must be a valid UUID').nullable().optional(),
     assignedToUserId: z.string().uuid('assignedToUserId must be a valid UUID').nullable().optional(),
+    assignedTeamId: z.string().uuid('Assigned team ID must be a valid UUID').nullable().optional(),
   })
   .strict()
   .refine((a) => (a.relatedType ?? null) === null || (a.relatedId ?? null) !== null, {
@@ -180,6 +184,7 @@ export const updateActivitySchema = z
     subject: z.string().trim().min(1, 'Subject is required').max(200).optional(),
     dueAt: z.string().datetime('dueAt must be an ISO 8601 datetime').nullable().optional(),
     assignedToUserId: z.string().uuid('assignedToUserId must be a valid UUID').nullable().optional(),
+    assignedTeamId: z.string().uuid('Assigned team ID must be a valid UUID').nullable().optional(),
   })
   .strict();
 
@@ -193,6 +198,7 @@ export const companySchema = z
     industry: z.string().trim().max(120).nullable().optional(),
     address: z.record(z.unknown()).optional().default({}),
     ownerUserId: z.string().uuid().nullable().optional(),
+    ownerTeamId: z.string().uuid('Owner team ID must be a valid UUID').nullable().optional(),
   })
   .strict();
 export class CreateCompanyDto extends createZodDto(companySchema) {}
@@ -210,6 +216,8 @@ export const contactResponseSchema = z.object({
   secondaryPhone: z.string().nullable(),
   companyId: z.string().nullable(),
   ownerUserId: z.string().nullable(),
+  /** Owning team (TEAM-1/TEAM-2); optional on lists for wire compat. */
+  ownerTeamId: z.string().nullable().optional(),
   preferredLocale: z.string().nullable(),
   preferredCurrency: z.string().nullable(),
   /** Who created / last edited the contact (detail response, names resolved client-side). */
@@ -240,6 +248,8 @@ export const dealResponseSchema = z.object({
   closedAt: z.string().nullable(),
   expectedCloseDate: z.string().nullable(),
   ownerUserId: z.string().nullable(),
+  /** Owning team (TEAM-1/TEAM-2); optional on lists for wire compat. */
+  ownerTeamId: z.string().nullable().optional(),
   /** Who created / last edited the deal (detail response, names resolved client-side). */
   createdByUserId: z.string().nullable().optional(),
   updatedByUserId: z.string().nullable().optional(),
@@ -260,6 +270,8 @@ export const activityResponseSchema = z.object({
   relatedType: z.string().nullable(),
   relatedId: z.string().nullable(),
   assignedToUserId: z.string().nullable(),
+  /** Owning team of the activity (TEAM-1/TEAM-2); optional on lists for wire compat. */
+  assignedTeamId: z.string().nullable().optional(),
   /** Resolved related-entity display name (list response, optional). */
   relatedName: z.string().nullable().optional(),
   /** Deal-related activities: the deal's current stage (list response). */
@@ -282,6 +294,8 @@ export const companyResponseSchema = z.object({
   industry: z.string().nullable(),
   address: z.record(z.unknown()),
   ownerUserId: z.string().nullable(),
+  /** Owning team (TEAM-1/TEAM-2); optional on lists for wire compat. */
+  ownerTeamId: z.string().nullable().optional(),
   /** Who created / last edited the company (detail response, names resolved client-side). */
   createdByUserId: z.string().nullable().optional(),
   updatedByUserId: z.string().nullable().optional(),
@@ -350,6 +364,85 @@ export class CompanyListEnvelopeResponse extends createZodDto(
   }),
 ) {}
 
+// ─── Pipelines (CRM-17) ─────────────────────────────────────────────────────
+
+/**
+ * Create-pipeline request. CRM-4: the stage set must contain at least one
+ * stage with exactly one won and one lost stage — validated by the domain.
+ * Stage names are i18n maps (I18N-5: at least an `en` entry).
+ */
+export const createPipelineSchema = z
+  .object({
+    nameI18n: z.record(z.string().min(1).max(120)).refine((v) => (v.en ?? '').length > 0, {
+      message: 'I18N-5: nameI18n requires an en entry',
+    }),
+    /** CRM-17: owning team (core_teams id). NULL/absent = org-wide. */
+    ownerTeamId: z.string().uuid('Owner team ID must be a valid UUID').nullable().optional(),
+    stages: z
+      .array(
+        z.object({
+          nameI18n: z.record(z.string().min(1).max(120)).refine((v) => (v.en ?? '').length > 0, {
+            message: 'I18N-5: stage nameI18n requires an en entry',
+          }),
+          probability: z.number().int().min(0).max(100),
+          isWon: z.boolean().optional(),
+          isLost: z.boolean().optional(),
+        }),
+      )
+      .min(1, 'CRM-4: a pipeline needs at least one stage'),
+  })
+  .strict();
+
+/** Request DTO for creating a pipeline. */
+export class CreatePipelineDto extends createZodDto(createPipelineSchema) {}
+
+/** Update-pipeline request — rename and/or reassign the owning team. */
+export const updatePipelineSchema = z
+  .object({
+    nameI18n: z.record(z.string().min(1).max(120)).optional(),
+    ownerTeamId: z.string().uuid('Owner team ID must be a valid UUID').nullable().optional(),
+  })
+  .strict()
+  .refine((v) => v.nameI18n !== undefined || v.ownerTeamId !== undefined, {
+    message: 'At least one of nameI18n or ownerTeamId is required',
+  });
+
+/** Request DTO for updating a pipeline. */
+export class UpdatePipelineDto extends createZodDto(updatePipelineSchema) {}
+
+/** CRM-5: reorder a pipeline's stages — every stage id exactly once. */
+export const reorderPipelineStagesSchema = z.object({ stageIds: z.array(z.string().uuid()).min(1) }).strict();
+
+/** Request DTO for reordering pipeline stages. */
+export class ReorderPipelineStagesDto extends createZodDto(reorderPipelineStagesSchema) {}
+
+/** Pipeline response payload — stages carry the CRM-17 success percentage. */
+export const pipelineResponseSchema = z.object({
+  id: z.string(),
+  nameI18n: z.record(z.string()),
+  isDefault: z.boolean(),
+  ownerTeamId: z.string().nullable().optional(),
+  stages: z.array(
+    z.object({
+      id: z.string(),
+      nameI18n: z.record(z.string()),
+      position: z.number(),
+      probability: z.number(),
+      isWon: z.boolean(),
+      isLost: z.boolean(),
+      /** CRM-17: computed win rate, or the configured probability while no deal has resolved. */
+      successPercent: z.number().optional(),
+      /** Resolved (won+lost) deal count backing successPercent — 0 means "no evidence yet". */
+      resolvedDeals: z.number().optional(),
+    }),
+  ),
+});
+
+export class PipelineResponse extends createZodDto(pipelineResponseSchema) {}
+
+export class PipelineEnvelopeResponse extends createZodDto(z.object({ data: pipelineResponseSchema })) {}
+export class PipelineListEnvelopeResponse extends createZodDto(z.object({ data: z.array(pipelineResponseSchema) })) {}
+
 // ─── Notes ───────────────────────────────────────────────────────────────────
 
 export const createNoteSchema = z
@@ -380,3 +473,18 @@ export class NoteEnvelopeResponse extends createZodDto(z.object({ data: noteResp
 export class NoteListEnvelopeResponse extends createZodDto(
   z.object({ data: z.object({ items: z.array(noteResponseSchema) }) }),
 ) {}
+
+/**
+ * PATCH /v1/crm/deals/:id � ownership edits only (TEAM-5): claim an
+ * unassigned-pool deal or reassign its user/team owners.
+ */
+export const updateDealOwnershipSchema = z
+  .object({
+    ownerUserId: z.string().uuid('Owner user ID must be a valid UUID').nullable().optional(),
+    ownerTeamId: z.string().uuid('Owner team ID must be a valid UUID').nullable().optional(),
+  })
+  .refine((v) => v.ownerUserId !== undefined || v.ownerTeamId !== undefined, {
+    message: 'At least one of ownerUserId or ownerTeamId is required',
+  });
+
+export class UpdateDealOwnershipDto extends createZodDto(updateDealOwnershipSchema) {}

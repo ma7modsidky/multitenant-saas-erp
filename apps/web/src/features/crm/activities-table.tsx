@@ -26,8 +26,15 @@ import { CRM_PAGE_SIZE } from '@/lib/api/resources';
 
 import { DueBadge } from './due-badge';
 import { ActivityForm } from './forms';
-import { useActivitiesList, useCrmMutations, useOrgMembers } from './hooks';
-import { type SortDir, SortHeader, ViewToggle, useCrmTableUrlState } from './table-shared';
+import {
+  isCrmListPreset,
+  scopePresetListParams,
+  useActivitiesList,
+  useCrmMutations,
+  useOrgMembers,
+  type CrmListPreset,
+} from './hooks';
+import { FilterPresetChips, type SortDir, SortHeader, ViewToggle, useCrmTableUrlState } from './table-shared';
 import { Empty, Pagination } from './workspace';
 
 /** Sentinel value for the "Unassigned" option in the assignee filter. */
@@ -63,12 +70,16 @@ export function ActivitiesTableView() {
   const status = searchParams.get('status') ?? '';
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
+  // TEAM-4 ownership preset — same URL param and chips as contacts/companies.
+  const rawPreset = searchParams.get('preset');
+  const preset: CrmListPreset = isCrmListPreset(rawPreset) ? rawPreset : 'all';
 
   const list = useActivitiesList({
     page,
     pageSize: CRM_PAGE_SIZE,
     ...(sortBy ? { sortBy } : {}),
     ...(sortDir && sortBy ? { sortDir } : {}),
+    ...scopePresetListParams(preset),
     ...(q ? { search: q } : {}),
     ...(assignee === ACTIVITY_ASSIGNEE_UNASSIGNED
       ? { unassigned: true }
@@ -80,7 +91,7 @@ export function ActivitiesTableView() {
     ...(to ? { toDate: to } : {}),
   });
 
-  const hasActiveFilters = Boolean(q || assignee || status || from || to);
+  const hasActiveFilters = Boolean(q || assignee || status || from || to || preset !== 'all');
   const memberName = (userId: string | null) => {
     if (!userId) return null;
     const member = (members ?? []).find((m) => m.userId === userId);
@@ -146,6 +157,10 @@ export function ActivitiesTableView() {
           />
         </div>
 
+        {/* Ownership chips on their own row — the exact same component and
+            placement as the contacts/companies list pages (TEAM-4). */}
+        <FilterPresetChips value={preset} onChange={(next) => update({ preset: next === 'all' ? undefined : next })} />
+
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{t('activities.assigneeFilter')}</Label>
@@ -197,7 +212,7 @@ export function ActivitiesTableView() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => update({ q: '', assignee: '', status: '', from: '', to: '' })}
+              onClick={() => update({ q: '', assignee: '', status: '', from: '', to: '', preset: undefined })}
             >
               {t('activities.resetFilters')}
             </Button>

@@ -11,7 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectItem } from '@/components/ui/select';
 
-import { useCurrencies, useFxRate, useOrgBaseCurrency } from './hooks';
+import { useSession } from '@/lib/auth/session-context';
+import { hasPermission } from '@/lib/permissions';
+
+import { useCurrencies, useFxRate, useOrgBaseCurrency, usePipelines, useTeams } from './hooks';
+import { useOrgMembers } from '@/lib/hooks/use-member-name';
 import { convertMinorAmount, formatMinorAmount } from './money';
 import { activityFormSchema, dealFormSchema, type ActivityFormValues, type DealFormValues } from './schemas';
 
@@ -68,6 +72,22 @@ export function DealForm({
   const locale = useLocale();
   const { data: currencies } = useCurrencies();
   const baseCurrency = useOrgBaseCurrency();
+  const { user, permissions } = useSession();
+  const { data: teams } = useTeams();
+  const { data: membersData } = useOrgMembers();
+  const isAdminForOwner = hasPermission(permissions ?? [], 'platform:members:assign-role');
+  const myTeamMemberIds = (() => {
+    if (isAdminForOwner) return null;
+    const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    const ids = new Set<string>();
+    for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
+    if (user?.id) ids.add(user.id);
+    return [...ids];
+  })();
+  const teamMembers = (membersData ?? [])
+    .filter((m) => m.status === 'active')
+    .filter((m) => !myTeamMemberIds || myTeamMemberIds.includes(m.userId));
   const form = useForm<DealFormValues>({
     resolver: zodResolver(dealFormSchema),
     defaultValues: {
@@ -76,10 +96,22 @@ export function DealForm({
       companyId: '',
       amountMinor: '0',
       currency: initialCurrency ?? baseCurrency,
+      pipelineId: '',
+      stageId: '',
+      ownerUserId: user?.id ?? '',
+      ownerTeamId: teams?.[0]?.id ?? '',
     },
   });
   const amountMinor = form.watch('amountMinor');
   const currency = form.watch('currency');
+  // CRM-17: the pipelines the caller can see, and the stage dropdown's
+  // contents follow the selected pipeline ('' = the org default, which the
+  // API orders first — mirror that for the stage list).
+  const { data: pipelines } = usePipelines();
+  const selectedPipeline = pipelines?.find((p) => p.id === form.watch('pipelineId')) ?? pipelines?.[0] ?? null;
+  const pipelineStageList = selectedPipeline
+    ? [...selectedPipeline.stages].sort((a, b) => a.position - b.position)
+    : [];
   const crossCurrency = currency !== '' && currency !== baseCurrency;
   const { data: rate, isPending: ratePending } = useFxRate(
     crossCurrency ? currency : null,
@@ -174,6 +206,66 @@ export function DealForm({
             <p className="text-xs font-medium text-foreground">{t('deals.previewAmount', { amount: preview })}</p>
           )}
           <p className="text-xs text-muted-foreground">{t('deals.currencyHint', { currency: baseCurrency })}</p>
+        </Field>
+        <Field label={t('fields.pipeline')} error={undefined}>
+          <Select
+            value={selectedPipeline?.id ?? ''}
+            onValueChange={(v) => {
+              form.setValue('pipelineId', v);
+              // The stage list just changed — reset the entry stage so the
+              // deal lands on the new pipeline's first stage (or an explicit
+              // pick) instead of a stage from the previous pipeline.
+              form.setValue('stageId', '');
+            }}
+          >
+            {!pipelines ? (
+              <SelectItem value="">{t('common.loading')}</SelectItem>
+            ) : (
+              pipelines.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {(p.nameI18n[locale] ?? p.nameI18n.en) + (p.isDefault ? t('deals.defaultSuffix') : '')}
+                </SelectItem>
+              ))
+            )}
+          </Select>
+        </Field>
+        <Field label={t('fields.stage')} error={undefined}>
+          <Select value={form.watch('stageId') ?? ''} onValueChange={(v) => form.setValue('stageId', v)}>
+            <SelectItem value="">{t('fields.stageFirst')}</SelectItem>
+            {pipelineStageList.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.nameI18n[locale] ?? s.nameI18n.en}
+              </SelectItem>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('fields.owner')} error={undefined}>
+          <Select
+            value={form.watch('ownerUserId') ?? ''}
+            onValueChange={(v) => form.setValue('ownerUserId', v)}
+            {...form.register('ownerUserId')}
+          >
+            <SelectItem value="">{t('common.none')}</SelectItem>
+            {teamMembers.map((m) => (
+              <SelectItem key={m.userId} value={m.userId}>
+                {m.name || m.email}
+              </SelectItem>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('fields.ownerTeam')} error={undefined}>
+          <Select
+            value={form.watch('ownerTeamId') ?? ''}
+            onValueChange={(v) => form.setValue('ownerTeamId', v)}
+            {...form.register('ownerTeamId')}
+          >
+            <SelectItem value="">{t('common.none')}</SelectItem>
+            {(teams ?? []).map((team) => (
+              <SelectItem key={team.id} value={team.id}>
+                {team.name}
+              </SelectItem>
+            ))}
+          </Select>
         </Field>
         <div className="flex flex-wrap gap-2 md:col-span-2 md:justify-self-start">
           <Button loading={pending}>{t('deals.create')}</Button>

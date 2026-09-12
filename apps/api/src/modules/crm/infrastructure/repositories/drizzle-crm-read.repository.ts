@@ -5,6 +5,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { fromDbDate } from '../../../../core/database/db-date.js';
 import { DRIZZLE_DB, type DrizzleDb } from '../../../../core/database/drizzle.provider.js';
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
+import type { StageOutcomeCounts } from '../../domain/index.js';
 import type {
   ActivityListFilter,
   ActivitySortBy,
@@ -80,6 +81,7 @@ type DealListRow = {
   base_amount_minor: string | null;
   status: string;
   owner_user_id: string | null;
+  owner_team_id: string | null;
   created_at: string | Date;
   updated_at: string | Date;
   contact_first_name: string | null;
@@ -104,6 +106,7 @@ type DealDetailRow = {
   closed_at: string | Date | null;
   lost_reason_code: string | null;
   owner_user_id: string | null;
+  owner_team_id: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string | Date;
@@ -147,6 +150,53 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     if (filter.companyId) {
       conditions.push(sql`company_id = ${filter.companyId}`);
     }
+    if (filter.ownerUserId) {
+      conditions.push(sql`owner_user_id = ${filter.ownerUserId}`);
+    }
+    if (filter.unassigned) {
+      conditions.push(sql`owner_user_id IS NULL`);
+    }
+    // TEAM-4 pool views (contacts & companies): "Team pool" vs "Unassigned".
+    // ANDed with the scope clamp, so members/leaders only ever see pools they
+    // are entitled to; admins see every team's pool.
+    if (filter.pool === 'team') {
+      conditions.push(sql`(owner_user_id IS NULL AND owner_team_id IS NOT NULL)`);
+    } else if (filter.pool === 'global') {
+      conditions.push(sql`(owner_user_id IS NULL AND owner_team_id IS NULL)`);
+    }
+    if (filter.createdFrom) {
+      conditions.push(sql`created_at >= ${filter.createdFrom}::date`);
+    }
+    if (filter.ownerTeamId) {
+      conditions.push(sql`owner_team_id = ${filter.ownerTeamId}`);
+    }
+    if (filter.ownerTeamIds && filter.ownerUserIds) {
+      conditions.push(
+        sql`((owner_team_id IN ${filter.ownerTeamIds} OR owner_user_id IN ${filter.ownerUserIds}) OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+      );
+    } else {
+      if (filter.ownerTeamIds) {
+        conditions.push(
+          sql`(owner_team_id IN ${filter.ownerTeamIds} OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+        );
+      }
+      if (filter.ownerUserIds) {
+        conditions.push(
+          sql`(owner_user_id IN ${filter.ownerUserIds} OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+        );
+      }
+    }
+    if (filter.ownPool) {
+      if (filter.ownPool.teamIds.length === 0) {
+        conditions.push(
+          sql`(owner_user_id = ${filter.ownPool.userId} OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+        );
+      } else {
+        conditions.push(
+          sql`(owner_user_id = ${filter.ownPool.userId} OR (owner_user_id IS NULL AND (owner_team_id IN ${filter.ownPool.teamIds} OR owner_team_id IS NULL)))`,
+        );
+      }
+    }
     const where = sql.join(conditions, sql.raw(' AND '));
 
     const countRows = await db.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM crm_contacts WHERE ${where}`);
@@ -158,7 +208,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const orderBy = contactOrderBy(filter.sortBy ?? 'updatedAt', sortDir);
 
     const rows = await db.execute<Record<string, unknown>>(sql`
-      SELECT id, first_name, last_name, email, phone, secondary_phone, company_id, owner_user_id,
+      SELECT id, first_name, last_name, email, phone, secondary_phone, company_id, owner_user_id, owner_team_id,
              preferred_locale, preferred_currency, created_at, updated_at
       FROM crm_contacts
       WHERE ${where}
@@ -175,6 +225,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
         secondaryPhone: row.secondary_phone,
         companyId: row.company_id,
         ownerUserId: row.owner_user_id,
+        ownerTeamId: row.owner_team_id,
         preferredLocale: row.preferred_locale,
         preferredCurrency: row.preferred_currency,
         createdAt: isoOrNull(row.created_at),
@@ -193,9 +244,60 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 12));
     const offset = (page - 1) * pageSize;
 
-    const where = sql`deleted_at IS NULL
-      AND (${search} = '' OR name ILIKE ${`%${search}%`} OR domain ILIKE ${`%${search}%`}
-           OR industry ILIKE ${`%${search}%`})`;
+    // Same narrowing-filter idiom as listContacts: RLS scopes the tenant,
+    // these clauses only narrow within it.
+    const conditions = [
+      sql`deleted_at IS NULL`,
+      sql`(${search} = '' OR name ILIKE ${`%${search}%`} OR domain ILIKE ${`%${search}%`}
+           OR industry ILIKE ${`%${search}%`})`,
+    ];
+    if (filter.ownerUserId) {
+      conditions.push(sql`owner_user_id = ${filter.ownerUserId}`);
+    }
+    if (filter.unassigned) {
+      conditions.push(sql`owner_user_id IS NULL`);
+    }
+    // TEAM-4 pool views — same semantics as listContacts (see there).
+    if (filter.pool === 'team') {
+      conditions.push(sql`(owner_user_id IS NULL AND owner_team_id IS NOT NULL)`);
+    } else if (filter.pool === 'global') {
+      conditions.push(sql`(owner_user_id IS NULL AND owner_team_id IS NULL)`);
+    }
+    if (filter.createdFrom) {
+      conditions.push(sql`created_at >= ${filter.createdFrom}::date`);
+    }
+    if (filter.ownerTeamId) {
+      conditions.push(sql`owner_team_id = ${filter.ownerTeamId}`);
+    }
+    if (filter.ownerTeamIds && filter.ownerUserIds) {
+      // Leader: team-owned OR member-owned (covers pre-team data) + global pool
+      conditions.push(
+        sql`((owner_team_id IN ${filter.ownerTeamIds} OR owner_user_id IN ${filter.ownerUserIds}) OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+      );
+    } else {
+      if (filter.ownerTeamIds) {
+        conditions.push(
+          sql`(owner_team_id IN ${filter.ownerTeamIds} OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+        );
+      }
+      if (filter.ownerUserIds) {
+        conditions.push(
+          sql`(owner_user_id IN ${filter.ownerUserIds} OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+        );
+      }
+    }
+    if (filter.ownPool) {
+      if (filter.ownPool.teamIds.length === 0) {
+        conditions.push(
+          sql`(owner_user_id = ${filter.ownPool.userId} OR (owner_user_id IS NULL AND owner_team_id IS NULL))`,
+        );
+      } else {
+        conditions.push(
+          sql`(owner_user_id = ${filter.ownPool.userId} OR (owner_user_id IS NULL AND (owner_team_id IN ${filter.ownPool.teamIds} OR owner_team_id IS NULL)))`,
+        );
+      }
+    }
+    const where = sql.join(conditions, sql.raw(' AND '));
 
     const countRows = await db.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM crm_companies WHERE ${where}`);
     const total = Number(countRows[0]?.n ?? 0);
@@ -206,7 +308,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const orderBy = companyOrderBy(filter.sortBy ?? 'updatedAt', sortDir);
 
     const rows = await db.execute<Record<string, unknown>>(sql`
-      SELECT id, name, domain, industry, address, owner_user_id, created_at, updated_at
+      SELECT id, name, domain, industry, address, owner_user_id, owner_team_id, created_at, updated_at
       FROM crm_companies
       WHERE ${where}
       ORDER BY ${orderBy}
@@ -230,11 +332,58 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     // RLS scopes the whole query to the tenant; the joins only resolve display
     // names, never widen the tenant scope.
     const conditions = [sql`d.deleted_at IS NULL`, sql`(${search} = '' OR d.title ILIKE ${`%${search}%`})`];
+    if (filter.pipelineId) {
+      conditions.push(sql`d.pipeline_id = ${filter.pipelineId}`);
+    }
     if (filter.stageId) {
       conditions.push(sql`d.stage_id = ${filter.stageId}`);
     }
     if (filter.status) {
       conditions.push(sql`d.status = ${filter.status}`);
+    }
+    // TEAM-4: team-scope narrowing + the Kanban unassigned pool
+    // (team-assigned but no individual owner yet).
+    if (filter.ownerTeamId) {
+      conditions.push(sql`d.owner_team_id = ${filter.ownerTeamId}`);
+    }
+    if (filter.ownerTeamIds && filter.ownerUserIds) {
+      conditions.push(
+        sql`((d.owner_team_id IN ${filter.ownerTeamIds} OR d.owner_user_id IN ${filter.ownerUserIds}) OR (d.owner_user_id IS NULL AND d.owner_team_id IS NULL))`,
+      );
+    } else {
+      if (filter.ownerTeamIds) {
+        conditions.push(
+          sql`(d.owner_team_id IN ${filter.ownerTeamIds} OR (d.owner_user_id IS NULL AND d.owner_team_id IS NULL))`,
+        );
+      }
+      if (filter.ownerUserIds) {
+        conditions.push(
+          sql`(d.owner_user_id IN ${filter.ownerUserIds} OR (d.owner_user_id IS NULL AND d.owner_team_id IS NULL))`,
+        );
+      }
+    }
+    if (filter.ownPool) {
+      if (filter.ownPool.teamIds.length === 0) {
+        conditions.push(
+          sql`(d.owner_user_id = ${filter.ownPool.userId} OR (d.owner_user_id IS NULL AND d.owner_team_id IS NULL))`,
+        );
+      } else {
+        conditions.push(
+          sql`(d.owner_user_id = ${filter.ownPool.userId} OR (d.owner_user_id IS NULL AND (d.owner_team_id IN ${filter.ownPool.teamIds} OR d.owner_team_id IS NULL)))`,
+        );
+      }
+    }
+    if (filter.unassignedUser) {
+      conditions.push(sql`d.owner_user_id IS NULL AND d.owner_team_id IS NOT NULL`);
+    }
+    // TEAM-4 pool views — same semantics as listContacts (see there).
+    if (filter.pool === 'team') {
+      conditions.push(sql`(d.owner_user_id IS NULL AND d.owner_team_id IS NOT NULL)`);
+    } else if (filter.pool === 'global') {
+      conditions.push(sql`(d.owner_user_id IS NULL AND d.owner_team_id IS NULL)`);
+    }
+    if (filter.createdFrom) {
+      conditions.push(sql`d.created_at >= ${filter.createdFrom}::date`);
     }
     if (filter.fromDate) {
       conditions.push(sql`d.updated_at >= ${filter.fromDate}::date`);
@@ -278,7 +427,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const rows = await db.execute<DealListRow>(sql`
       SELECT d.id, d.title, d.pipeline_id, d.stage_id, d.contact_id, d.company_id,
              d.value_amount_minor, d.value_currency, d.base_amount_minor,
-             d.status, d.owner_user_id, d.created_at, d.updated_at,
+             d.status, d.owner_user_id, d.owner_team_id, d.created_at, d.updated_at,
              c.first_name AS contact_first_name, c.last_name AS contact_last_name,
              co.name AS company_name
       FROM crm_deals d
@@ -307,6 +456,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
           baseAmountMinor: row.base_amount_minor,
           status: row.status,
           ownerUserId: row.owner_user_id,
+          ownerTeamId: row.owner_team_id,
           createdAt: isoOrNull(row.created_at),
           updatedAt: isoOrNull(row.updated_at),
         };
@@ -336,6 +486,52 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     }
     if (filter.unassigned) {
       conditions.push(sql`a.assigned_to IS NULL`);
+    }
+    if (filter.assigneeTeamId) {
+      conditions.push(sql`a.assigned_team_id = ${filter.assigneeTeamId}`);
+    }
+    // TEAM-6: leader view combines team-owned + member-owned records with the
+    // global pool as a single UNION clause — ANDing them would intersect and
+    // hide both pools from leaders.
+    const leaderMembers =
+      (filter as Record<string, string[] | undefined>).ownerUserIds ??
+      (filter as Record<string, string[] | undefined>).assigneeUserIds;
+    if (filter.assigneeTeamIds && leaderMembers) {
+      conditions.push(
+        sql`((a.assigned_team_id IN ${filter.assigneeTeamIds} OR a.assigned_to IN ${leaderMembers}) OR (a.assigned_to IS NULL AND a.assigned_team_id IS NULL))`,
+      );
+    } else {
+      if (filter.assigneeTeamIds) {
+        conditions.push(
+          sql`(a.assigned_team_id IN ${filter.assigneeTeamIds} OR (a.assigned_to IS NULL AND a.assigned_team_id IS NULL))`,
+        );
+      }
+      if (leaderMembers) {
+        conditions.push(
+          sql`(a.assigned_to IN ${leaderMembers} OR (a.assigned_to IS NULL AND a.assigned_team_id IS NULL))`,
+        );
+      }
+    }
+    if (filter.ownPool) {
+      if (filter.ownPool.teamIds.length === 0) {
+        conditions.push(
+          sql`(a.assigned_to = ${filter.ownPool.userId} OR (a.assigned_to IS NULL AND a.assigned_team_id IS NULL))`,
+        );
+      } else {
+        conditions.push(
+          sql`(a.assigned_to = ${filter.ownPool.userId} OR (a.assigned_to IS NULL AND (a.assigned_team_id IN ${filter.ownPool.teamIds} OR a.assigned_team_id IS NULL)))`,
+        );
+      }
+    }
+    // TEAM-4 pool views — same semantics as listContacts (see there); the
+    // activity columns are assigned_to / assigned_team_id.
+    if (filter.pool === 'team') {
+      conditions.push(sql`(a.assigned_to IS NULL AND a.assigned_team_id IS NOT NULL)`);
+    } else if (filter.pool === 'global') {
+      conditions.push(sql`(a.assigned_to IS NULL AND a.assigned_team_id IS NULL)`);
+    }
+    if (filter.createdFrom) {
+      conditions.push(sql`a.created_at >= ${filter.createdFrom}::date`);
     }
     if (filter.completed === true) {
       conditions.push(sql`a.completed_at IS NOT NULL`);
@@ -367,7 +563,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     `;
 
     const rows = await db.execute<Record<string, unknown>>(sql`
-      SELECT a.id, a.type, a.subject, a.due_at, a.completed_at, a.related_type, a.related_id, a.assigned_to,
+      SELECT a.id, a.type, a.subject, a.due_at, a.completed_at, a.related_type, a.related_id, a.assigned_to, a.assigned_team_id,
              a.created_at, a.updated_at,
              c.first_name AS contact_first_name, c.last_name AS contact_last_name,
              co.name AS company_name,
@@ -406,6 +602,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
           relatedType: row.related_type,
           relatedId: row.related_id,
           assignedToUserId: row.assigned_to,
+          assignedTeamId: row.assigned_team_id,
           relatedName,
           dealStageId: row.related_type === 'deal' ? ((row.deal_stage_id as string | null) ?? null) : null,
           dealStageNameI18n:
@@ -422,7 +619,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
 
   async findContactById(id: string, tx: TxOrDb): Promise<Record<string, unknown> | undefined> {
     const rows = await this.getDb(tx).execute<Record<string, unknown>>(sql`
-      SELECT id, first_name, last_name, email, phone, secondary_phone, company_id, owner_user_id,
+      SELECT id, first_name, last_name, email, phone, secondary_phone, company_id, owner_user_id, owner_team_id,
              preferred_locale, preferred_currency, created_by, updated_by, created_at, updated_at
       FROM crm_contacts
       WHERE id = ${id} AND deleted_at IS NULL
@@ -439,6 +636,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
       secondaryPhone: row.secondary_phone,
       companyId: row.company_id,
       ownerUserId: row.owner_user_id,
+      ownerTeamId: row.owner_team_id,
       preferredLocale: row.preferred_locale,
       preferredCurrency: row.preferred_currency,
       createdByUserId: row.created_by,
@@ -450,7 +648,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
 
   async findCompanyById(id: string, tx: TxOrDb): Promise<CrmCompanyRecord | undefined> {
     const rows = await this.getDb(tx).execute<Record<string, unknown>>(sql`
-      SELECT id, name, domain, industry, address, owner_user_id, created_by, updated_by, created_at, updated_at
+      SELECT id, name, domain, industry, address, owner_user_id, owner_team_id, created_by, updated_by, created_at, updated_at
       FROM crm_companies
       WHERE id = ${id} AND deleted_at IS NULL
       LIMIT 1
@@ -465,7 +663,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     const rows = await db.execute<DealDetailRow>(sql`
       SELECT id, title, pipeline_id, stage_id, contact_id, company_id,
              value_amount_minor, value_currency, exchange_rate, base_amount_minor,
-             expected_close_date, status, closed_at, lost_reason_code, owner_user_id,
+             expected_close_date, status, closed_at, lost_reason_code, owner_user_id, owner_team_id,
              created_by, updated_by, created_at, updated_at
       FROM crm_deals
       WHERE id = ${id} AND deleted_at IS NULL
@@ -495,6 +693,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
       closedAt: isoOrNull(row.closed_at),
       lostReasonCode: row.lost_reason_code,
       ownerUserId: row.owner_user_id,
+      ownerTeamId: row.owner_team_id,
       createdByUserId: row.created_by,
       updatedByUserId: row.updated_by,
       createdAt: isoOrNull(row.created_at),
@@ -512,7 +711,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
 
   async findActivityById(id: string, tx: TxOrDb): Promise<Record<string, unknown> | undefined> {
     const rows = await this.getDb(tx).execute<Record<string, unknown>>(sql`
-      SELECT id, type, subject, due_at, completed_at, related_type, related_id, assigned_to,
+      SELECT id, type, subject, due_at, completed_at, related_type, related_id, assigned_to, assigned_team_id,
              created_by, updated_by, created_at, updated_at
       FROM crm_activities
       WHERE id = ${id} AND deleted_at IS NULL
@@ -529,6 +728,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
       relatedType: row.related_type,
       relatedId: row.related_id,
       assignedToUserId: row.assigned_to,
+      assignedTeamId: row.assigned_team_id,
       createdByUserId: row.created_by,
       updatedByUserId: row.updated_by,
       createdAt: isoOrNull(row.created_at),
@@ -539,7 +739,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
   async getDefaultPipeline(tx: TxOrDb): Promise<CrmPipelineRecord | undefined> {
     const db = this.getDb(tx);
     const pipelines = await db.execute<Record<string, unknown>>(sql`
-      SELECT id, name_i18n FROM crm_pipelines WHERE is_default AND deleted_at IS NULL LIMIT 1
+      SELECT id, name_i18n, owner_team_id FROM crm_pipelines WHERE is_default AND deleted_at IS NULL LIMIT 1
     `);
     const pipeline = pipelines[0];
     if (!pipeline) return undefined;
@@ -550,6 +750,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     return {
       id: pipeline.id as string,
       nameI18n: pipeline.name_i18n as Record<string, string>,
+      ownerTeamId: (pipeline.owner_team_id as string | null) ?? null,
       stages: stages.map((stage) => ({
         id: stage.id as string,
         nameI18n: stage.name_i18n as Record<string, string>,
@@ -561,15 +762,80 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
     };
   }
 
+  async getPipelineById(id: string, tx: TxOrDb): Promise<CrmPipelineRecord | undefined> {
+    const db = this.getDb(tx);
+    const pipelines = await db.execute<Record<string, unknown>>(sql`
+      SELECT id, name_i18n, owner_team_id FROM crm_pipelines WHERE id = ${id} AND deleted_at IS NULL LIMIT 1
+    `);
+    const pipeline = pipelines[0];
+    if (!pipeline) return undefined;
+    const stages = await db.execute<Record<string, unknown>>(sql`
+      SELECT id, name_i18n, position, probability, is_won, is_lost FROM crm_pipeline_stages
+      WHERE pipeline_id = ${id} AND deleted_at IS NULL ORDER BY position
+    `);
+    return {
+      id: pipeline.id as string,
+      nameI18n: pipeline.name_i18n as Record<string, string>,
+      ownerTeamId: (pipeline.owner_team_id as string | null) ?? null,
+      stages: stages.map((stage) => ({
+        id: stage.id as string,
+        nameI18n: stage.name_i18n as Record<string, string>,
+        position: Number(stage.position),
+        probability: Number(stage.probability),
+        isWon: stage.is_won as boolean,
+        isLost: stage.is_lost as boolean,
+      })),
+    };
+  }
+
+  async getStageOutcomeCounts(pipelineId: string, tx: TxOrDb): Promise<Map<string, StageOutcomeCounts>> {
+    const db = this.getDb(tx);
+    // A deal is attributed to every stage it reached: its CURRENT stage
+    // (deals sitting there now) plus every `crm_deal_stage_history` row —
+    // BOTH to_stage_id (stages moved into) and from_stage_id (stages moved
+    // out of, including the creation stage of the first move). Only resolved
+    // deals (status won/lost) contribute; open deals resolve nothing yet.
+    // RLS scopes both tables.
+    const rows = await db.execute<Record<string, unknown>>(sql`
+      SELECT stage_id, status, count(*)::int AS n FROM (
+        SELECT d.stage_id AS stage_id, d.status AS status
+        FROM crm_deals d
+        WHERE d.pipeline_id = ${pipelineId} AND d.deleted_at IS NULL AND d.status IN ('won', 'lost')
+        UNION ALL
+        SELECT h.to_stage_id AS stage_id, d.status AS status
+        FROM crm_deal_stage_history h
+        JOIN crm_deals d ON d.id = h.deal_id
+        WHERE h.organization_id = d.organization_id
+          AND d.pipeline_id = ${pipelineId} AND d.deleted_at IS NULL AND d.status IN ('won', 'lost')
+        UNION ALL
+        SELECT h.from_stage_id AS stage_id, d.status AS status
+        FROM crm_deal_stage_history h
+        JOIN crm_deals d ON d.id = h.deal_id
+        WHERE h.from_stage_id IS NOT NULL AND h.organization_id = d.organization_id
+          AND d.pipeline_id = ${pipelineId} AND d.deleted_at IS NULL AND d.status IN ('won', 'lost')
+      ) reached
+      GROUP BY stage_id, status
+    `);
+    const counts = new Map<string, StageOutcomeCounts>();
+    for (const row of rows) {
+      const stageId = row.stage_id as string;
+      const entry = counts.get(stageId) ?? { won: 0, lost: 0 };
+      if (row.status === 'won') entry.won += Number(row.n);
+      else if (row.status === 'lost') entry.lost += Number(row.n);
+      counts.set(stageId, entry);
+    }
+    return counts;
+  }
+
   async insertCompany(input: CrmCompanyRecord & { organizationId: string }, tx: TxOrDb): Promise<CrmCompanyRecord> {
     // `address` is a jsonb column. Raw `sql` templates must serialize objects
     // explicitly — the postgres-js driver (as wrapped by drizzle) does NOT
     // JSON-stringify plain objects, and binding one crashes with
     // ERR_INVALID_ARG_TYPE (see db-date.ts for the same date identity override).
     const rows = await this.getDb(tx).execute<Record<string, unknown>>(sql`
-      INSERT INTO crm_companies (id, organization_id, name, domain, industry, address, owner_user_id, created_by, updated_by)
-      VALUES (${input.id}, ${input.organizationId}, ${input.name}, ${input.domain}, ${input.industry}, ${JSON.stringify(input.address ?? {})}::jsonb, ${input.ownerUserId ?? null}, ${input.createdByUserId ?? null}, ${input.updatedByUserId ?? null})
-      RETURNING id, name, domain, industry, address, owner_user_id, created_by, updated_by
+      INSERT INTO crm_companies (id, organization_id, name, domain, industry, address, owner_user_id, owner_team_id, created_by, updated_by)
+      VALUES (${input.id}, ${input.organizationId}, ${input.name}, ${input.domain}, ${input.industry}, ${JSON.stringify(input.address ?? {})}::jsonb, ${input.ownerUserId ?? null}, ${input.ownerTeamId ?? null}, ${input.createdByUserId ?? null}, ${input.updatedByUserId ?? null})
+      RETURNING id, name, domain, industry, address, owner_user_id, owner_team_id, created_by, updated_by
     `);
     return this.toCompany(rows[0] as Record<string, unknown>);
   }
@@ -582,11 +848,18 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
         industry = CASE WHEN ${input.industry !== undefined} THEN ${input.industry ?? null} ELSE industry END,
         address = CASE WHEN ${input.address !== undefined} THEN ${JSON.stringify(input.address ?? {})}::jsonb ELSE address END,
         owner_user_id = CASE WHEN ${input.ownerUserId !== undefined} THEN ${input.ownerUserId ?? null} ELSE owner_user_id END,
+        owner_team_id = CASE WHEN ${input.ownerTeamId !== undefined} THEN ${input.ownerTeamId ?? null} ELSE owner_team_id END,
         updated_by = CASE WHEN ${input.updatedByUserId !== undefined} THEN ${input.updatedByUserId ?? null} ELSE updated_by END
       WHERE id = ${id} AND deleted_at IS NULL
-      RETURNING id, name, domain, industry, address, owner_user_id, created_by, updated_by
+      RETURNING id, name, domain, industry, address, owner_user_id, owner_team_id, created_by, updated_by
     `);
     return rows[0] ? this.toCompany(rows[0]) : undefined;
+  }
+
+  async softDeleteCompany(id: string, tx: TxOrDb): Promise<void> {
+    await this.getDb(tx).execute(
+      sql`UPDATE crm_companies SET deleted_at = NOW() WHERE id = ${id} AND deleted_at IS NULL`,
+    );
   }
 
   private toCompany(row: Record<string, unknown>): CrmCompanyRecord {
@@ -597,6 +870,7 @@ export class DrizzleCrmReadRepository implements CrmReadRepository {
       industry: (row.industry as string | null) ?? null,
       address: row.address as Record<string, unknown>,
       ownerUserId: (row.owner_user_id as string | null) ?? null,
+      ownerTeamId: (row.owner_team_id as string | null) ?? null,
       // Audit stamps + timestamps are only present when the query selected
       // the columns (detail/insert/update/list-with-timestamps) — rows that
       // omit them stay unset rather than claiming null.

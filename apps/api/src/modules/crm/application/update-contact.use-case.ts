@@ -18,6 +18,7 @@ export interface UpdateContactInput {
   secondaryPhone?: string | null;
   companyId?: string | null;
   ownerUserId?: string | null;
+  ownerTeamId?: string | null;
   preferredLocale?: string | null;
   preferredCurrency?: string | null;
 }
@@ -60,6 +61,7 @@ export class UpdateContactUseCase {
         secondaryPhone?: string | null;
         companyId?: string | null;
         ownerUserId?: string | null;
+        ownerTeamId?: string | null;
         preferredLocale?: string | null;
         preferredCurrency?: string | null;
       } = {};
@@ -70,6 +72,7 @@ export class UpdateContactUseCase {
       if (input.phone !== undefined) updateProps.phone = input.phone;
       if (input.companyId !== undefined) updateProps.companyId = input.companyId;
       if (input.ownerUserId !== undefined) updateProps.ownerUserId = input.ownerUserId;
+      if (input.ownerTeamId !== undefined) updateProps.ownerTeamId = input.ownerTeamId;
       if (input.preferredLocale !== undefined) updateProps.preferredLocale = input.preferredLocale;
       if (input.preferredCurrency !== undefined) updateProps.preferredCurrency = input.preferredCurrency;
       contact.update({ ...updateProps, updatedBy: userId ?? 'system' });

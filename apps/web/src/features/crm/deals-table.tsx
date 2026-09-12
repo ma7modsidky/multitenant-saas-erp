@@ -23,9 +23,19 @@ import { Select, SelectItem } from '@/components/ui/select';
 import { CRM_PAGE_SIZE } from '@/lib/api/resources';
 
 import { DealForm } from './forms';
-import { useCurrencies, useCrmData, useCrmMutations, useDealsList, useOrgBaseCurrency } from './hooks';
+import {
+  isCrmListPreset,
+  useCurrencies,
+  useCrmData,
+  useCrmMutations,
+  useDealsList,
+  useOrgBaseCurrency,
+  usePipelines,
+  scopePresetListParams,
+  type CrmListPreset,
+} from './hooks';
 import { formatMinorAmount } from './money';
-import { type SortDir, SortHeader, ViewToggle, useCrmTableUrlState } from './table-shared';
+import { FilterPresetChips, type SortDir, SortHeader, ViewToggle, useCrmTableUrlState } from './table-shared';
 import { Empty, Pagination } from './workspace';
 
 /** Deal sort keys the API accepts. */
@@ -61,6 +71,16 @@ export function DealsTableView() {
   const status = searchParams.get('status') ?? '';
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
+  // CRM-17: which pipeline the stage dropdown lists (default when absent).
+  const pipelineParam = searchParams.get('pipeline') ?? '';
+  // TEAM-4 ownership preset — same URL param and chips as contacts/companies.
+  const rawPreset = searchParams.get('preset');
+  const preset: CrmListPreset = isCrmListPreset(rawPreset) ? rawPreset : 'all';
+
+  // CRM-17: the pipelines the caller can see; the stage dropdown + table
+  // stage-name lookup follow the selected pipeline.
+  const pipelines = usePipelines();
+  const activePipeline = pipelines.data?.find((p) => p.id === pipelineParam) ?? pipelines.data?.[0] ?? null;
 
   const mutations = useCrmMutations();
   const [showForm, setShowForm] = useState(false);
@@ -70,7 +90,9 @@ export function DealsTableView() {
     pageSize: CRM_PAGE_SIZE,
     sortBy,
     sortDir,
+    ...scopePresetListParams(preset),
     ...(q ? { search: q } : {}),
+    ...(activePipeline?.id ? { pipelineId: activePipeline.id } : {}),
     ...(stage ? { stageId: stage } : {}),
     ...(isDealStatus(status) ? { status } : {}),
     ...(from ? { fromDate: from } : {}),
@@ -78,12 +100,13 @@ export function DealsTableView() {
   });
 
   const stageName = (stageId: string) => {
-    const found = data.pipeline.data?.stages.find((s) => s.id === stageId);
+    const found = activePipeline?.stages.find((s) => s.id === stageId);
     return found ? (found.nameI18n[locale] ?? found.nameI18n.en) : '—';
   };
   const statusLabel = (value: string) =>
     value === 'won' ? t('deals.won') : value === 'lost' ? t('deals.lost') : t('deals.open');
-  const hasActiveFilters = Boolean(q || stage || status || from || to);
+  const hasActiveFilters = Boolean(q || stage || status || from || to || preset !== 'all');
+  void data; // useCrmData stays for the contact/company selectors
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -115,6 +138,9 @@ export function DealsTableView() {
                 contactId: v.contactId || null,
                 companyId: v.companyId || null,
                 value: { amountMinor: v.amountMinor, currency: v.currency },
+                // CRM-17: '' = the org default pipeline / its first stage.
+                ...(v.pipelineId ? { pipelineId: v.pipelineId } : {}),
+                ...(v.stageId ? { stageId: v.stageId } : {}),
               })
               .then(() => setShowForm(false))
           }
@@ -143,7 +169,28 @@ export function DealsTableView() {
           />
         </div>
 
+        {/* Ownership chips on their own row — the exact same component and
+            placement as the contacts/companies list pages (TEAM-4). */}
+        <FilterPresetChips value={preset} onChange={(next) => update({ preset: next === 'all' ? undefined : next })} />
+
         <div className="flex flex-wrap items-end gap-2">
+          {(pipelines.data?.length ?? 0) > 1 && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t('deals.pipeline')}</Label>
+              <Select
+                value={activePipeline?.id ?? ''}
+                onValueChange={(value) => update({ pipeline: value, stage: '' })}
+                aria-label={t('deals.pipeline')}
+                className="h-9 w-52"
+              >
+                {pipelines.data?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {(p.nameI18n[locale] ?? p.nameI18n.en) + (p.isDefault ? t('deals.defaultSuffix') : '')}
+                  </SelectItem>
+                ))}
+              </Select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{t('deals.tableStage')}</Label>
             <Select
@@ -153,7 +200,7 @@ export function DealsTableView() {
               className="h-9 w-44"
             >
               <SelectItem value="">{t('deals.allStages')}</SelectItem>
-              {(data.pipeline.data?.stages ?? []).map((s) => (
+              {(activePipeline?.stages ?? []).map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.nameI18n[locale] ?? s.nameI18n.en}
                 </SelectItem>
@@ -191,7 +238,9 @@ export function DealsTableView() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => update({ q: '', stage: '', status: '', from: '', to: '' })}
+              onClick={() =>
+                update({ q: '', stage: '', status: '', from: '', to: '', preset: undefined, pipeline: undefined })
+              }
             >
               <X />
               {t('deals.resetFilters')}

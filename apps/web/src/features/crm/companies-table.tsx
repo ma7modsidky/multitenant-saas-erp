@@ -2,23 +2,53 @@
 
 // Companies table view — a searchable, sortable list of companies at
 // `/m/crm/companies/table`. Reached from the Cards/Table toggle on the
-// companies page. All state lives in the URL (`q`, `sortBy`, `sortDir`,
-// `page`) so views are shareable and the back button behaves. Sorting +
-// pagination are server-side.
+// companies page. All state lives in the URL (`q`, `preset`, `sortBy`,
+// `sortDir`, `page`) so views are shareable and the back button behaves.
+// Sorting + pagination are server-side.
+//
+// Like the contacts table, it hosts checkbox selection with a bulk-actions
+// bar (Export / Reassign owner / Delete selected) — companies have no merge
+// flow, so no merge action appears here.
 
 import { Building2, Plus, Search } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { buildCsv, downloadCsv } from '@/lib/csv';
+import { useSession } from '@/lib/auth/session-context';
 import { CRM_PAGE_SIZE } from '@/lib/api/resources';
 
 import { CompanyForm } from './workspace';
-import { useCompaniesList, useCrmMutations } from './hooks';
-import { type SortDir, SortHeader, ViewToggle, useCrmTableUrlState } from './table-shared';
+import {
+  lastActivityAt,
+  presetListParams,
+  useCompaniesList,
+  useCrmData,
+  useCrmMutations,
+  useMemberName,
+  useRecentActivities,
+  type CrmListPreset,
+} from './hooks';
+import {
+  BulkActionsBar,
+  FilterPresetChips,
+  type SortDir,
+  SortHeader,
+  ViewToggle,
+  useCrmTableUrlState,
+} from './table-shared';
 import { Empty, Pagination } from './workspace';
+
+const PRESET_VALUES: readonly CrmListPreset[] = ['all', 'mine', 'teamPool', 'unassigned', 'recent'];
+
+const isPreset = (value: string | null): value is CrmListPreset => PRESET_VALUES.some((preset) => preset === value);
+
+/** Selected-row snapshot for exports (see contacts-table). */
+type SelectedCompany = { id: string; name: string };
 
 /** Company sort keys the API accepts. */
 const SORTABLE: Array<{ key: string; labelKey: string; defaultDir: SortDir }> = [
@@ -31,7 +61,12 @@ const SORTABLE: Array<{ key: string; labelKey: string; defaultDir: SortDir }> = 
 export function CompaniesTableView() {
   const t = useTranslations('modules.crm');
   const locale = useLocale();
+  const searchParams = useSearchParams();
   const mutations = useCrmMutations();
+  const data = useCrmData();
+  const memberName = useMemberName();
+  const recentActivities = useRecentActivities();
+  const { user } = useSession();
 
   const basePath = `/${locale}/m/crm/companies/table`;
   const { q, sortBy, sortDir, page, searchInput, setSearchInput, update, onSort } = useCrmTableUrlState({
@@ -41,15 +76,98 @@ export function CompaniesTableView() {
     defaultDir: Object.fromEntries(SORTABLE.map((c) => [c.key, c.defaultDir])),
   });
 
+  const rawPreset = searchParams.get('preset');
+  const preset: CrmListPreset = isPreset(rawPreset) ? rawPreset : 'all';
   const list = useCompaniesList({
     page,
     pageSize: CRM_PAGE_SIZE,
     sortBy,
     sortDir,
+    ...presetListParams(preset, user?.id),
     ...(q ? { search: q } : {}),
   });
 
   const [showForm, setShowForm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkFailures, setBulkFailures] = useState(0);
+  const [bulkLastError, setBulkLastError] = useState<unknown>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Map<string, SelectedCompany>>(new Map());
+
+  const pageItems = list.data?.items ?? [];
+  const pageIds = pageItems.map((c) => c.id);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const someOnPageSelected = pageIds.some((id) => selected.has(id));
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someOnPageSelected && !allOnPageSelected;
+  }, [someOnPageSelected, allOnPageSelected]);
+
+  const toggleSelectAll = () => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      for (const company of pageItems) {
+        if (allOnPageSelected) next.delete(company.id);
+        else next.set(company.id, { id: company.id, name: company.name });
+      }
+      return next;
+    });
+  };
+
+  const toggleRow = (company: (typeof pageItems)[number]) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(company.id)) next.delete(company.id);
+      else next.set(company.id, { id: company.id, name: company.name });
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelected(new Map());
+    setBulkFailures(0);
+    setBulkLastError(null);
+  };
+
+  // Sequential per-row requests — each lands in the audit log individually.
+  // Professional feedback distinguishes all-success, partial, and all-failed.
+  const runBulk = async (run: (id: string) => Promise<unknown>) => {
+    const total = selected.size;
+    setBulkBusy(true);
+    setBulkFailures(0);
+    setBulkLastError(null);
+    setBulkSuccess(null);
+    let failures = 0;
+    let lastError: unknown = null;
+    for (const id of selected.keys()) {
+      try {
+        await run(id);
+      } catch (err) {
+        failures += 1;
+        lastError = err;
+      }
+    }
+    setBulkBusy(false);
+    setBulkFailures(failures);
+    setBulkLastError(lastError);
+    if (failures === 0) {
+      setBulkSuccess(total);
+      clearSelection();
+      window.setTimeout(() => setBulkSuccess(null), 4000);
+    }
+  };
+
+  const exportSelected = () => {
+    const headers = ['name', 'domain', 'industry'];
+    const rows = [...selected.values()].map((company) => {
+      const row =
+        pageItems.find((item) => item.id === company.id) ??
+        data.companies.data?.items.find((item) => item.id === company.id);
+      return [company.name, row?.domain ?? '', row?.industry ?? ''];
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`companies-${stamp}.csv`, buildCsv(headers, rows));
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -113,15 +231,61 @@ export function CompaniesTableView() {
           />
         </div>
 
+        {bulkSuccess !== null && (
+          <div
+            role="status"
+            className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700"
+          >
+            {t('bulk.success', { count: bulkSuccess })}
+          </div>
+        )}
+        <FilterPresetChips value={preset} onChange={(next) => update({ preset: next === 'all' ? undefined : next })} />
+
+        {selected.size > 0 && (
+          <BulkActionsBar
+            count={selected.size}
+            canWrite
+            busy={bulkBusy}
+            failures={bulkFailures}
+            lastError={bulkLastError}
+            onExport={exportSelected}
+            onDelete={() =>
+              runBulk(async (id) => {
+                await mutations.deleteCompany.mutateAsync(id);
+              })
+            }
+            onReassign={(ownerUserId) =>
+              runBulk(async (id) => {
+                const isUnassigned = ownerUserId === '__unassigned__';
+                await mutations.updateCompany.mutateAsync({
+                  id,
+                  input: { ownerUserId: isUnassigned ? null : ownerUserId },
+                });
+              })
+            }
+            onClear={clearSelection}
+          />
+        )}
+
         {list.isPending && list.data === undefined ? (
           <Empty loading />
         ) : (list.data?.items.length ?? 0) === 0 ? (
           <Empty loading={false} />
         ) : (
           <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <th scope="col" className="w-10 px-3 py-2.5">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allOnPageSelected}
+                      onChange={toggleSelectAll}
+                      aria-label={t('contacts.selectAll')}
+                      className="size-4 accent-primary"
+                    />
+                  </th>
                   {SORTABLE.map(({ key, labelKey }) => (
                     <SortHeader
                       key={key}
@@ -132,11 +296,31 @@ export function CompaniesTableView() {
                       onSort={onSort}
                     />
                   ))}
+                  <th scope="col" className="px-3 py-2.5 text-start font-medium">
+                    {t('companies.tableOwner')}
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-start font-medium">
+                    {t('companies.tableLastActivity')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {list.data?.items.map((company) => (
-                  <tr key={company.id} className="border-b transition-colors last:border-0 hover:bg-accent/40">
+                {pageItems.map((company) => (
+                  <tr
+                    key={company.id}
+                    className={`border-b transition-colors last:border-0 hover:bg-accent/40 ${
+                      selected.has(company.id) ? 'bg-accent/30' : ''
+                    }`}
+                  >
+                    <td className="px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(company.id)}
+                        onChange={() => toggleRow(company)}
+                        aria-label={company.name}
+                        className="size-4 accent-primary"
+                      />
+                    </td>
                     <td className="max-w-64 px-3 py-2.5">
                       <Link
                         href={`/${locale}/m/crm/companies/${company.id}`}
@@ -163,6 +347,15 @@ export function CompaniesTableView() {
                     </td>
                     <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
                       {company.updatedAt ? new Date(company.updatedAt).toLocaleDateString(locale) : '—'}
+                    </td>
+                    <td className="max-w-40 px-3 py-2.5 truncate text-muted-foreground">
+                      {memberName(company.ownerUserId) ?? '—'}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {(() => {
+                        const at = lastActivityAt(recentActivities.data?.items ?? [], 'company', company.id);
+                        return at ? new Date(at).toLocaleDateString(locale) : '—';
+                      })()}
                     </td>
                   </tr>
                 ))}

@@ -28,6 +28,12 @@ export interface ContactRepository {
 
   /** CRM-11: soft-delete a contact. */
   softDelete(id: string, tx?: TxOrDb): Promise<void>;
+
+  /**
+   * CRM-15: detach every non-deleted contact from the given company
+   * (`company_id = NULL`) — used when a company is deleted.
+   */
+  detachCompany(companyId: string, tx?: TxOrDb): Promise<void>;
 }
 
 /** Injection token for the ContactRepository. */

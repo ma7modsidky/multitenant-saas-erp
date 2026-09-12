@@ -46,14 +46,14 @@ export class DrizzleDealRepository implements DealRepository {
         INSERT INTO ${this.dealsTable}
           (id, organization_id, title, pipeline_id, stage_id, contact_id, company_id,
            value_amount_minor, value_currency, exchange_rate, base_amount_minor,
-           expected_close_date, status, closed_at, lost_reason_code, owner_user_id,
+           expected_close_date, status, closed_at, lost_reason_code, owner_user_id, owner_team_id,
            created_at, updated_at, created_by, updated_by)
         VALUES
           (${data.id}, ${data.organizationId}, ${data.title}, ${data.pipelineId}, ${data.stageId},
            ${data.contactId}, ${data.companyId},
            ${data.valueAmountMinor}, ${data.valueCurrency}, ${data.exchangeRate}, ${data.baseAmountMinor},
            ${toDbDate(data.expectedCloseDate)}, ${data.status}, ${toDbDate(data.closedAt)},
-           ${data.lostReasonCode}, ${data.ownerUserId},
+           ${data.lostReasonCode}, ${data.ownerUserId}, ${data.ownerTeamId ?? null},
            ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)}, ${data.createdBy}, ${data.updatedBy})
         RETURNING *
       `,
@@ -82,6 +82,7 @@ export class DrizzleDealRepository implements DealRepository {
       setFragments.push(sql`expected_close_date = ${toDbDate(data.expectedCloseDate)}`);
     }
     if (data.ownerUserId !== undefined) setFragments.push(sql`owner_user_id = ${data.ownerUserId}`);
+    if (data.ownerTeamId !== undefined) setFragments.push(sql`owner_team_id = ${data.ownerTeamId}`);
     if (data.updatedBy !== undefined) setFragments.push(sql`updated_by = ${data.updatedBy}`);
 
     const setClause = sql.join(setFragments, sql.raw(', '));
@@ -118,6 +119,24 @@ export class DrizzleDealRepository implements DealRepository {
     return Number((result as unknown as { count?: number })?.count ?? 0);
   }
 
+  async detachContact(contactId: string, tx?: TxOrDb): Promise<void> {
+    const db = this.getDb(tx);
+    // CRM-11: only open deals are detached — closed (won/lost) deals keep
+    // their historical attribution.
+    await db.execute(
+      sql`UPDATE ${this.dealsTable} SET contact_id = NULL, updated_at = NOW()
+          WHERE contact_id = ${contactId} AND status = 'open' AND deleted_at IS NULL`,
+    );
+  }
+
+  async detachCompany(companyId: string, tx?: TxOrDb): Promise<void> {
+    const db = this.getDb(tx);
+    await db.execute(
+      sql`UPDATE ${this.dealsTable} SET company_id = NULL, updated_at = NOW()
+          WHERE company_id = ${companyId} AND status = 'open' AND deleted_at IS NULL`,
+    );
+  }
+
   private async loadHistory(db: PostgresJsDatabase, dealId: string): Promise<DealStageHistoryData[]> {
     const rows = await db.execute<Record<string, unknown>>(
       sql`SELECT * FROM ${this.historyTable} WHERE deal_id = ${dealId} ORDER BY moved_at ASC`,
@@ -143,6 +162,7 @@ export class DrizzleDealRepository implements DealRepository {
       closedAt: fromDbDate(row.closed_at),
       lostReasonCode: (row.lost_reason_code as string | null) ?? null,
       ownerUserId: (row.owner_user_id as string | null) ?? null,
+      ownerTeamId: (row.owner_team_id as string | null) ?? null,
       stageHistory: history,
       createdAt: fromDbDate(row.created_at) as Date,
       updatedAt: fromDbDate(row.updated_at) as Date,

@@ -25,6 +25,7 @@ export interface CreateDealInput {
   fxRate?: FxRate | null;
   expectedCloseDate?: Date | null;
   ownerUserId?: string | null;
+  ownerTeamId?: string | null;
 }
 
 /**
@@ -89,6 +90,7 @@ export class CreateDealUseCase {
         closedAt: null,
         lostReasonCode: null,
         ownerUserId: input.ownerUserId ?? null,
+        ownerTeamId: input.ownerTeamId ?? null,
         stageHistory: [],
         createdAt: now,
         updatedAt: now,

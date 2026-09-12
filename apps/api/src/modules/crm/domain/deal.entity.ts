@@ -46,6 +46,7 @@ export interface DealData {
   closedAt: Date | null;
   lostReasonCode: string | null;
   ownerUserId: string | null;
+  ownerTeamId: string | null;
   stageHistory: DealStageHistoryData[];
   createdAt: Date;
   updatedAt: Date;
@@ -125,6 +126,9 @@ export class Deal {
   }
   get lostReasonCode(): string | null {
     return this.data.lostReasonCode;
+  }
+  get ownerTeamId(): string | null {
+    return this.data.ownerTeamId;
   }
   get ownerUserId(): string | null {
     return this.data.ownerUserId;

@@ -48,6 +48,11 @@ export const crmDescriptor: ModuleDescriptor = defineModule({
       href: '/m/crm/activities',
       icon: 'activity',
     },
+    {
+      labelKey: 'modules.crm.nav.pipelines',
+      href: '/m/crm/pipelines',
+      icon: 'git-branch',
+    },
   ],
   publishes: [
     CRM_EVENTS.CONTACT_CREATED_V1,

@@ -110,6 +110,7 @@ export class EnsureDefaultPipelineUseCase {
       organizationId,
       nameI18n: { en: 'Sales Pipeline' },
       isDefault: true,
+      ownerTeamId: null, // CRM-17: the lazy default is org-wide.
       stages: stages.map((s) => ({ ...s, pipelineId })),
       createdAt: now,
       updatedAt: now,

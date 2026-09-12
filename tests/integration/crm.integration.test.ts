@@ -54,10 +54,18 @@ import {
   UpdateCompanyUseCase,
 } from '../../apps/api/src/modules/crm/application/crm-queries.use-cases.js';
 import { DrizzleCrmReadRepository } from '../../apps/api/src/modules/crm/infrastructure/repositories/drizzle-crm-read.repository.js';
+import { GetPipelineBoardUseCase } from '../../apps/api/src/modules/crm/application/crm-queries.use-cases.js';
 import { CreateDealUseCase } from '../../apps/api/src/modules/crm/application/create-deal.use-case.js';
 import { EnsureDefaultPipelineUseCase } from '../../apps/api/src/modules/crm/application/ensure-default-pipeline.use-case.js';
 import { MoveDealStageUseCase } from '../../apps/api/src/modules/crm/application/move-deal-stage.use-case.js';
 import { MergeContactsUseCase } from '../../apps/api/src/modules/crm/application/merge-contacts.use-case.js';
+import {
+  CreatePipelineUseCase,
+  DeletePipelineUseCase,
+  ListPipelinesUseCase,
+  SetDefaultPipelineUseCase,
+  UpdatePipelineUseCase,
+} from '../../apps/api/src/modules/crm/application/pipeline-management.use-cases.js';
 import { CreateActivityUseCase } from '../../apps/api/src/modules/crm/application/create-activity.use-case.js';
 import { UpdateActivityUseCase } from '../../apps/api/src/modules/crm/application/update-activity.use-case.js';
 import { CompleteActivityUseCase } from '../../apps/api/src/modules/crm/application/complete-activity.use-case.js';
@@ -1494,5 +1502,171 @@ describe('CRM application layer (integration)', () => {
         ),
       ).rejects.toMatchObject({ code: 'CRM_ACTIVITY_COMPLETED_IMMUTABLE' });
     }
+  });
+});
+
+describe('CRM-17: multiple pipelines, team scoping, and stage success rates', () => {
+  it('creates a second pipeline, moves a deal into it, and computes per-stage win rates', async () => {
+    const { orgId } = await createOrgForOwner();
+    const { contactId } = await createContact(orgId, 'crm17@example.com');
+
+    // The lazy default pipeline exists after the first deal.
+    await createDeal(orgId, {
+      title: 'CRM-17 default-pipeline deal',
+      contactId,
+      value: Money.of(10_000n, 'USD'),
+      baseCurrency: 'USD',
+    });
+    const [defaultPipeline] = await ownerSql`
+      SELECT id FROM crm_pipelines WHERE organization_id = ${orgId} AND is_default = true
+    `;
+    expect(defaultPipeline).toBeTruthy();
+
+    // Create a second pipeline via the new management use case.
+    const { pipelineRepo, txManager } = buildCrmRepos();
+    const createPipeline = new CreatePipelineUseCase(pipelineRepo, txManager);
+    const created = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      createPipeline.execute({
+        nameI18n: { en: 'B2B Sales' },
+        ownerTeamId: null,
+        stages: [
+          { nameI18n: { en: 'New' }, probability: 10 },
+          { nameI18n: { en: 'Proposal' }, probability: 50 },
+          { nameI18n: { en: 'Won' }, probability: 100, isWon: true },
+          { nameI18n: { en: 'Lost' }, probability: 0, isLost: true },
+        ],
+      }),
+    );
+    expect(created.isDefault).toBe(false);
+    expect(created.stages).toHaveLength(4);
+
+    // Exactly one default remains (CRM-3).
+    const defaults = await ownerSql`
+      SELECT id FROM crm_pipelines WHERE organization_id = ${orgId} AND is_default = true
+    `;
+    expect(defaults).toHaveLength(1);
+
+    // Create a deal directly in the new pipeline (explicit pipelineId).
+    const { dealRepo, pipelineRepo: dealPipelineRepo, txManager: dealTx } = buildCrmRepos();
+    const ensurePipeline = new EnsureDefaultPipelineUseCase(dealPipelineRepo, dealTx);
+    const createDealUc = new CreateDealUseCase(dealRepo, dealPipelineRepo, ensurePipeline, dealTx);
+    const { deal } = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      createDealUc.execute({
+        title: 'CRM-17 b2b deal',
+        contactId,
+        pipelineId: created.id,
+        value: Money.of(20_000n, 'USD'),
+        baseCurrency: 'USD',
+      }),
+    );
+    expect(deal.pipelineId).toBe(created.id);
+
+    // Move it through Proposal → Won (history accrues at each stage).
+    const stageRows = await ownerSql`
+      SELECT id, position, is_won, is_lost FROM crm_pipeline_stages
+      WHERE pipeline_id = ${created.id} ORDER BY position
+    `;
+    const { unitOfWork } = buildCrmRepos();
+    const moveStage = new MoveDealStageUseCase(dealRepo, dealPipelineRepo, dealTx, unitOfWork);
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      moveStage.execute({ dealId: deal.id, toStageId: stageRows[1]?.id as string }),
+    );
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      moveStage.execute({ dealId: deal.id, toStageId: stageRows[2]?.id as string }),
+    );
+
+    // Board read: per-stage success rates. The single won deal reached New,
+    // Proposal, and Won — all three compute a 100% win rate; Lost has no
+    // evidence → the configured 0 fallback.
+    const readRepo = new DrizzleCrmReadRepository(db);
+    const board = new GetPipelineBoardUseCase(readRepo, txManager);
+    const view = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      board.execute(created.id),
+    );
+    expect(view).toBeTruthy();
+    expect(view?.stages.map((s) => s.successPercent)).toEqual([100, 100, 100, 0]);
+    expect(view?.stages[3]?.resolvedDeals).toBe(0);
+
+    // Stage counts: the deal reached New(0), Proposal(1), Won(2) — 1 won;
+    // Lost(3) never saw a resolved deal. The read runs inside the tenant
+    // transaction (RLS needs the session binding — a bare db read yields
+    // zero rows fail-closed).
+    const counts = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      txManager.run((tx) => readRepo.getStageOutcomeCounts(created.id, tx)),
+    );
+    expect(counts.get(stageRows[0]?.id as string)).toEqual({ won: 1, lost: 0 });
+    expect(counts.get(stageRows[3]?.id as string)).toBeUndefined();
+  });
+
+  it('listAll/update/setDefault/softDelete manage pipelines without touching the default (CRM-3)', async () => {
+    const { orgId } = await createOrgForOwner();
+    const { contactId } = await createContact(orgId, 'crm17b@example.com');
+    await createDeal(orgId, {
+      title: 'CRM-17b deal',
+      contactId,
+      value: Money.of(10_000n, 'USD'),
+      baseCurrency: 'USD',
+    });
+
+    const { pipelineRepo, txManager } = buildCrmRepos();
+    const createPipeline = new CreatePipelineUseCase(pipelineRepo, txManager);
+    const listPipelines = new ListPipelinesUseCase(pipelineRepo, txManager);
+    const updatePipeline = new UpdatePipelineUseCase(pipelineRepo, txManager);
+    const setDefault = new SetDefaultPipelineUseCase(pipelineRepo, txManager);
+    const deletePipeline = new DeletePipelineUseCase(pipelineRepo, txManager);
+
+    let created: Awaited<ReturnType<typeof createPipeline.execute>>;
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, async () => {
+      created = await createPipeline.execute({
+        nameI18n: { en: 'Support Renewals' },
+        stages: [
+          { nameI18n: { en: 'Open' }, probability: 20 },
+          { nameI18n: { en: 'Won' }, probability: 100, isWon: true },
+          { nameI18n: { en: 'Lost' }, probability: 0, isLost: true },
+        ],
+      });
+    });
+    expect(created).toBeTruthy();
+
+    // listAll returns both pipelines, default first.
+    const listed = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      listPipelines.execute(),
+    );
+    expect(listed).toHaveLength(2);
+    expect(listed[0]?.isDefault).toBe(true);
+
+    // Rename + team assignment round-trip.
+    const renamed = await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      updatePipeline.execute(created!.id, { nameI18n: { en: 'Renewals' }, ownerTeamId: null }),
+    );
+    expect(renamed.nameI18n.en).toBe('Renewals');
+
+    // Promote to default: the flip moves the default flag (CRM-3).
+    await TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+      setDefault.execute(created!.id),
+    );
+    const flags = await ownerSql`
+      SELECT id, is_default FROM crm_pipelines WHERE organization_id = ${orgId}
+    `;
+    expect(flags.filter((p) => p.is_default)).toHaveLength(1);
+    expect(flags.find((p) => p.id === created!.id)?.is_default).toBe(true);
+
+    // Deleting the CURRENT default is rejected (CRM-3).
+    await expect(
+      TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        deletePipeline.execute(created!.id),
+      ),
+    ).rejects.toMatchObject({ code: 'CRM_PIPELINE_DEFAULT_DELETE' });
+
+    // Deleting a pipeline that still holds open deals is rejected — the
+    // deals must be moved or closed first (no silent orphaning).
+    const [oldDefault] = await ownerSql`
+      SELECT id FROM crm_pipelines WHERE organization_id = ${orgId} AND id <> ${created!.id} AND deleted_at IS NULL
+    `;
+    await expect(
+      TenantContext.run({ ...ownerContext, userId: ownerUserId, organizationId: orgId }, () =>
+        deletePipeline.execute(oldDefault?.id as string),
+      ),
+    ).rejects.toMatchObject({ code: 'CRM_PIPELINE_HAS_OPEN_DEALS' });
   });
 });

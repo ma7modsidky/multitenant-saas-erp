@@ -27,6 +27,15 @@ export interface DealRepository {
    * Returns the number of reassigned deals.
    */
   reassignContact(fromContactId: string, toContactId: string, tx?: TxOrDb): Promise<number>;
+
+  /**
+   * CRM-11: detach all OPEN deals from the given contact (`contact_id = NULL`).
+   * Closed (won/lost) deals keep their historical attribution.
+   */
+  detachContact(contactId: string, tx?: TxOrDb): Promise<void>;
+
+  /** CRM-15: detach all OPEN deals from the given company (`company_id = NULL`). */
+  detachCompany(companyId: string, tx?: TxOrDb): Promise<void>;
 }
 
 /** Injection token for the DealRepository. */

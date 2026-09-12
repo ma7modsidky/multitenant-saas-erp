@@ -16,6 +16,7 @@ export interface CreateContactInput {
   secondaryPhone?: string | null;
   companyId?: string | null;
   ownerUserId?: string | null;
+  ownerTeamId?: string | null;
   preferredLocale?: string | null;
   preferredCurrency?: string | null;
 }
@@ -55,6 +56,7 @@ export class CreateContactUseCase {
       phone: input.phone ?? null,
       secondaryPhone: input.secondaryPhone ?? null,
       ownerUserId: input.ownerUserId ?? null,
+      ownerTeamId: input.ownerTeamId ?? null,
       preferredLocale: input.preferredLocale ?? null,
       preferredCurrency: input.preferredCurrency ?? null,
       createdAt: now,

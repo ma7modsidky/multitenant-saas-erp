@@ -23,6 +23,7 @@ import {
 import {
   getInvitations,
   getMembers,
+  getTeams,
   getMyOrganizations,
   getRoles,
   inviteUser,
@@ -36,7 +37,7 @@ import { hasPermission } from '@/lib/permissions';
 
 const PAGE_SIZE = 8;
 
-// ─── Badge color maps ──────────────────────────────────────────────────────
+// --- Badge color maps ------------------------------------------------------
 // System roles get a distinct color; custom roles fall back to a neutral tone.
 const ROLE_BADGE_COLORS: Record<string, string> = {
   owner: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
@@ -59,7 +60,7 @@ const INVITATION_STATUS_COLORS: Record<string, string> = {
   revoked: 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/30',
 };
 
-// Iterated to render the filter dropdowns — a readonly array type avoids an
+// Iterated to render the filter dropdowns � a readonly array type avoids an
 // `as const` cast (base no-restricted-syntax bans TSAsExpression).
 const MEMBER_STATUSES: readonly string[] = ['active', 'invited', 'disabled'];
 const INVITATION_STATUSES: readonly string[] = ['pending', 'accepted', 'revoked'];
@@ -120,9 +121,9 @@ export default function MembersSettingsPage() {
   const locale = useLocale();
   const { organizationId, user, permissions } = useSession();
 
-  // AUTHZ-5/BUSINESS_RULES §3: only OWNER/ADMIN manage members. The backend
+  // AUTHZ-5/BUSINESS_RULES �3: only OWNER/ADMIN manage members. The backend
   // enforces this via @RequiresPermission; the UI hides the controls for
-  // members (server-authoritative — this is UX only).
+  // members (server-authoritative � this is UX only).
   const canInvite = hasPermission(permissions, 'platform:members:invite');
   const canAssignRole = hasPermission(permissions, 'platform:members:assign-role');
   const canRemove = hasPermission(permissions, 'platform:members:remove');
@@ -134,6 +135,15 @@ export default function MembersSettingsPage() {
       return getMembers(organizationId);
     },
     enabled: organizationId !== null,
+  });
+
+  const { data: teams } = useQuery({
+    queryKey: ['teams', organizationId],
+    queryFn: () => {
+      if (organizationId === null) throw new Error('No organization selected');
+      return getTeams(organizationId);
+    },
+    enabled: !!organizationId,
   });
   const { data: invitations } = useQuery({
     queryKey: ['invitations', organizationId],
@@ -166,12 +176,13 @@ export default function MembersSettingsPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [roleId, setRoleId] = useState('');
+  const [inviteTeamIds, setInviteTeamIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // ─── Member list filters + pagination ───────────────────────────────────
+  // --- Member list filters + pagination -----------------------------------
   const [memberSearch, setMemberSearch] = useState('');
   const [memberRoleFilter, setMemberRoleFilter] = useState('');
   const [memberStatusFilter, setMemberStatusFilter] = useState('');
@@ -191,7 +202,7 @@ export default function MembersSettingsPage() {
   const safeMemberPage = Math.min(memberPage, memberPageCount - 1);
   const pageMembers = filteredMembers.slice(safeMemberPage * PAGE_SIZE, safeMemberPage * PAGE_SIZE + PAGE_SIZE);
 
-  // ─── Invitation list filters + pagination ───────────────────────────────
+  // --- Invitation list filters + pagination -------------------------------
   const [invSearch, setInvSearch] = useState('');
   const [invStatusFilter, setInvStatusFilter] = useState('');
   const [invPage, setInvPage] = useState(0);
@@ -209,7 +220,7 @@ export default function MembersSettingsPage() {
   const safeInvPage = Math.min(invPage, invPageCount - 1);
   const pageInvitations = filteredInvitations.slice(safeInvPage * PAGE_SIZE, safeInvPage * PAGE_SIZE + PAGE_SIZE);
 
-  // ─── Confirm dialog targets ─────────────────────────────────────────────
+  // --- Confirm dialog targets ---------------------------------------------
   const [removeTarget, setRemoveTarget] = useState<MemberResponse | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<InvitationResponse | null>(null);
   const [roleTarget, setRoleTarget] = useState<{
@@ -218,7 +229,7 @@ export default function MembersSettingsPage() {
     memberName: string;
     nextRoleName: string;
   } | null>(null);
-  // Which destructive/confirm action is currently in flight — drives the
+  // Which destructive/confirm action is currently in flight � drives the
   // ConfirmDialog `loading` state so the dialog's buttons (and Escape/backdrop)
   // lock during the async call, preventing double-submission.
   const [pendingAction, setPendingAction] = useState<'remove' | 'revoke' | 'role' | null>(null);
@@ -232,7 +243,7 @@ export default function MembersSettingsPage() {
     // Display info rides in the URL so the PUBLIC invite page can greet the
     // invitee before they authenticate: email (bound to the invitation per
     // AUTH-3/AUTH-9, used to pre-fill and lock the signup form), plus the
-    // invitee name, org name, and role display name (display-only — the
+    // invitee name, org name, and role display name (display-only � the
     // accept flow is server-authoritative via the user_own_invitations RLS
     // policy 0009, so a forged display param can never change the role).
     const params = new URLSearchParams({ email: emailAddress });
@@ -252,7 +263,7 @@ export default function MembersSettingsPage() {
   if (organizationId === null) return <NoOrganizationState />;
 
   // AUTHZ-2/UX: this page is OWNER/ADMIN-only. The backend enforces every
-  // action via @RequiresPermission (OPS-8 — server-authoritative); this gate
+  // action via @RequiresPermission (OPS-8 � server-authoritative); this gate
   // covers direct-URL navigation by members (the sidebar/hub already hide it).
   if (!canInvite) return <AccessDenied />;
 
@@ -268,14 +279,15 @@ export default function MembersSettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      await inviteUser(organizationId, { name, email, roleId });
+      await inviteUser(organizationId, { name, email, roleId, ...(inviteTeamIds.length ? { teamIds: inviteTeamIds } : {}) });
+    setInviteTeamIds([]);
       setName('');
       setEmail('');
       setNotice('members.inviteSent');
       await queryClient.invalidateQueries({ queryKey: ['invitations'] });
     } catch (err) {
       // AUTHZ-8: the API rejects duplicate members and duplicate pending
-      // invitations with 409 — surface the specific reason instead of a
+      // invitations with 409 � surface the specific reason instead of a
       // generic failure message.
       setError(inviteErrorKey(err));
     } finally {
@@ -292,7 +304,7 @@ export default function MembersSettingsPage() {
       await invalidate();
     } catch (err) {
       // AUTHZ-1/AUTHZ-2: the last OWNER cannot be removed, and only an OWNER
-      // can remove an OWNER — surface the specific reason.
+      // can remove an OWNER � surface the specific reason.
       setError(removeMemberErrorKey(err));
     } finally {
       setPendingAction(null);
@@ -356,7 +368,7 @@ export default function MembersSettingsPage() {
       </div>
 
       {/* Page-level status area: invite failures, member remove/role-change
-          errors, and revoke outcomes all surface here — NOT inside the invite
+          errors, and revoke outcomes all surface here � NOT inside the invite
           card, which would misplace list-action feedback (the original bug the
           earlier manual testing hit: the error banner only lived in the
           invite form). */}
@@ -421,7 +433,27 @@ export default function MembersSettingsPage() {
                   ))}
                 </Select>
               </div>
-              <Button type="submit" loading={isInviting}>
+              <div className="space-y-2 sm:w-56">
+          <Label>{t('modules.crm.teamsUI.assignTeams')}</Label>
+          <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border p-2">
+            {(teams ?? []).map((team) => (
+              <label key={team.id} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent/40">
+                <input
+                  type="checkbox"
+                  checked={inviteTeamIds.includes(team.id)}
+                  onChange={() =>
+                    setInviteTeamIds((prev) =>
+                      prev.includes(team.id) ? prev.filter((id) => id !== team.id) : [...prev, team.id],
+                    )
+                  }
+                  className="size-4 accent-primary"
+                />
+                <span className="truncate">{team.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <Button type="submit" loading={isInviting}>
                 {t('members.invite')}
               </Button>
             </form>
@@ -511,7 +543,7 @@ export default function MembersSettingsPage() {
                         value={member.roleId}
                         onValueChange={(v) => openRoleDialog(member, v)}
                         // AUTHZ-3: you cannot change your own role. Everyone else
-                        // (including system-role members) is changeable — the
+                        // (including system-role members) is changeable � the
                         // backend enforces AUTHZ-1 (last owner cannot be demoted).
                         disabled={member.userId === user?.id}
                         className="w-40"
@@ -672,7 +704,7 @@ export default function MembersSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* ─── Confirm dialogs ─────────────────────────────────────────────── */}
+      {/* --- Confirm dialogs ----------------------------------------------- */}
       <ConfirmDialog
         open={removeTarget !== null}
         title={t('members.confirmRemoveTitle')}

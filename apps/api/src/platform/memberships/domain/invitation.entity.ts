@@ -17,6 +17,8 @@ export interface InvitationData {
   name: string | null;
   email: string;
   roleId: string;
+  /** TEAM-3: teams pre-assigned at invite time (jsonb uuid[]; migration 0020). */
+  teamIds?: string[];
   tokenHash: string;
   expiresAt: Date;
   acceptedAt: Date | null;
@@ -63,6 +65,11 @@ export class Invitation {
   }
   get roleId(): string {
     return this.data.roleId;
+  }
+
+  /** TEAM-3: teams pre-assigned at invite time, provisioned on acceptance. */
+  get teamIds(): string[] {
+    return this.data.teamIds ?? [];
   }
   get tokenHash(): string {
     return this.data.tokenHash;

@@ -32,6 +32,7 @@ export const PLATFORM_PERMISSIONS = [
   'platform:members:assign-role',
   'platform:roles:manage',
   'platform:settings:manage',
+  'platform:teams:manage',
   'platform:audit:view',
 ] as const;
 
@@ -100,6 +101,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'platform:members:assign-role',
     'platform:roles:manage',
     'platform:settings:manage',
+    'platform:teams:manage',
     'platform:audit:view',
     'platform:module:configure',
     'platform:data:write',
@@ -116,6 +118,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'platform:members:assign-role',
     'platform:roles:manage',
     'platform:settings:manage',
+    'platform:teams:manage',
     'platform:audit:view',
     'platform:module:configure',
     'platform:data:write',

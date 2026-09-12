@@ -9,6 +9,8 @@ const CRM_ERROR_MESSAGES: Record<string, string> = {
   CRM_DEAL_FX_RATE_REQUIRED: 'errors.dealFxRateRequired',
   CRM_ACTIVITY_ASSIGNEE_NOT_ACTIVE_MEMBER: 'errors.activityAssigneeInvalid',
   CRM_ACTIVITY_COMPLETED_IMMUTABLE: 'errors.activityCompletedImmutable',
+  OWNER_SCOPE_DENIED: 'errors.ownerScopeDenied',
+  RECORD_NOT_FOUND: 'errors.recordNotFound',
 };
 
 /** Resolve a thrown error to a `modules.crm.errors.*` i18n key. */

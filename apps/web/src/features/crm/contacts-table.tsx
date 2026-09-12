@@ -2,13 +2,14 @@
 
 // Contacts table view — a searchable, filterable, sortable list of contacts
 // at `/m/crm/contacts/table`. Reached from the Cards/Table toggle on the
-// contacts page. All state lives in the URL (`q`, `companyId`, `sortBy`,
-// `sortDir`, `page`) so views are shareable and the back button behaves.
-// Sorting + pagination are server-side.
+// contacts page. All state lives in the URL (`q`, `companyId`, `preset`,
+// `sortBy`, `sortDir`, `page`) so views are shareable and the back button
+// behaves. Sorting + pagination are server-side.
 //
-// The table also hosts the bulk-merge flow: check rows (selection survives
+// The table also hosts the bulk flows: check rows (selection survives
 // pagination), then "Merge selected" opens MergeContactsDialog pre-seeded
-// with the checked contacts.
+// with the checked contacts, or run Delete / Reassign owner / Export from
+// the shared bulk-actions bar.
 
 import { Merge, Plus, Search, Users } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -20,14 +21,40 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectItem } from '@/components/ui/select';
+import { buildCsv, downloadCsv } from '@/lib/csv';
 import { Can } from '@/lib/permissions';
+import { useSession } from '@/lib/auth/session-context';
 import { CRM_PAGE_SIZE } from '@/lib/api/resources';
 
 import { ContactForm } from './workspace';
-import { useContactsList, useCrmData, useCrmMutations } from './hooks';
+import {
+  lastActivityAt,
+  presetListParams,
+  useContactsList,
+  useCrmData,
+  useCrmMutations,
+  useMemberName,
+  useRecentActivities,
+  type CrmListPreset,
+} from './hooks';
 import { MergeContactsDialog, type MergeContactOption } from './merge-contacts-dialog';
-import { type SortDir, SortHeader, ViewToggle, useCrmTableUrlState } from './table-shared';
+import {
+  BulkActionsBar,
+  FilterPresetChips,
+  type SortDir,
+  SortHeader,
+  ViewToggle,
+  useCrmTableUrlState,
+} from './table-shared';
 import { Empty, Pagination } from './workspace';
+
+const PRESET_VALUES: readonly CrmListPreset[] = ['all', 'mine', 'teamPool', 'unassigned', 'recent'];
+
+const isPreset = (value: string | null): value is CrmListPreset => PRESET_VALUES.some((preset) => preset === value);
+
+/** Selected-row snapshot — carries contact fields so Export can include rows
+    checked on pages that are no longer mounted. */
+type SelectedContact = MergeContactOption & { email?: string | null; phone?: string | null };
 
 /** Contact sort keys the API accepts. */
 const SORTABLE: Array<{ key: string; labelKey: string; defaultDir: SortDir }> = [
@@ -42,6 +69,9 @@ export function ContactsTableView() {
   const searchParams = useSearchParams();
   const data = useCrmData();
   const mutations = useCrmMutations();
+  const memberName = useMemberName();
+  const recentActivities = useRecentActivities();
+  const { user } = useSession();
 
   const basePath = `/${locale}/m/crm/contacts/table`;
   const { q, sortBy, sortDir, page, searchInput, setSearchInput, update, onSort } = useCrmTableUrlState({
@@ -52,11 +82,14 @@ export function ContactsTableView() {
   });
 
   const companyId = searchParams.get('companyId') ?? '';
+  const rawPreset = searchParams.get('preset');
+  const preset: CrmListPreset = isPreset(rawPreset) ? rawPreset : 'all';
   const list = useContactsList({
     page,
     pageSize: CRM_PAGE_SIZE,
     sortBy,
     sortDir,
+    ...presetListParams(preset, user?.id),
     ...(q ? { search: q } : {}),
     ...(companyId ? { companyId } : {}),
   });
@@ -65,10 +98,14 @@ export function ContactsTableView() {
 
   const [showForm, setShowForm] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkFailures, setBulkFailures] = useState(0);
+  const [bulkLastError, setBulkLastError] = useState<unknown>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<number | null>(null);
   // Selection survives pagination (the page component stays mounted while
   // only the URL changes), so a user can tick rows across several pages and
-  // merge them all at once.
-  const [selected, setSelected] = useState<Map<string, MergeContactOption>>(new Map());
+  // act on them all at once.
+  const [selected, setSelected] = useState<Map<string, SelectedContact>>(new Map());
 
   const pageItems = list.data?.items ?? [];
   const pageIds = pageItems.map((c) => c.id);
@@ -79,29 +116,84 @@ export function ContactsTableView() {
     if (selectAllRef.current) selectAllRef.current.indeterminate = someOnPageSelected && !allOnPageSelected;
   }, [someOnPageSelected, allOnPageSelected]);
 
+  const snapshotOf = (contact: (typeof pageItems)[number]): SelectedContact => ({
+    id: contact.id,
+    name: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || '—',
+    ...(contact.email ? { email: contact.email } : {}),
+    ...(contact.phone ? { phone: contact.phone } : {}),
+  });
+
   const toggleSelectAll = () => {
     setSelected((prev) => {
       const next = new Map(prev);
       for (const contact of pageItems) {
-        const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || '—';
         if (allOnPageSelected) next.delete(contact.id);
-        else next.set(contact.id, { id: contact.id, name });
+        else next.set(contact.id, snapshotOf(contact));
       }
       return next;
     });
   };
 
   const toggleRow = (contact: (typeof pageItems)[number]) => {
-    const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || '—';
     setSelected((prev) => {
       const next = new Map(prev);
       if (next.has(contact.id)) next.delete(contact.id);
-      else next.set(contact.id, { id: contact.id, name });
+      else next.set(contact.id, snapshotOf(contact));
       return next;
     });
   };
 
-  const clearSelection = () => setSelected(new Map());
+  const clearSelection = () => {
+    setSelected(new Map());
+    setBulkFailures(0);
+    setBulkLastError(null);
+  };
+
+  // Bulk mutations run sequentially so each request stays small and every
+  // row lands in the audit log individually; per-row failures are counted
+  // and reported instead of aborting the whole batch. Professional feedback
+  // distinguishes all-success, partial, and all-failed with the underlying
+  // mapped error (e.g. OWNER_SCOPE_DENIED → crmErrorKey).
+  const runBulk = async (run: (id: string) => Promise<unknown>) => {
+    const total = selected.size;
+    setBulkBusy(true);
+    setBulkFailures(0);
+    setBulkLastError(null);
+    setBulkSuccess(null);
+    let failures = 0;
+    let lastError: unknown = null;
+    for (const id of selected.keys()) {
+      try {
+        await run(id);
+      } catch (err) {
+        failures += 1;
+        lastError = err;
+      }
+    }
+    setBulkBusy(false);
+    setBulkFailures(failures);
+    setBulkLastError(lastError);
+    if (failures === 0) {
+      setBulkSuccess(total);
+      clearSelection();
+      window.setTimeout(() => setBulkSuccess(null), 4000);
+    } else if (failures < total) {
+      // keep selection for retry, failures banner will show
+    }
+  };
+
+  const exportSelected = () => {
+    const headers = ['name', 'email', 'phone', 'company', 'created_at'];
+    const rows = [...selected.values()].map((contact) => [
+      contact.name,
+      contact.email ?? '',
+      contact.phone ?? '',
+      companyName(data.contacts.data?.items.find((c) => c.id === contact.id)?.companyId ?? null) ?? '',
+      data.contacts.data?.items.find((c) => c.id === contact.id)?.createdAt ?? '',
+    ]);
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`contacts-${stamp}.csv`, buildCsv(headers, rows));
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -186,24 +278,53 @@ export function ContactsTableView() {
           />
         </div>
 
+        <FilterPresetChips value={preset} onChange={(next) => update({ preset: next === 'all' ? undefined : next })} />
+
+        {bulkSuccess !== null && (
+          <div
+            role="status"
+            className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700"
+          >
+            {t('bulk.success', { count: bulkSuccess })}
+          </div>
+        )}
         {/* Bulk action bar — appears once rows are checked. */}
         {selected.size > 0 && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2">
-            <p className="text-sm font-medium" aria-live="polite">
-              {t('contacts.selectedCount', { count: selected.size })}
-            </p>
-            <div className="ms-auto flex flex-wrap items-center gap-2">
-              <Can permission="crm:contact:write">
-                <Button variant="outline" size="sm" disabled={selected.size < 2} onClick={() => setMergeOpen(true)}>
-                  <Merge />
-                  {t('contacts.mergeSelected')}
-                </Button>
-              </Can>
-              <Button variant="ghost" size="sm" onClick={clearSelection}>
-                {t('contacts.clearSelection')}
-              </Button>
-            </div>
-          </div>
+          <BulkActionsBar
+            count={selected.size}
+            canWrite
+            busy={bulkBusy}
+            failures={bulkFailures}
+            lastError={bulkLastError}
+            onExport={exportSelected}
+            onDelete={() =>
+              runBulk(async (id) => {
+                await mutations.deleteContact.mutateAsync(id);
+              })
+            }
+            onReassign={(ownerUserId) =>
+              runBulk(async (id) => {
+                const isUnassigned = ownerUserId === '__unassigned__';
+                // Reassignment changes only the user owner; the owning team is
+                // kept by the backend (TEAM-2/CRM-16 transition rules).
+                await mutations.updateContact.mutateAsync({
+                  id,
+                  input: { ownerUserId: isUnassigned ? null : ownerUserId },
+                });
+              })
+            }
+            onClear={clearSelection}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={selected.size < 2 || bulkBusy}
+              onClick={() => setMergeOpen(true)}
+            >
+              <Merge />
+              {t('contacts.mergeSelected')}
+            </Button>
+          </BulkActionsBar>
         )}
 
         {list.isPending && list.data === undefined ? (
@@ -212,7 +333,7 @@ export function ContactsTableView() {
           <Empty loading={false} />
         ) : (
           <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="w-10 px-3 py-2.5">
@@ -240,6 +361,12 @@ export function ContactsTableView() {
                   </th>
                   <th scope="col" className="px-3 py-2.5 text-start font-medium">
                     {t('contacts.tablePhone')}
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-start font-medium">
+                    {t('contacts.tableOwner')}
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-start font-medium">
+                    {t('contacts.tableLastActivity')}
                   </th>
                 </tr>
               </thead>
@@ -297,6 +424,15 @@ export function ContactsTableView() {
                     </td>
                     <td className="max-w-44 px-3 py-2.5 text-muted-foreground" dir="auto">
                       {contact.phone ?? '—'}
+                    </td>
+                    <td className="max-w-40 px-3 py-2.5 truncate text-muted-foreground">
+                      {memberName(contact.ownerUserId) ?? '—'}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {(() => {
+                        const at = lastActivityAt(recentActivities.data?.items ?? [], 'contact', contact.id);
+                        return at ? new Date(at).toLocaleDateString(locale) : '—';
+                      })()}
                     </td>
                   </tr>
                 ))}

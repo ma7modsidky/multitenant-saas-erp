@@ -108,7 +108,7 @@ export function getInvitations(orgId: string): Promise<InvitationResponse[]> {
 
 export function inviteUser(
   orgId: string,
-  input: { name: string; email: string; roleId: string },
+  input: { name: string; email: string; roleId: string; teamIds?: string[] },
 ): Promise<{ invitationId: string }> {
   return apiFetch<{ invitationId: string }>(`/v1/organizations/${orgId}/invitations`, {
     method: 'POST',
@@ -165,6 +165,42 @@ export function getAuditLog(orgId: string, params: AuditLogQueryParams = {}): Pr
 }
 
 // ─── Roles ─────────────────────────────────────────────────────────────────
+
+// ─── Teams (TEAM-1) ──────────────────────────────────────────────────────────
+
+export interface TeamResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  leaderUserId: string | null;
+  memberUserIds: string[];
+  memberCount: number;
+}
+
+export function getTeams(orgId: string): Promise<TeamResponse[]> {
+  // apiFetch already unwraps the `{ data }` envelope — return the array
+  // as-is (mirrors getMembers/getRoles).
+  return apiFetch<TeamResponse[]>(`/v1/organizations/${orgId}/teams`);
+}
+
+export function createTeam(
+  orgId: string,
+  input: { name: string; description?: string | null; leaderUserId?: string | null; memberUserIds?: string[] },
+): Promise<{ data: { id: string } }> {
+  return apiFetch(`/v1/organizations/${orgId}/teams`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateTeam(
+  orgId: string,
+  teamId: string,
+  input: { name?: string; description?: string | null; leaderUserId?: string | null; memberUserIds?: string[] },
+): Promise<{ data: { id: string } }> {
+  return apiFetch(`/v1/organizations/${orgId}/teams/${teamId}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function deleteTeam(orgId: string, teamId: string): Promise<void> {
+  return apiFetch(`/v1/organizations/${orgId}/teams/${teamId}`, { method: 'DELETE' });
+}
 
 export function getRoles(orgId: string): Promise<RoleResponse[]> {
   return apiFetch<RoleResponse[]>(`/v1/organizations/${orgId}/roles`);
@@ -296,6 +332,7 @@ export interface CrmContact {
   secondaryPhone: string | null;
   companyId: string | null;
   ownerUserId: string | null;
+  ownerTeamId?: string | null;
   preferredLocale: string | null;
   preferredCurrency: string | null;
   /** ISO timestamps (list rows; detail view always has them). */
@@ -318,6 +355,7 @@ export interface CrmDeal {
   baseAmountMinor?: string | null;
   status: 'open' | 'won' | 'lost';
   ownerUserId: string | null;
+  ownerTeamId?: string | null;
   /** ISO timestamps (list + detail rows). */
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -330,6 +368,7 @@ export interface CrmCompany {
   industry: string | null;
   address: Record<string, unknown>;
   ownerUserId: string | null;
+  ownerTeamId?: string | null;
   /** ISO timestamps (list rows; detail view always has them). */
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -426,12 +465,18 @@ export interface CrmListParams {
   search?: string;
   /** Restrict deals to one pipeline stage (board columns). */
   stageId?: string;
+  /** CRM-17: restrict deals to one pipeline (all when absent). */
+  pipelineId?: string;
   /** Restrict deals by status (table view). */
   status?: 'open' | 'won' | 'lost';
   /** Inclusive lower bound on updated_at (ISO date YYYY-MM-DD). */
   fromDate?: string;
   /** Inclusive upper bound on updated_at (ISO date YYYY-MM-DD). */
   toDate?: string;
+  /** Restrict contacts/companies to this owner (list preset "assigned to me"). */
+  ownerUserId?: string;
+  /** Inclusive lower bound on created_at (ISO date YYYY-MM-DD) — "created recently". */
+  createdFrom?: string;
   /**
    * Sort key (table views). Each entity allow-lists its own keys server-side
    * (deals: updatedAt/createdAt/title/value; contacts: + name/email; etc.),
@@ -442,8 +487,16 @@ export interface CrmListParams {
   sortDir?: 'asc' | 'desc';
   /** Restrict activities to those assigned to this user id. */
   assigneeUserId?: string;
-  /** Restrict activities to those with no assignee. */
+  /** Restrict rows with no owner/assignee (`IS NULL`). */
   unassigned?: boolean;
+  /**
+   * TEAM-4 pool view (contacts/companies): `team` = assigned to a team but to
+   * no individual user; `global` = no owner and no team at all. The server
+   * clamps the pool to the caller's ceiling.
+   */
+  pool?: 'team' | 'global';
+  /** AUTHZ-9 record scope: mine | team | all (server clamps to ceiling). */
+  scope?: 'mine' | 'team' | 'all';
   /** Restrict activities by completion: true = completed, false = open. */
   completed?: boolean;
   page?: number;
@@ -466,6 +519,7 @@ function toQueryString(params: CrmListParams): string {
   const query = new URLSearchParams();
   if (params.search) query.set('search', params.search);
   if (params.stageId) query.set('stageId', params.stageId);
+  if (params.pipelineId) query.set('pipelineId', params.pipelineId);
   if (params.status) query.set('status', params.status);
   if (params.fromDate) query.set('fromDate', params.fromDate);
   if (params.toDate) query.set('toDate', params.toDate);
@@ -473,6 +527,10 @@ function toQueryString(params: CrmListParams): string {
   if (params.sortDir) query.set('sortDir', params.sortDir);
   if (params.assigneeUserId) query.set('assigneeUserId', params.assigneeUserId);
   if (params.unassigned) query.set('unassigned', 'true');
+  if (params.pool) query.set('pool', params.pool);
+  if (params.scope) query.set('scope', params.scope);
+  if (params.ownerUserId) query.set('ownerUserId', params.ownerUserId);
+  if (params.createdFrom) query.set('createdFrom', params.createdFrom);
   if (params.completed !== undefined) query.set('completed', String(params.completed));
   if (params.page !== undefined && params.page > 1) query.set('page', String(params.page));
   if (params.pageSize !== undefined && params.pageSize !== CRM_PAGE_SIZE)
@@ -512,6 +570,65 @@ export function getCrmPipeline(): Promise<CrmPipeline | null> {
   return apiFetch<CrmPipeline | null>('/v1/crm/pipelines/default');
 }
 
+/** CRM-17: a pipeline visible to the caller, with per-stage success stats. */
+export interface CrmPipelineWithStats extends CrmPipeline {
+  ownerTeamId?: string | null;
+  isDefault?: boolean;
+  stages: Array<
+    CrmPipeline['stages'][number] & {
+      /** Computed win rate once resolved deals exist; the configured probability otherwise. */
+      successPercent?: number;
+      /** Won+lost deals that reached this stage (0 = no evidence yet). */
+      resolvedDeals?: number;
+    }
+  >;
+}
+
+/** CRM-17: every pipeline visible to the caller (org-wide + own teams). */
+export function getCrmPipelines(): Promise<CrmPipelineWithStats[]> {
+  return apiFetch<CrmPipelineWithStats[]>('/v1/crm/pipelines');
+}
+
+/** One pipeline by id with per-stage success stats; 404 when not visible. */
+export function getCrmPipelineById(id: string): Promise<CrmPipelineWithStats> {
+  return apiFetch<CrmPipelineWithStats>(`/v1/crm/pipelines/${id}`);
+}
+
+export interface CrmPipelineCreateInput {
+  nameI18n: Record<string, string>;
+  ownerTeamId?: string | null;
+  stages: Array<{ nameI18n: Record<string, string>; probability: number; isWon?: boolean; isLost?: boolean }>;
+}
+
+export function createCrmPipeline(input: CrmPipelineCreateInput): Promise<CrmPipelineWithStats> {
+  return apiFetch<CrmPipelineWithStats>('/v1/crm/pipelines', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateCrmPipeline(
+  id: string,
+  input: { nameI18n?: Record<string, string>; ownerTeamId?: string | null },
+): Promise<CrmPipelineWithStats> {
+  return apiFetch<CrmPipelineWithStats>(`/v1/crm/pipelines/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+/** CRM-5: rewrite stage positions (every stage id exactly once). */
+export function reorderCrmPipelineStages(id: string, stageIds: string[]): Promise<CrmPipelineWithStats> {
+  return apiFetch<CrmPipelineWithStats>(`/v1/crm/pipelines/${id}/stages/reorder`, {
+    method: 'POST',
+    body: JSON.stringify({ stageIds }),
+  });
+}
+
+/** CRM-3: promote a pipeline to the org default. */
+export function setDefaultCrmPipeline(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/v1/crm/pipelines/${id}/set-default`, { method: 'POST' });
+}
+
+/** CRM-3-guarded soft delete (default / open-deal pipelines are rejected). */
+export function deleteCrmPipeline(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/v1/crm/pipelines/${id}`, { method: 'DELETE' });
+}
+
 export function getCrmContact(id: string): Promise<CrmContactDetail> {
   return apiFetch<CrmContactDetail>(`/v1/crm/contacts/${id}`);
 }
@@ -549,11 +666,18 @@ export function updateCrmContact(id: string, input: Partial<Omit<CrmContact, 'id
   return apiFetch<CrmContact>(`/v1/crm/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 
-export function updateCrmCompany(
-  id: string,
-  input: Partial<Omit<CrmCompany, 'id' | 'ownerUserId'>>,
-): Promise<CrmCompany> {
+/** CRM-11: soft-delete a contact (detaches it from open deals). */
+export function deleteCrmContact(id: string): Promise<void> {
+  return apiFetch<void>(`/v1/crm/contacts/${id}`, { method: 'DELETE' });
+}
+
+export function updateCrmCompany(id: string, input: Partial<Omit<CrmCompany, 'id'>>): Promise<CrmCompany> {
   return apiFetch<CrmCompany>(`/v1/crm/companies/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+/** CRM-15: soft-delete a company (detaches contacts + open deals). */
+export function deleteCrmCompany(id: string): Promise<void> {
+  return apiFetch<void>(`/v1/crm/companies/${id}`, { method: 'DELETE' });
 }
 
 export function mergeCrmContacts(sourceContactId: string, targetContactId: string): Promise<CrmContact> {
@@ -567,9 +691,21 @@ export function createCrmDeal(input: {
   title: string;
   contactId?: string | null;
   companyId?: string | null;
+  /** CRM-17: target pipeline; omitted = the org default. */
+  pipelineId?: string | null;
+  /** CRM-17: explicit stage inside the target pipeline. */
+  stageId?: string | null;
   value: { amountMinor: string; currency: string };
 }): Promise<CrmDeal> {
   return apiFetch<CrmDeal>('/v1/crm/deals', { method: 'POST', body: JSON.stringify(input) });
+}
+
+/** TEAM-5: claim/reassign deal ownership. */
+export function updateDealOwnership(
+  id: string,
+  input: { ownerUserId?: string | null; ownerTeamId?: string | null },
+): Promise<CrmDeal> {
+  return apiFetch<CrmDeal>(`/v1/crm/deals/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 
 export function moveCrmDeal(dealId: string, toStageId: string, lostReasonCode?: string): Promise<CrmDeal> {

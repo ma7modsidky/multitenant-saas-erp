@@ -27,6 +27,12 @@ export interface PipelineData {
   organizationId: string;
   nameI18n: Record<string, string>;
   isDefault: boolean;
+  /**
+   * CRM-17: owning team (core_teams id, no cross-prefix FK). NULL = org-wide;
+   * set = visible to that team's members + leaders and org admins. Validity
+   * is enforced at the application layer via TEAM_READ_PORT.
+   */
+  ownerTeamId: string | null;
   stages: PipelineStageData[];
   createdAt: Date;
   updatedAt: Date;
@@ -125,6 +131,10 @@ export class Pipeline {
   get isDefault(): boolean {
     return this.data.isDefault;
   }
+  /** CRM-17: owning team id (null = org-wide). */
+  get ownerTeamId(): string | null {
+    return this.data.ownerTeamId;
+  }
   get deletedAt(): Date | null {
     return this.data.deletedAt;
   }
@@ -207,6 +217,34 @@ export class Pipeline {
     this.data.updatedBy = by;
     this.data.updatedAt = at;
   }
+}
+
+// ─── Stage success percentage (CRM-17) ──────────────────────────────────────
+
+/** Per-stage resolved-deal counts feeding the computed win rate. */
+export interface StageOutcomeCounts {
+  /** Deals that reached this stage at any point and closed as won. */
+  won: number;
+  /** Deals that reached this stage at any point and closed as lost. */
+  lost: number;
+}
+
+/**
+ * A stage's success percentage (CRM-17), resolved in one place:
+ * - Computed win rate when at least one deal has resolved from the stage
+ *   (`won + lost > 0`): `won / (won + lost)`.
+ * - Otherwise the stage's configured `probability` — the admin-set
+ *   likelihood used until real data exists.
+ * The result is an integer 0..100; the configured value is authoritative
+ * while there is no evidence, so the bar never shows a fake 0%.
+ */
+export function stageSuccessPercent(
+  stage: Pick<PipelineStageData, 'probability'>,
+  counts: StageOutcomeCounts | undefined,
+): number {
+  const resolved = counts ? counts.won + counts.lost : 0;
+  if (resolved <= 0 || !counts) return Math.max(0, Math.min(100, Math.round(stage.probability)));
+  return Math.max(0, Math.min(100, Math.round((counts.won / resolved) * 100)));
 }
 
 /**

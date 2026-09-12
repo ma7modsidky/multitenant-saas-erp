@@ -34,6 +34,7 @@ function makePipelineData(overrides: Partial<PipelineData> = {}): PipelineData {
     organizationId: 'org-1',
     nameI18n: { en: 'Sales' },
     isDefault: false,
+    ownerTeamId: null,
     stages: [
       makeStage({ id: 'stage-1', position: 0 }),
       makeStage({ id: 'stage-2', position: 1, isWon: true }),

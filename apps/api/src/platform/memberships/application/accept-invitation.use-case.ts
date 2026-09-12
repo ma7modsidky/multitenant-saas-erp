@@ -5,6 +5,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConflictError, DomainError, NotFoundError } from '../../../core/common/errors.js';
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
 import { USER_REPOSITORY, type UserRepository } from '../../users/ports/index.js';
+import { TeamAssignmentService } from '../../teams/application/team.use-cases.js';
 import {
   Invitation,
   INVITATION_NOT_FOUND,
@@ -46,6 +47,9 @@ export class AcceptInvitationUseCase {
     private readonly invitationRepo: InvitationRepository,
     @Inject(USER_REPOSITORY)
     private readonly userRepo: UserRepository,
+    // TEAM-3: provisions teams pre-assigned on the invitation (platform-internal
+    // import, same precedent as the users/ports import above).
+    private readonly teamAssignment: TeamAssignmentService,
     private readonly txManager: TransactionManager,
   ) {}
 
@@ -110,5 +114,17 @@ export class AcceptInvitationUseCase {
       // core_users is a global (non-RLS) table, so the update is not org-scoped.
       await this.userRepo.update(input.userId, { emailVerifiedAt: new Date() }, tx);
     });
+
+    // TEAM-3: provision the teams pre-assigned on the invitation. Runs after
+    // the membership transaction commits — a failed team assignment must
+    // never roll back the acceptance itself.
+    if (invitation.teamIds.length > 0) {
+      await this.teamAssignment.assignUserToTeams(
+        invitation.organizationId,
+        input.userId,
+        invitation.teamIds,
+        input.userId,
+      );
+    }
   }
 }

@@ -13,6 +13,7 @@ function makeContactData(overrides: Partial<ContactData> = {}): ContactData {
     phone: null,
     secondaryPhone: null,
     ownerUserId: null,
+    ownerTeamId: null,
     preferredLocale: null,
     preferredCurrency: null,
     createdAt: new Date('2026-01-01T00:00:00Z'),

@@ -375,6 +375,25 @@ export interface MembershipReadPort {
 }
 
 /**
+ * TeamReadPort — team membership reads for scoped data access (AUTHZ-9).
+ *
+ * Implemented by the platform teams module. Modules resolve a user's team ids
+ * per request to evaluate OWN/TEAM/GLOBAL record scopes without embedding
+ * team claims in JWTs.
+ */
+export const TEAM_READ_PORT = 'TEAM_READ_PORT' as const;
+export interface TeamReadPort {
+  /** Ids of non-deleted teams the user belongs to in the organization. */
+  listTeamIdsForUser(organizationId: string, userId: string): Promise<string[]>;
+  /** True when at least one active team membership exists for the user. */
+  hasTeamMembership(organizationId: string, userId: string, teamId: string): Promise<boolean>;
+  /** TEAM-6: ids of teams the user LEADS (drives leader-tier ownership rights). */
+  listLeaderTeamIds(organizationId: string, userId: string): Promise<string[]>;
+  /** TEAM-6: ids of ACTIVE members of one team (leader reassignment targets). */
+  listTeamMemberUserIds(organizationId: string, teamId: string): Promise<string[]>;
+}
+
+/**
  * OrganizationReadPort — org profile reads (CRM-8 needs the base currency).
  *
  * Implemented by the platform organizations module.

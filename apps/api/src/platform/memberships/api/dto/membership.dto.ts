@@ -9,6 +9,9 @@ export const inviteUserSchema = z
     name: z.string().trim().min(1, 'Name is required').max(120, 'Name must be 120 characters or fewer'),
     email: z.string().email('Invalid email address').max(255),
     roleId: z.string().uuid('Role ID must be a valid UUID'),
+    // TEAM-3: teams pre-assigned at invite time; provisioned on acceptance
+    // (an invited user has no account yet, so the join cannot exist before).
+    teamIds: z.array(z.string().uuid('Team ID must be a valid UUID')).max(50).optional(),
   })
   .strict();
 

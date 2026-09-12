@@ -54,12 +54,12 @@ export class DrizzleContactRepository implements ContactRepository {
       sql`
         INSERT INTO ${this.table}
           (id, organization_id, first_name, last_name, email, phone, secondary_phone, company_id,
-           owner_user_id, preferred_locale, preferred_currency,
+           owner_user_id, owner_team_id, preferred_locale, preferred_currency,
            created_at, updated_at, created_by, updated_by)
         VALUES
           (${data.id}, ${data.organizationId}, ${data.firstName}, ${data.lastName},
            ${data.email}, ${data.phone}, ${data.secondaryPhone}, ${data.companyId},
-           ${data.ownerUserId}, ${data.preferredLocale}, ${data.preferredCurrency},
+           ${data.ownerUserId}, ${data.ownerTeamId ?? null}, ${data.preferredLocale}, ${data.preferredCurrency},
            ${toDbDate(data.createdAt)}, ${toDbDate(data.updatedAt)}, ${data.createdBy}, ${data.updatedBy})
         RETURNING *
       `,
@@ -80,6 +80,9 @@ export class DrizzleContactRepository implements ContactRepository {
     if (data.secondaryPhone !== undefined) setFragments.push(sql`secondary_phone = ${data.secondaryPhone}`);
     if (data.companyId !== undefined) setFragments.push(sql`company_id = ${data.companyId}`);
     if (data.ownerUserId !== undefined) setFragments.push(sql`owner_user_id = ${data.ownerUserId}`);
+    // TEAM-2: keep the owning team in sync with the owner fields — a claim
+    // from a team pool keeps its team; an explicit team change persists here.
+    if (data.ownerTeamId !== undefined) setFragments.push(sql`owner_team_id = ${data.ownerTeamId}`);
     if (data.preferredLocale !== undefined) setFragments.push(sql`preferred_locale = ${data.preferredLocale}`);
     if (data.preferredCurrency !== undefined) {
       setFragments.push(sql`preferred_currency = ${data.preferredCurrency}`);
@@ -100,6 +103,13 @@ export class DrizzleContactRepository implements ContactRepository {
     await db.execute(sql`UPDATE ${this.table} SET deleted_at = NOW() WHERE id = ${id} AND deleted_at IS NULL`);
   }
 
+  async detachCompany(companyId: string, tx?: TxOrDb): Promise<void> {
+    const db = this.getDb(tx);
+    await db.execute(
+      sql`UPDATE ${this.table} SET company_id = NULL WHERE company_id = ${companyId} AND deleted_at IS NULL`,
+    );
+  }
+
   private rowToContact(row: Record<string, unknown>): ContactData {
     return {
       id: row.id as string,
@@ -111,6 +121,7 @@ export class DrizzleContactRepository implements ContactRepository {
       phone: (row.phone as string | null) ?? null,
       secondaryPhone: (row.secondary_phone as string | null) ?? null,
       ownerUserId: (row.owner_user_id as string | null) ?? null,
+      ownerTeamId: (row.owner_team_id as string | null) ?? null,
       preferredLocale: (row.preferred_locale as string | null) ?? null,
       preferredCurrency: (row.preferred_currency as string | null) ?? null,
       createdAt: fromDbDate(row.created_at) as Date,

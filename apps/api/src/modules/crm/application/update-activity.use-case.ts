@@ -22,6 +22,7 @@ export interface UpdateActivityInput {
    * New assignee, or null to unassign. Omitted → unchanged.
    */
   assignedToUserId?: string | null;
+  assignedTeamId?: string | null;
   /**
    * CRM-14: ids of active members of the current organization. Resolved by the
    * API layer (same as create) — the domain rejects any assignee outside this

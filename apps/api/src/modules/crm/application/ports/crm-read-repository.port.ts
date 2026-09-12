@@ -1,4 +1,5 @@
 import type { TxOrDb } from '../../../../core/database/repository.base.js';
+import type { StageOutcomeCounts } from '../../domain/index.js';
 
 export interface CrmCompanyRecord {
   id: string;
@@ -7,6 +8,8 @@ export interface CrmCompanyRecord {
   industry: string | null;
   address: Record<string, unknown>;
   ownerUserId: string | null;
+  /** TEAM-2: owning team (core_teams id; validated via TEAM_READ_PORT). */
+  ownerTeamId?: string | null;
   /** Who created / last edited the company (set on insert/update; detail view). */
   createdByUserId?: string | null;
   updatedByUserId?: string | null;
@@ -18,6 +21,8 @@ export interface CrmCompanyRecord {
 export interface CrmPipelineRecord {
   id: string;
   nameI18n: Record<string, string>;
+  /** CRM-17: owning team (null = org-wide). */
+  ownerTeamId?: string | null;
   stages: Array<{
     id: string;
     nameI18n: Record<string, string>;
@@ -42,6 +47,34 @@ export interface ContactListFilter {
   search?: string;
   /** Restrict to contacts of one company. */
   companyId?: string;
+  /**
+   * Restrict to contacts owned by this user (list preset "assigned to me").
+   * RLS keeps the scope tenant-local; this is a client-visible narrowing,
+   * never a bypass.
+   */
+  ownerUserId?: string;
+  /** Restrict to contacts with no owner (`owner_user_id IS NULL`). */
+  unassigned?: boolean;
+  /**
+   * TEAM-4 pool view: `team` = unassigned user but owned by a team
+   * (`owner_user_id IS NULL AND owner_team_id IS NOT NULL` — always combined
+   * with the caller's scope clamp, so members only see their teams' pools);
+   * `global` = no owner and no team at all.
+   */
+  pool?: 'team' | 'global';
+  /**
+   * Inclusive lower bound on `created_at` (ISO date `YYYY-MM-DD`) — the
+   * "created recently" list preset.
+   */
+  createdFrom?: string;
+  /** TEAM-4: restrict to records owned by one team. */
+  ownerTeamId?: string;
+  /** TEAM-4: AUTHZ-9 TEAM scope — records owned by any of these teams. */
+  ownerTeamIds?: string[];
+  /** AUTHZ-10 OWN+POOL composite clamp: mine OR unassigned in one of my teams. */
+  ownPool?: { userId: string; teamIds: string[] };
+  /** TEAM-6: leader view — records owned by members of led teams. */
+  ownerUserIds?: string[];
   /** Sort key (table view). Default `updatedAt` (most recently touched first). */
   sortBy?: ContactSortBy;
   /** Sort direction (table view). Default `desc`. */
@@ -55,6 +88,22 @@ export interface ContactListFilter {
 /** Filter for the paginated companies list. */
 export interface CompanyListFilter {
   search?: string;
+  /** Restrict to companies owned by this user. See ContactListFilter.ownerUserId. */
+  ownerUserId?: string;
+  /** Restrict to companies with no owner (`owner_user_id IS NULL`). */
+  unassigned?: boolean;
+  /** TEAM-4 pool view — same semantics as ContactListFilter.pool. */
+  pool?: 'team' | 'global';
+  /** Inclusive lower bound on `created_at` (ISO date `YYYY-MM-DD`). */
+  createdFrom?: string;
+  /** TEAM-4: restrict to records owned by one team. */
+  ownerTeamId?: string;
+  /** TEAM-4: AUTHZ-9 TEAM scope — records owned by any of these teams. */
+  ownerTeamIds?: string[];
+  /** AUTHZ-10 OWN+POOL composite clamp: mine OR unassigned in one of my teams. */
+  ownPool?: { userId: string; teamIds: string[] };
+  /** TEAM-6: leader view — records owned by members of led teams. */
+  ownerUserIds?: string[];
   /** Sort key (table view). Default `updatedAt` (most recently touched first). */
   sortBy?: CompanySortBy;
   /** Sort direction (table view). Default `desc`. */
@@ -74,6 +123,8 @@ export type SortDirection = 'asc' | 'desc';
 export interface DealListFilter {
   /** Matches deal title (case-insensitive substring). */
   search?: string;
+  /** CRM-17: restrict to one pipeline (board reads of a non-default pipeline). */
+  pipelineId?: string;
   /** Restrict to one pipeline stage (per-column board queries). */
   stageId?: string;
   /** Restrict by deal status (table view filter). */
@@ -88,6 +139,30 @@ export interface DealListFilter {
    * touched on or before this day match.
    */
   toDate?: string;
+  /** TEAM-4: restrict to deals owned by one team. */
+  ownerTeamId?: string;
+  /** TEAM-4: AUTHZ-9 TEAM scope — deals owned by any of these teams. */
+  ownerTeamIds?: string[];
+  /** AUTHZ-10 OWN+POOL composite clamp: mine OR unassigned in one of my teams. */
+  ownPool?: { userId: string; teamIds: string[] };
+  /** TEAM-6: leader view — records owned by members of led teams. */
+  ownerUserIds?: string[];
+  /**
+   * TEAM-5: the Kanban unassigned pool — deals with an owning team but no
+   * individual owner (`owner_user_id IS NULL AND owner_team_id IS NOT NULL`).
+   */
+  unassignedUser?: boolean;
+  /**
+   * TEAM-4 pool view: `team` = owned by a team but no individual owner;
+   * `global` = no owner and no team (the cross-team pool). ANDed with the
+   * scope clamp, so callers only ever see pools within their ceiling.
+   */
+  pool?: 'team' | 'global';
+  /**
+   * Inclusive lower bound on `created_at` (ISO date `YYYY-MM-DD`) — the
+   * "created recently" preset.
+   */
+  createdFrom?: string;
   /** Sort key. Default `updatedAt` (most recently touched first). */
   sortBy?: DealSortBy;
   /** Sort direction. Default `desc`. */
@@ -133,11 +208,28 @@ export interface ActivityListFilter {
    * Mutually exclusive with `assigneeUserId` in practice — the UI picks one.
    */
   unassigned?: boolean;
+  /** TEAM-4: restrict to activities assigned to one team. */
+  assigneeTeamId?: string;
+  /** TEAM-4: AUTHZ-9 TEAM scope — activities assigned to any of these teams. */
+  assigneeTeamIds?: string[];
+  /** AUTHZ-10 OWN+POOL: assigned to me OR unassigned in one of my teams. */
+  ownPool?: { userId: string; teamIds: string[] };
   /**
    * Restrict by completion: `true` = completed only, `false` = open only.
    * Absent = both.
    */
   completed?: boolean;
+  /**
+   * TEAM-4 pool view: `team` = assigned to a team but to no individual user;
+   * `global` = no assignee and no team (the cross-team pool). ANDed with the
+   * scope clamp, so callers only ever see pools within their ceiling.
+   */
+  pool?: 'team' | 'global';
+  /**
+   * Inclusive lower bound on `created_at` (ISO date `YYYY-MM-DD`) — the
+   * "created recently" preset.
+   */
+  createdFrom?: string;
   /**
    * Sort key (table view). When absent, the default ordering applies
    * (incomplete first, soonest due first, newest last) — the card view's
@@ -166,6 +258,15 @@ export interface CrmReadRepository {
   listDeals(filter: DealListFilter, tx: TxOrDb): Promise<DealListPage>;
   listActivities(filter: ActivityListFilter, tx: TxOrDb): Promise<PageResult<Record<string, unknown>>>;
   getDefaultPipeline(tx: TxOrDb): Promise<CrmPipelineRecord | undefined>;
+  /** CRM-17: find any non-deleted pipeline of the org by id (board reads). */
+  getPipelineById(id: string, tx: TxOrDb): Promise<CrmPipelineRecord | undefined>;
+  /**
+   * CRM-17: per-stage resolved-deal counts for a pipeline's success bars —
+   * a deal is attributed to every stage it reached (current stage OR a
+   * `crm_deal_stage_history` entry) and counted once by its final outcome
+   * (status won/lost; open deals resolve nothing yet).
+   */
+  getStageOutcomeCounts(pipelineId: string, tx: TxOrDb): Promise<Map<string, StageOutcomeCounts>>;
   /** Find a non-deleted contact by id (detail view). */
   findContactById(id: string, tx: TxOrDb): Promise<Record<string, unknown> | undefined>;
   /** Find a non-deleted company by id (detail view). */
@@ -176,6 +277,8 @@ export interface CrmReadRepository {
   findActivityById(id: string, tx: TxOrDb): Promise<Record<string, unknown> | undefined>;
   insertCompany(input: CrmCompanyRecord & { organizationId: string }, tx: TxOrDb): Promise<CrmCompanyRecord>;
   updateCompany(id: string, input: Partial<CrmCompanyRecord>, tx: TxOrDb): Promise<CrmCompanyRecord | undefined>;
+  /** Soft-delete a company (DATA_MODEL §14; CRM-15 detaches contacts + open deals first). */
+  softDeleteCompany(id: string, tx: TxOrDb): Promise<void>;
 }
 
 export const CRM_READ_REPOSITORY = Symbol('CRM_READ_REPOSITORY');

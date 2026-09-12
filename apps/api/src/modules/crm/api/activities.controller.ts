@@ -11,6 +11,13 @@ import {
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
+import {
+  assertAssignmentScope,
+  assertCanViewRecord,
+  assertOwnershipChange,
+  parseCrmScope,
+  resolveScopeFilter,
+} from './scope.js';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
@@ -80,6 +87,9 @@ export class ActivitiesController {
     @Query('sortDir') sortDir?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('scope') scope?: string,
+    @Query('pool') pool?: string,
+    @Query('createdFrom') createdFrom?: string,
   ): Promise<{ data: { items: Record<string, unknown>[]; total: number; page: number; pageSize: number } }> {
     // fromDate/toDate are interpolated into `::date` casts in the repository,
     // so they must be validated here — a malformed value would otherwise
@@ -123,12 +133,48 @@ export class ActivitiesController {
     if (sortDir !== undefined && sortDir !== 'asc' && sortDir !== 'desc') {
       throw new BadRequestException('sortDir must be asc or desc');
     }
+    // AUTHZ-9/10: always enforce scope — see contacts.controller.ts.
+    const effectiveScope = parseCrmScope(scope) ?? 'all';
+    const scopeFilter = await resolveScopeFilter(effectiveScope, this.portRegistry);
+    // Map generic owner-scope to activity assignee fields
+    const activityScopeFilter: Record<string, unknown> = {};
+    if (scopeFilter.ownerUserId) activityScopeFilter.assigneeUserId = scopeFilter.ownerUserId;
+    if (scopeFilter.ownerTeamIds) activityScopeFilter.assigneeTeamIds = scopeFilter.ownerTeamIds;
+    if ((scopeFilter as Record<string, unknown>).ownerUserIds)
+      activityScopeFilter.ownerUserIds = (scopeFilter as Record<string, unknown>).ownerUserIds;
+    if (scopeFilter.ownPool) activityScopeFilter.ownPool = scopeFilter.ownPool;
+    // TEAM-4 pool selector + created-recently window; both are ANDed with the
+    // scope clamp above, so a member only ever narrows their own ceiling.
+    let poolValue: 'team' | 'global' | undefined;
+    if (pool !== undefined) {
+      if (pool !== 'team' && pool !== 'global') {
+        throw new BadRequestException('pool must be team or global');
+      }
+      poolValue = pool;
+    }
+    if (createdFrom !== undefined && !isoDate.test(createdFrom)) {
+      throw new BadRequestException('createdFrom must be an ISO date (YYYY-MM-DD)');
+    }
     const result = await this.listActivitiesUseCase.execute({
       ...(search !== undefined ? { search } : {}),
       ...(fromDate !== undefined ? { fromDate } : {}),
       ...(toDate !== undefined ? { toDate } : {}),
-      ...(assigneeUserId !== undefined ? { assigneeUserId } : {}),
-      ...(unassignedFlag !== undefined ? { unassigned: unassignedFlag } : {}),
+      // Scope is enforced after explicit filters so it clamps to ceiling
+      ...activityScopeFilter,
+      ...(poolValue !== undefined ? { pool: poolValue } : {}),
+      ...(createdFrom !== undefined ? { createdFrom } : {}),
+      ...(assigneeUserId !== undefined &&
+      !activityScopeFilter.assigneeUserId &&
+      !activityScopeFilter.assigneeTeamIds &&
+      !activityScopeFilter.ownPool
+        ? { assigneeUserId }
+        : {}),
+      ...(unassignedFlag !== undefined &&
+      !activityScopeFilter.assigneeUserId &&
+      !activityScopeFilter.assigneeTeamIds &&
+      !activityScopeFilter.ownPool
+        ? { unassigned: unassignedFlag }
+        : {}),
       ...(completedFlag !== undefined ? { completed: completedFlag } : {}),
       ...(sortBy !== undefined ? { sortBy } : {}),
       ...(sortDir !== undefined ? { sortDir } : {}),
@@ -159,6 +205,18 @@ export class ActivitiesController {
       activeMemberIds = new Set(members);
     }
 
+    // CRM-16/TEAM-2: an explicit assignment on create is scope-checked — a
+    // member cannot inject records into another team's pool or create a
+    // record "owned" by someone they cannot see.
+    if (dto.assignedToUserId !== undefined || dto.assignedTeamId !== undefined) {
+      await assertAssignmentScope(this.portRegistry, {
+        organizationId,
+        actorUserId: TenantContext.requireUserId(),
+        ...(dto.assignedToUserId !== undefined ? { assignedToUserId: dto.assignedToUserId } : {}),
+        ...(dto.assignedTeamId !== undefined ? { assignedTeamId: dto.assignedTeamId } : {}),
+      });
+    }
+
     const result = await this.createActivityUseCase.execute({
       type: dto.type,
       subject: dto.subject,
@@ -166,6 +224,7 @@ export class ActivitiesController {
       relatedType: dto.relatedType ?? null,
       relatedId: dto.relatedId ?? null,
       assignedToUserId: dto.assignedToUserId ?? null,
+      assignedTeamId: dto.assignedTeamId ?? null,
       ...(activeMemberIds !== undefined ? { activeMemberIds } : {}),
     });
     return { data: toActivityResponse(result.activity.toJSON()) };
@@ -180,6 +239,7 @@ export class ActivitiesController {
   @RequiresPermission('crm:activity:read')
   async getById(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
     const result = await this.getActivityUseCase.execute(id);
+    await assertCanViewRecord(this.portRegistry, result);
     return { data: result };
   }
 
@@ -200,6 +260,28 @@ export class ActivitiesController {
   async update(@Param('id') id: string, @Body() dto: UpdateActivityDto): Promise<{ data: Record<string, unknown> }> {
     const organizationId = TenantContext.requireOrganizationId();
 
+    // AUTHZ-9/TEAM-6: fail-closed visibility on every mutation — a record the
+    // actor cannot view behaves as nonexistent, exactly like GET /:id.
+    const current = await this.getActivityUseCase.execute(id);
+    await assertCanViewRecord(this.portRegistry, current);
+
+    // CRM-16: reassignments follow the same role-scoped transition rules as
+    // contacts/companies/deals (claim unassigned / leader of owning team / admin).
+    if (dto.assignedToUserId !== undefined || dto.assignedTeamId !== undefined) {
+      const record = current as Record<string, unknown> & {
+        assignedToUserId?: string | null;
+        assignedTeamId?: string | null;
+      };
+      await assertOwnershipChange(this.portRegistry, {
+        organizationId,
+        actorUserId: TenantContext.requireUserId(),
+        currentOwnerUserId: (record.assignedToUserId as string | null) ?? null,
+        currentOwnerTeamId: (record.assignedTeamId as string | null) ?? null,
+        nextOwnerUserId: dto.assignedToUserId,
+        nextOwnerTeamId: dto.assignedTeamId,
+      });
+    }
+
     let activeMemberIds: ReadonlySet<string> | undefined;
     if (dto.assignedToUserId !== undefined && dto.assignedToUserId !== null) {
       const membershipPort = this.portRegistry.resolve<MembershipReadPort>(MEMBERSHIP_READ_PORT);
@@ -213,6 +295,7 @@ export class ActivitiesController {
       ...(dto.subject !== undefined ? { subject: dto.subject } : {}),
       ...(dto.dueAt !== undefined ? { dueAt: dto.dueAt ? new Date(dto.dueAt) : null } : {}),
       ...(dto.assignedToUserId !== undefined ? { assignedToUserId: dto.assignedToUserId ?? null } : {}),
+      ...(dto.assignedTeamId !== undefined ? { assignedTeamId: dto.assignedTeamId ?? null } : {}),
       ...(activeMemberIds !== undefined ? { activeMemberIds } : {}),
     });
     return { data: toActivityResponse(result.activity.toJSON()) };
@@ -227,6 +310,9 @@ export class ActivitiesController {
   @RequiresPermission('crm:activity:write')
   @Audit({ action: 'UPDATE', entityType: 'activity', captureBefore: true })
   async complete(@Param('id') id: string): Promise<{ data: Record<string, unknown> }> {
+    // AUTHZ-9/TEAM-6: fail-closed visibility before mutating.
+    const current = await this.getActivityUseCase.execute(id);
+    await assertCanViewRecord(this.portRegistry, current);
     const result = await this.completeActivityUseCase.execute({ activityId: id });
     return { data: toActivityResponse(result.activity.toJSON()) };
   }

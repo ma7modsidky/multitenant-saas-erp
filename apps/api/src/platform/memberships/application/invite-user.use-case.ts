@@ -41,6 +41,7 @@ export class InviteUserUseCase {
     name: string;
     email: string;
     roleId: string;
+    teamIds?: string[];
     organizationId: string;
     invitedBy: string;
   }): Promise<{ invitationId: string }> {
@@ -83,6 +84,7 @@ export class InviteUserUseCase {
           name: inviteeName,
           email: normalizedEmail,
           roleId: input.roleId,
+          teamIds: input.teamIds ?? [],
           tokenHash,
           expiresAt,
           acceptedAt: null,
