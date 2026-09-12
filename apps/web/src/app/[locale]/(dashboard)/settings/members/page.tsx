@@ -279,8 +279,13 @@ export default function MembersSettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      await inviteUser(organizationId, { name, email, roleId, ...(inviteTeamIds.length ? { teamIds: inviteTeamIds } : {}) });
-    setInviteTeamIds([]);
+      await inviteUser(organizationId, {
+        name,
+        email,
+        roleId,
+        ...(inviteTeamIds.length ? { teamIds: inviteTeamIds } : {}),
+      });
+      setInviteTeamIds([]);
       setName('');
       setEmail('');
       setNotice('members.inviteSent');
@@ -434,26 +439,29 @@ export default function MembersSettingsPage() {
                 </Select>
               </div>
               <div className="space-y-2 sm:w-56">
-          <Label>{t('modules.crm.teamsUI.assignTeams')}</Label>
-          <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border p-2">
-            {(teams ?? []).map((team) => (
-              <label key={team.id} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent/40">
-                <input
-                  type="checkbox"
-                  checked={inviteTeamIds.includes(team.id)}
-                  onChange={() =>
-                    setInviteTeamIds((prev) =>
-                      prev.includes(team.id) ? prev.filter((id) => id !== team.id) : [...prev, team.id],
-                    )
-                  }
-                  className="size-4 accent-primary"
-                />
-                <span className="truncate">{team.name}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <Button type="submit" loading={isInviting}>
+                <Label>{t('modules.crm.teamsUI.assignTeams')}</Label>
+                <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border p-2">
+                  {(teams ?? []).map((team) => (
+                    <label
+                      key={team.id}
+                      className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent/40"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={inviteTeamIds.includes(team.id)}
+                        onChange={() =>
+                          setInviteTeamIds((prev) =>
+                            prev.includes(team.id) ? prev.filter((id) => id !== team.id) : [...prev, team.id],
+                          )
+                        }
+                        className="size-4 accent-primary"
+                      />
+                      <span className="truncate">{team.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Button type="submit" loading={isInviting}>
                 {t('members.invite')}
               </Button>
             </form>

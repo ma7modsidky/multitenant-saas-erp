@@ -67,7 +67,7 @@ const ACTIVITY_ASSIGNEE_UNASSIGNED = '__unassigned__';
 
 export function CrmWorkspace({ view }: { view: CrmView }) {
   const t = useTranslations('modules.crm');
-  const { user, permissions } = useSession();
+  const { user } = useSession();
   const data = useCrmData();
   const mutations = useCrmMutations();
   const [showForm, setShowForm] = useState(false);
@@ -243,7 +243,7 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
                 ...(v.ownerTeamId ? { ownerTeamId: v.ownerTeamId } : v.ownerTeamId === '' ? { ownerTeamId: null } : {}),
                 preferredLocale: v.preferredLocale || null,
                 preferredCurrency: v.preferredCurrency || null,
-              } as never),
+              }),
               () => setShowForm(false),
             )
           }
@@ -268,7 +268,7 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
                 },
                 ...(v.ownerUserId ? { ownerUserId: v.ownerUserId } : v.ownerUserId === '' ? { ownerUserId: null } : {}),
                 ...(v.ownerTeamId ? { ownerTeamId: v.ownerTeamId } : v.ownerTeamId === '' ? { ownerTeamId: null } : {}),
-              } as never),
+              }),
               () => setShowForm(false),
             )
           }
@@ -290,17 +290,9 @@ export function CrmWorkspace({ view }: { view: CrmView }) {
                 // CRM-17: '' = the org default pipeline / its first stage.
                 ...(v.pipelineId ? { pipelineId: v.pipelineId } : {}),
                 ...(v.stageId ? { stageId: v.stageId } : {}),
-                ...((v as Record<string, string>).ownerUserId
-                  ? { ownerUserId: (v as Record<string, string>).ownerUserId }
-                  : (v as Record<string, string>).ownerUserId === ''
-                    ? { ownerUserId: null }
-                    : {}),
-                ...((v as Record<string, string>).ownerTeamId
-                  ? { ownerTeamId: (v as Record<string, string>).ownerTeamId }
-                  : (v as Record<string, string>).ownerTeamId === ''
-                    ? { ownerTeamId: null }
-                    : {}),
-              } as never),
+                ...(v.ownerUserId ? { ownerUserId: v.ownerUserId } : v.ownerUserId === '' ? { ownerUserId: null } : {}),
+                ...(v.ownerTeamId ? { ownerTeamId: v.ownerTeamId } : v.ownerTeamId === '' ? { ownerTeamId: null } : {}),
+              }),
               () => setShowForm(false),
             )
           }
@@ -452,7 +444,7 @@ export function ContactForm({
   const myTeamMemberIds = (() => {
     if (isAdminForOwner) return null;
     const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
-    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean);
     const ids = new Set<string>();
     for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
     if (user?.id) ids.add(user.id);
@@ -608,7 +600,7 @@ export function CompanyForm({
   const myTeamMemberIds = (() => {
     if (isAdminForOwner) return null;
     const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
-    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean);
     const ids = new Set<string>();
     for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
     if (user?.id) ids.add(user.id);

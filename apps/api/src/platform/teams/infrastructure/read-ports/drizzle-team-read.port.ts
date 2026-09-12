@@ -26,13 +26,13 @@ export class DrizzleTeamReadPort implements TeamReadPort {
   }
 
   listTeamMemberUserIds(organizationId: string, teamId: string): Promise<string[]> {
-    return this.txManager.runWithOrg(organizationId, (tx) => this.repo.listTeamMemberUserIds(organizationId, teamId, tx));
+    return this.txManager.runWithOrg(organizationId, (tx) =>
+      this.repo.listTeamMemberUserIds(organizationId, teamId, tx),
+    );
   }
 
   hasTeamMembership(organizationId: string, userId: string, teamId: string): Promise<boolean> {
-    return this.txManager.runWithOrg(organizationId, (tx) =>
-      this.repo.hasMember(organizationId, teamId, userId, tx),
-    );
+    return this.txManager.runWithOrg(organizationId, (tx) => this.repo.hasMember(organizationId, teamId, userId, tx));
   }
 }
 

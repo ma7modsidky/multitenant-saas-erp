@@ -264,7 +264,7 @@ export function BulkActionsBar({
   const myTeamMemberIds = (() => {
     if (isAdmin) return null; // null = show all
     const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
-    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean);
     const ids = new Set<string>();
     for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
     // Always include self even if not in team list edge

@@ -114,7 +114,9 @@ export function Sidebar({ collapsed = false, onCollapsedChange }: SidebarProps) 
     { icon: LayoutDashboard, label: t('nav.dashboard'), href: `/${locale}`, exact: true },
     { icon: Building2, label: t('nav.organizations'), href: `/${locale}/settings/organization` },
     ...(canManageMembers ? [{ icon: Users, label: t('nav.members'), href: `/${locale}/settings/members` }] : []),
-    ...(canManageTeams ? [{ icon: Users, label: t('modules.crm.teamsUI.title'), href: `/${locale}/settings/teams` }] : []),
+    ...(canManageTeams
+      ? [{ icon: Users, label: t('modules.crm.teamsUI.title'), href: `/${locale}/settings/teams` }]
+      : []),
     ...(canManageRoles ? [{ icon: Shield, label: t('nav.roles'), href: `/${locale}/settings/roles` }] : []),
     ...(canManageBilling ? [{ icon: CreditCard, label: t('nav.billing'), href: `/${locale}/settings/billing` }] : []),
     ...(canViewAudit ? [{ icon: ScrollText, label: t('nav.audit'), href: `/${locale}/settings/audit` }] : []),

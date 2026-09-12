@@ -1,11 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { TransactionManager } from '../../../core/database/transaction-manager.js';
-import {
-  assertTeamFound,
-  assertTeamNameFree,
-  type TeamData,
-} from '../domain/team.entity.js';
+import { assertTeamFound, assertTeamNameFree, type TeamData } from '../domain/team.entity.js';
 import { TEAM_REPOSITORY, type TeamRepository } from '../ports/team-repository.port.js';
 
 /**
@@ -148,16 +144,16 @@ export class AddTeamMemberUseCase {
     @Inject(TEAM_REPOSITORY) private readonly repo: TeamRepository,
     private readonly txManager: TransactionManager,
   ) {}
-  async execute(input: {
-    organizationId: string;
-    teamId: string;
-    userId: string;
-    actorUserId: string;
-  }): Promise<void> {
+  async execute(input: { organizationId: string; teamId: string; userId: string; actorUserId: string }): Promise<void> {
     await this.txManager.runWithOrg(input.organizationId, async (tx) => {
       assertTeamFound(await this.repo.findById(input.teamId, tx), input.teamId);
       await this.repo.addMember(
-        { organizationId: input.organizationId, teamId: input.teamId, userId: input.userId, actorUserId: input.actorUserId },
+        {
+          organizationId: input.organizationId,
+          teamId: input.teamId,
+          userId: input.userId,
+          actorUserId: input.actorUserId,
+        },
         tx,
       );
     });
@@ -177,7 +173,10 @@ export class RemoveTeamMemberUseCase {
       // pick a different leader first (keeps TEAM scope coherent).
       const team = await this.repo.findById(input.teamId, tx);
       if (team?.leaderUserId === input.userId) return;
-      await this.repo.removeMember({ organizationId: input.organizationId, teamId: input.teamId, userId: input.userId }, tx);
+      await this.repo.removeMember(
+        { organizationId: input.organizationId, teamId: input.teamId, userId: input.userId },
+        tx,
+      );
     });
   }
 }
@@ -194,7 +193,12 @@ export class TeamAssignmentService {
     @Inject(TEAM_REPOSITORY) private readonly repo: TeamRepository,
     private readonly txManager: TransactionManager,
   ) {}
-  async assignUserToTeams(organizationId: string, userId: string, teamIds: string[], actorUserId: string): Promise<void> {
+  async assignUserToTeams(
+    organizationId: string,
+    userId: string,
+    teamIds: string[],
+    actorUserId: string,
+  ): Promise<void> {
     if (teamIds.length === 0) return;
     await this.txManager.runWithOrg(organizationId, async (tx) => {
       for (const teamId of teamIds) {

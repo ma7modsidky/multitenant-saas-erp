@@ -79,7 +79,7 @@ export function DealForm({
   const myTeamMemberIds = (() => {
     if (isAdminForOwner) return null;
     const myTeams = (teams ?? []).filter((team) => team.memberUserIds.includes(user?.id ?? ''));
-    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean) as string[];
+    if (myTeams.length === 0) return [user?.id ?? ''].filter(Boolean);
     const ids = new Set<string>();
     for (const team of myTeams) for (const uid of team.memberUserIds) ids.add(uid);
     if (user?.id) ids.add(user.id);

@@ -101,8 +101,8 @@ function dealsKey(params: CrmListParams = {}): string[] {
     keyPart(params.status),
     keyPart(params.fromDate),
     keyPart(params.toDate),
-    keyPart((params as Record<string, string | undefined>).scope),
-    (params as Record<string, boolean | undefined>).unassignedUser ? 'unassignedUser' : '',
+    keyPart(params.scope),
+    params.unassigned ? 'unassignedUser' : '',
     keyPart(params.sortBy),
     keyPart(params.sortDir),
     String(params.page ?? 1),
@@ -124,9 +124,9 @@ export function activitiesKey(params: CrmListParams = {}): string[] {
     params.assigneeUserId ?? '',
     params.unassigned ? 'unassigned' : '',
     params.completed === undefined ? '' : String(params.completed),
-    (params as Record<string, string | undefined>).scope ?? '',
-    (params as Record<string, string | undefined>).pool ?? '',
-    (params as Record<string, string | undefined>).createdFrom ?? '',
+    params.scope ?? '',
+    params.pool ?? '',
+    params.createdFrom ?? '',
     String(params.page ?? 1),
     String(params.pageSize ?? CRM_PAGE_SIZE),
   ];
@@ -217,7 +217,7 @@ export function useTeams() {
   const { organizationId } = useSession();
   return useQuery({
     queryKey: ['teams', organizationId],
-    queryFn: () => getTeams(organizationId!),
+    queryFn: () => (organizationId ? getTeams(organizationId) : Promise.resolve([])),
     enabled: !!organizationId,
   });
 }
