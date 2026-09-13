@@ -2195,6 +2195,187 @@ const fr = {
   },
 
   // ─── Platform Admin Console ──────────────────────────────────────────────
+  // ─── Page d'accueil marketing publique ───────────────────────────────
+  landing: {
+    brandTagline: 'Plateforme métier modulaire',
+    nav: {
+      product: 'Produit',
+      modules: 'Modules',
+      how: 'Fonctionnement',
+      testimonials: 'Clients',
+      signIn: 'Se connecter',
+      getStarted: 'Commencer gratuitement',
+    },
+    hero: {
+      badge: 'Multi-tenant · Multi-devises · Compatible RTL',
+      title: 'Pilotez toute votre activité — un module à la fois',
+      subtitle:
+        'ModuBiz est une plateforme SaaS modulaire pour les PME. Commencez avec un noyau léger, puis activez CRM, Stocks, Point de vente, Comptabilité et Achats — en ne payant que ce que vos équipes utilisent réellement.',
+      ctaPrimary: 'Commencer gratuitement',
+      ctaSecondary: 'Se connecter',
+      trialNote: 'Chaque module inclut 14 jours d’essai gratuit — sans carte bancaire.',
+      statModules: 'modules métier',
+      statLanguages: 'langues · RTL complet',
+      statTrial: 'jours d’essai gratuit par module',
+    },
+    pillars: {
+      title: 'Pourquoi les équipes choisissent ModuBiz',
+      subtitle:
+        'Une alternative moderne aux suites tout-en-un — plus simple, internationale dès le premier jour, et tarifée selon votre croissance réelle.',
+      modular: {
+        title: 'Abonnez-vous à l’usage',
+        body: 'Chaque capacité métier est un module indépendant avec ses données, ses permissions et son prix. Activez-en un, désactivez-le plus tard — vos données restent intactes.',
+      },
+      isolation: {
+        title: 'Isolation des clients étanche',
+        body: 'La sécurité au niveau des lignes PostgreSQL est appliquée à chaque requête. Les données de votre organisation ne peuvent jamais être lues par un autre client — vérifié par des tests d’isolation automatisés sur chaque module.',
+      },
+      intl: {
+        title: 'International dès le premier jour',
+        body: 'Anglais, arabe (RTL complet), français et espagnol sont des primitives de la plateforme — pas des extensions. Le multi-devises avec instantanés immuables des taux est fourni en standard.',
+      },
+      audit: {
+        title: 'Piste d’audit et accès par rôles',
+        body: 'Chaque modification est consignée dans un journal d’audit en append-only. Des permissions granulaires et une propriété au niveau des équipes protègent les grandes équipes.',
+      },
+    },
+    modules: {
+      title: 'Les modules',
+      subtitle:
+        'Activez uniquement les applications métier dont votre équipe a besoin. D’autres arrivent avec le temps — activer le dixième ne coûte pas plus que le troisième.',
+      statusAvailable: 'Disponible',
+      statusPlanned: 'Planifié',
+      crm: {
+        name: 'CRM',
+        tagline: 'Contacts, opportunités & pipelines',
+        body: 'Contacts et entreprises, tableaux de vente multi-pipelines configurables avec taux de réussite par étape, activités, fusion et détection de doublons.',
+      },
+      inventory: {
+        name: 'Stocks',
+        tagline: 'Un stock digne de confiance',
+        body: 'Produits à variantes, stock multi-entrepôts et registre de mouvements en append-only — le stock courant est toujours dérivé et réconciliable.',
+      },
+      pos: {
+        name: 'Point de vente',
+        tagline: 'Vendez partout, même hors ligne',
+        body: 'Une caisse offline-first qui continue de vendre sans réseau — file d’attente IndexedDB, synchronisation en arrière-plan et impression instantanée des reçus.',
+      },
+      accounting: {
+        name: 'Comptabilité & Facturation',
+        tagline: 'Des livres qui se clôturent seuls',
+        body: 'Grand livre en partie double, cycle de factures clients avec avoirs, taux de TVA, relevés clients et rapports d’ancienneté.',
+      },
+      purchasing: {
+        name: 'Achats & Fournisseurs',
+        tagline: 'De l’achat au paiement',
+        body: 'Fournisseurs, commandes d’achat, réceptions de marchandises, retours fournisseurs et factures — injectés directement dans les stocks et le grand livre.',
+      },
+      ecommerce: {
+        name: 'E-commerce',
+        tagline: 'Votre vitrine en ligne',
+        body: 'Une boutique sur le même registre de stock que votre caisse et votre entrepôt. Planifié — propulsé par le port de réservation des stocks.',
+      },
+      food: {
+        name: 'Commande & Livraison de repas',
+        tagline: 'Menus, commandes, livreurs',
+        body: 'Gestion des menus, prise de commande et flux de livraison construits sur Stocks et Point de vente. Planifié.',
+      },
+      hr: {
+        name: 'RH',
+        tagline: 'Personnel & paie',
+        body: 'Employés, équipes, congés et paie — réutilisant le même noyau d’identité, d’équipes et de permissions. Planifié.',
+      },
+    },
+    how: {
+      title: 'Opérationnel en quatre étapes',
+      subtitle: 'Pas de projet d’implémentation, pas d’appel commercial requis.',
+      step1: {
+        title: 'Créez votre organisation',
+        body: 'Inscrivez-vous, nommez votre entreprise, choisissez votre devise et votre langue. Moins d’une minute.',
+      },
+      step2: {
+        title: 'Choisissez vos modules',
+        body: 'Démarrez 14 jours d’essai gratuit de n’importe quel module — sans carte. Combinez-les ; ils partagent le même noyau.',
+      },
+      step3: {
+        title: 'Invitez votre équipe',
+        body: 'Attribuez les rôles, organisez les personnes en équipes et définissez qui possède quels enregistrements — jusqu’au niveau de l’équipe.',
+      },
+      step4: {
+        title: 'Passez en production',
+        body: 'Importez vos données, réalisez votre première vente et regardez tout rester synchronisé — dans votre langue et votre devise.',
+      },
+    },
+    testimonials: {
+      title: 'Conçu pour des équipes comme la vôtre',
+      subtitle: 'Programme d’accès anticipé — voici les équipes avec lesquelles nous construisons.',
+      sampleNote: 'Témoignages exemples de nos partenaires du programme d’accès anticipé.',
+      t1: {
+        quote:
+          'Nous avons arrêté la suite pour laquelle nous payions des fortunes et activé uniquement le nécessaire. Le registre de stocks a suffi à rembourser la migration.',
+        author: 'Responsable des opérations',
+        company: 'Chaîne de détaillants, 3 entrepôts',
+      },
+      t2: {
+        quote:
+          'L’interface arabe est un vrai RTL, pas un anglais en miroir. Notre équipe a arrêté de demander « quel bouton ? » dès la première semaine.',
+        author: 'Directeur général',
+        company: 'Société de négoce, Le Caire',
+      },
+      t3: {
+        quote:
+          'Le POS hors ligne a couvert nos samedis au marché pendant une saison entière. Il se synchronise dès que le signal revient.',
+        author: 'Propriétaire',
+        company: 'Épicerie fine',
+      },
+    },
+    showcase: {
+      alt: 'Tableau de bord ModuBiz montrant le chiffre d’affaires, les opportunités, les alertes de stock et le pipeline de vente avec taux de réussite par étape',
+      nav: {
+        dashboard: 'Tableau de bord',
+        crm: 'CRM',
+        inventory: 'Stocks',
+        pos: 'Point de vente',
+        accounting: 'Comptabilité',
+        purchasing: 'Achats',
+      },
+      kpi: {
+        revenue: 'Chiffre d’affaires (mois en cours)',
+        deals: 'Opportunités ouvertes',
+        lowStock: 'Articles en stock faible',
+        invoices: 'Factures ouvertes',
+      },
+      pipeline: {
+        title: 'Pipeline de vente',
+        winRate: 'Taux de réussite',
+      },
+      stage: {
+        new: 'Nouveau',
+        qualified: 'Qualifié',
+        won: 'Gagné',
+      },
+    },
+    finalCta: {
+      title: 'Commencez gratuitement. Activez ce qu’il vous faut.',
+      subtitle:
+        'Votre premier module est gratuit 14 jours. Vos données restent les vôtres — exportez-les à tout moment.',
+      primary: 'Commencer gratuitement',
+      secondary: 'Se connecter',
+    },
+    footer: {
+      product: 'Produit',
+      modules: 'Modules',
+      company: 'Entreprise',
+      about: 'À propos',
+      contact: 'Contact',
+      legal: 'Mentions légales',
+      privacy: 'Confidentialité',
+      terms: 'CGU',
+      rights: '© {year} ModuBiz. Tous droits réservés.',
+      builtWith: 'Construit avec Next.js, NestJS et PostgreSQL.',
+    },
+  },
+
   admin: {
     title: 'Console d’administration',
     subtitle: 'Back-office superutilisateur pour opérer la plateforme SaaS',

@@ -1,9 +1,60 @@
 # ModuBiz — Development Progress Tracker
 
-**Last updated:** Session 90 — **CRM-17 multi-pipeline support: multiple
-pipelines per org with team scoping, a pipelines management page with templates,
-pipeline switcher on the deals board/table, and per-stage success percentage
-(computed win rate → configured probability fallback).**
+**Last updated:** Session 92 — **Open Graph/Twitter meta with a dynamic
+localized OG image route + hero product showcase on the landing page.**
+
+**Session 92 — landing page social meta + hero product showcase.**
+
+- **Social meta** — full OpenGraph/Twitter card metadata on `/{locale}`:
+  localized title/description, `metadataBase`, canonical + hreflang alternates
+  for en/ar/fr/es (+ x-default), `alternateLocale` cross-posting, and
+  `summary_large_image` Twitter cards.
+- **Dynamic OG image** — explicit route handler at `/{locale}/opengraph-image`
+  (`next/og` ImageResponse, 1200×630, brand navy) rendering the localized hero
+  title + module chips. Chosen over the file-convention `opengraph-image.tsx`,
+  which Next 15.5 registers only under a content-hash path
+  (`/en/opengraph-image-<hash>`) without emitting the clean alias — the meta URL
+  404'd for crawlers. Arabic locales render the English card because the satori
+  renderer does not implement Arabic OpenType shaping (500s otherwise);
+  documented in `catalogFor`.
+- **Hero showcase** — hand-built product mockup (pure CSS, no binary assets)
+  under the hero: kanban board with stage probability bars, dashboard stat
+  cards, RTL-aware, light/dark theme aware. New `landing.showcase.*` i18n keys
+  in en/ar/fr/es with parity spec coverage.
+
+**Session 91 — public landing page + dashboard relocation.**
+
+- **Routing** — the locale root `/{locale}` is now the PUBLIC marketing landing
+  page (no session). The authenticated dashboard moved from `/{locale}` to
+  `/{locale}/dashboard`; middleware no longer protects `''`, and login/signup
+  redirects target `/dashboard` (auth-form + middleware). Logout → `/login`
+  unchanged.
+- **Landing sections** — hero (badge, CTAs → `/{locale}/signup|login`, 14-day
+  trial note, stats strip), 4 product pillars (modular subscription, RLS
+  isolation, i18n/RTL + multi-currency, audit trail — sourced from PRD G1–G6),
+  module grid (CRM/Inventory/POS/Accounting/Purchasing Available;
+  E-commerce/Food/HR Planned, per README's module table), 4-step how-it-works, 3
+  clearly-marked sample testimonials, final CTA, footer with product/module
+  anchors and locale switcher.
+- **Top bar** — new `MarketingTopbar` (sticky, blur, mobile section menu) with
+  the existing `LocaleSwitcher` (en/ar/fr/es) and a new shared `ThemeToggle`
+  extracted from the dashboard topbar (light → dark → system, persisted via the
+  same `modubiz.theme` key and no-flash inline script).
+- **i18n** — new `landing` namespace in all four catalogs (hero, pillars,
+  modules, how, testimonials, finalCta, footer) + `landing-completeness.spec`
+  enforcing key parity. AR copy is authored RTL-native, not mirrored English.
+- **Tests** — 2 ThemeToggle tests (cycle + persistence + `.dark` class), 5
+  landing-page tests (anchored sections, locale-scoped CTAs, 8 modules with
+  availability badges, steps/testimonials + sample-content disclosure),
+  auth-form tests updated for the new redirect target.
+- CI/CD hygiene (same session): dependabot.yml ignores for majors that need
+  manual migrations (eslint 10, TS 7, vitest 5, zod 4, @types/node 26, etc.)
+  after PR #83 failed frozen-lockfile install; CI repaired earlier via
+  lint-error removal, next 15.5.25 (critical CVEs), and format normalization.
+- **437 web tests passing** (2 new files), lint 0 errors, typecheck clean, build
+  verified (route table shows `/[locale]` landing + `/[locale]/dashboard`),
+  smoke-tested: `/en` 200 with translated hero + signup links, `/ar` 200 with
+  `dir="rtl"`, unauthed `/en/dashboard` → 307 `/en/login`.
 
 **Session 90 — CRM-17: multiple pipelines, team-scoped, with stage success rates
 (full stack).**

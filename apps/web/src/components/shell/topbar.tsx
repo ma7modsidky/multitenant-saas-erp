@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, Moon, Sun, Monitor, LogOut, User, Settings, Building2, ChevronDown, Menu, Check } from 'lucide-react';
+import { Bell, LogOut, User, Settings, Building2, ChevronDown, Menu, Check } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -9,8 +9,8 @@ import { useState, useRef, useEffect } from 'react';
 
 import { getMyOrganizations } from '@/lib/api/resources';
 import type { MembershipOrg } from '@/lib/api/types';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useSession } from '@/lib/auth/session-context';
-import { applyTheme, getStoredTheme, storeTheme, type Theme } from '@/lib/theme';
 
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
@@ -40,20 +40,6 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
-  // NOTE: the initial state MUST match what SSR renders ('light') — reading
-  // localStorage in the initializer would make the client's first render
-  // differ from the server HTML and break hydration. The persisted selection
-  // is restored in the effect below (the root layout's inline script already
-  // applied it pre-paint, so there is no flash of the wrong theme).
-  const [theme, setTheme] = useState<Theme>('light');
-
-  // Restore the persisted selection after hydration (idempotent), and follow
-  // the OS whenever the stored selection is 'system'.
-  useEffect(() => {
-    const stored = getStoredTheme();
-    setTheme(stored);
-    applyTheme(stored);
-  }, []);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const orgMenuRef = useRef<HTMLDivElement>(null);
 
@@ -80,19 +66,6 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const cycleTheme = () => {
-    const themes: Theme[] = ['light', 'dark', 'system'];
-    const nextIndex = (themes.indexOf(theme) + 1) % themes.length;
-    const next = themes[nextIndex];
-    if (!next) return;
-    setTheme(next);
-    storeTheme(next);
-    applyTheme(next);
-  };
-
-  const themeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
-  const ThemeIcon = themeIcon;
 
   const activeOrg: MembershipOrg | undefined = (myOrgs ?? []).find((org) => org.organizationId === organizationId);
 
@@ -178,16 +151,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           <Separator orientation="vertical" className="mx-1 h-6" />
 
           {/* Theme toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={cycleTheme}
-            aria-label={t(
-              theme === 'dark' ? 'shell.darkMode' : theme === 'light' ? 'shell.lightMode' : 'shell.systemMode',
-            )}
-          >
-            <ThemeIcon className="size-4" />
-          </Button>
+          <ThemeToggle />
 
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative" aria-label={t('shell.notifications')}>

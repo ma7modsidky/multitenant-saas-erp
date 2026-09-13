@@ -8,9 +8,10 @@ import { AUTH_COOKIE } from './lib/auth/session';
  * Auth guard + next-intl locale middleware.
  *
  * - Auth pages (login/signup/forgot/reset) are off-limits once signed in.
- * - The locale root, /settings, /m/* and /dashboard require a session
- *   (mirrored by the non-sensitive `modubiz_authed` cookie; the real check
- *   still happens against the API on the client).
+ * - /dashboard, /settings, /m/* and /admin require a session (mirrored by
+ *   the non-sensitive `modubiz_authed` cookie; the real check still happens
+ *   against the API on the client).
+ * - The locale root is the PUBLIC marketing landing page — no session needed.
  * - Locale resolution is delegated to next-intl for everything else.
  */
 
@@ -20,7 +21,6 @@ const INVITATION_ROUTE_PREFIX = '/invitations/';
 
 function isProtected(route: string): boolean {
   return (
-    route === '' ||
     route === '/dashboard' ||
     route.startsWith('/settings') ||
     route.startsWith('/m/') ||
@@ -56,7 +56,9 @@ export default function middleware(request: NextRequest) {
   const isInvitationRoute = route.startsWith(INVITATION_ROUTE_PREFIX);
 
   if (isAuthed && isAuthRoute) {
-    return NextResponse.redirect(new URL(`/${locale}`, request.url));
+    // Signed-in users never see auth pages — land them on the app home
+    // (the locale root is the public marketing page).
+    return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
   }
 
   if (!isAuthed && !isAuthRoute && !isInvitationRoute && isProtected(route)) {

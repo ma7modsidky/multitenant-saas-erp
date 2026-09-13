@@ -55,7 +55,8 @@ describe('LoginForm', () => {
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
 
-    await waitFor(() => expect(routerReplace).toHaveBeenCalledWith('/en'));
+    await waitFor(() => expect(routerReplace).toHaveBeenCalledWith('/en/dashboard'));
+    expect(routerReplace).not.toHaveBeenCalledWith('/en');
     expect(sessionStore.getAccessToken()).toBe('a1');
     expect(sessionStore.getUser()?.email).toBe('a@b.c');
   });
@@ -89,7 +90,8 @@ describe('LoginForm', () => {
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
 
-    await waitFor(() => expect(routerReplace).toHaveBeenCalledWith('/en'));
+    await waitFor(() => expect(routerReplace).toHaveBeenCalledWith('/en/dashboard'));
+    expect(routerReplace).not.toHaveBeenCalledWith('/en');
   });
 
   it('renders the mapped error message on invalid credentials', async () => {

@@ -2187,6 +2187,186 @@ const es = {
   },
 
   // ─── Platform Admin Console ──────────────────────────────────────────────
+  // ─── Página de inicio de marketing pública ───────────────────────────────
+  landing: {
+    brandTagline: 'Plataforma de negocio modular',
+    nav: {
+      product: 'Producto',
+      modules: 'Módulos',
+      how: 'Cómo funciona',
+      testimonials: 'Clientes',
+      signIn: 'Iniciar sesión',
+      getStarted: 'Empezar gratis',
+    },
+    hero: {
+      badge: 'Multi-tenant · Multi-divisa · Compatible con RTL',
+      title: 'Gestiona cada parte de tu negocio — un módulo a la vez',
+      subtitle:
+        'ModuBiz es una plataforma SaaS modular para pymes. Empieza con un núcleo ligero y activa CRM, Inventario, Punto de venta, Contabilidad y Compras — pagando solo por lo que tu equipo realmente usa.',
+      ctaPrimary: 'Empezar gratis',
+      ctaSecondary: 'Iniciar sesión',
+      trialNote: 'Cada módulo incluye 14 días de prueba gratis — sin tarjeta de crédito.',
+      statModules: 'módulos de negocio',
+      statLanguages: 'idiomas · RTL completo',
+      statTrial: 'días de prueba gratis por módulo',
+    },
+    pillars: {
+      title: 'Por qué los equipos eligen ModuBiz',
+      subtitle:
+        'Una alternativa moderna a los suites todo-en-uno — más simple, internacional desde el primer día y con precios acordes a tu crecimiento real.',
+      modular: {
+        title: 'Suscríbete a lo que usas',
+        body: 'Cada capacidad de negocio es un módulo independiente con sus propios datos, permisos y precio. Activa uno, desactívalo después — tus datos permanecen intactos.',
+      },
+      isolation: {
+        title: 'Aislamiento hermético de inquilinos',
+        body: 'La seguridad a nivel de fila de PostgreSQL se aplica en cada consulta. Los datos de tu organización nunca pueden ser leídos por otro inquilino — verificado por pruebas de aislamiento automatizadas en cada módulo.',
+      },
+      intl: {
+        title: 'Internacional desde el primer día',
+        body: 'Inglés, árabe (RTL completo), francés y español son primitivas de la plataforma — no complementos. La multidivisa con instantáneas inmutables de tipos de cambio viene de serie.',
+      },
+      audit: {
+        title: 'Pista de auditoría y acceso por roles',
+        body: 'Cada mutación se registra en un registro de auditoría de solo anexado. Permisos granulares y propiedad por equipos mantienen seguras a las grandes organizaciones.',
+      },
+    },
+    modules: {
+      title: 'Los módulos',
+      subtitle:
+        'Activa solo las aplicaciones de negocio que tu equipo necesita. Llegan más con el tiempo — habilitar el décimo no cuesta más que el tercero.',
+      statusAvailable: 'Disponible',
+      statusPlanned: 'Planificado',
+      crm: {
+        name: 'CRM',
+        tagline: 'Contactos, ofertas y embudos',
+        body: 'Contactos y empresas, tableros de ventas multi-embudo configurables con tasa de éxito por etapa, actividades, fusión y detección de duplicados.',
+      },
+      inventory: {
+        name: 'Inventario',
+        tagline: 'Un inventario confiable',
+        body: 'Productos con variantes, inventario multi-almacén y un libro de movimientos de solo anexado — el stock actual siempre se deriva y concilia.',
+      },
+      pos: {
+        name: 'Punto de venta',
+        tagline: 'Vende en cualquier lugar, incluso sin conexión',
+        body: 'Una caja offline-first que sigue vendiendo sin red — cola IndexedDB, sincronización en segundo plano e impresión instantánea de recibos.',
+      },
+      accounting: {
+        name: 'Contabilidad y Facturación',
+        tagline: 'Libros que se cierran solos',
+        body: 'Libro mayor de doble entrada, ciclo de facturas de clientes con notas de crédito, tipos de IVA, extractos de clientes e informes de antigüedad.',
+      },
+      purchasing: {
+        name: 'Compras y Proveedores',
+        tagline: 'De la compra al pago',
+        body: 'Proveedores, órdenes de compra, recepción de mercancías, devoluciones a proveedores y facturas — fluyen directamente al inventario y al libro mayor.',
+      },
+      ecommerce: {
+        name: 'Comercio electrónico',
+        tagline: 'Tu escaparate online',
+        body: 'Una tienda sobre el mismo libro de inventario que tu caja y tu almacén. Planificado — impulsado por el puerto de reservas de inventario.',
+      },
+      food: {
+        name: 'Pedidos y Reparto de comida',
+        tagline: 'Cartas, pedidos, repartidores',
+        body: 'Gestión de cartas, toma de pedidos y flujos de reparto construidos sobre Inventario y Punto de venta. Planificado.',
+      },
+      hr: {
+        name: 'RRHH',
+        tagline: 'Personas y nóminas',
+        body: 'Empleados, turnos, vacaciones y nóminas — reutilizando el mismo núcleo de identidad, equipos y permisos. Planificado.',
+      },
+    },
+    how: {
+      title: 'En marcha en cuatro pasos',
+      subtitle: 'Sin proyecto de implementación ni llamada de ventas.',
+      step1: {
+        title: 'Crea tu organización',
+        body: 'Regístrate, pon nombre a tu empresa y elige tu divisa e idioma base. Tarda menos de un minuto.',
+      },
+      step2: {
+        title: 'Elige tus módulos',
+        body: 'Inicia 14 días de prueba gratis de cualquier módulo — sin tarjeta. Combínalos; comparten un mismo núcleo.',
+      },
+      step3: {
+        title: 'Invita a tu equipo',
+        body: 'Asigna roles, organiza a las personas en equipos y define quién es dueño de qué registros — hasta el nivel de equipo.',
+      },
+      step4: {
+        title: 'Lánzate',
+        body: 'Importa tus datos, haz tu primera venta y mira cómo todo se mantiene sincronizado — en tu idioma y divisa.',
+      },
+    },
+    testimonials: {
+      title: 'Creado para equipos como el tuyo',
+      subtitle: 'Programa de acceso anticipado — estos son los equipos con los que construimos.',
+      sampleNote: 'Historias de ejemplo de nuestros socios del programa de acceso anticipado.',
+      t1: {
+        quote:
+          'Apagamos el suite por el que pagábamos cinco cifras y activamos solo lo necesario. El libro de inventario pagó solo el cambio.',
+        author: 'Responsable de operaciones',
+        company: 'Cadena minorista, 3 almacenes',
+      },
+      t2: {
+        quote:
+          'La interfaz árabe es RTL real, no inglés espejado. Nuestro equipo dejó de preguntar «¿qué botón pulso?» en la primera semana.',
+        author: 'Director general',
+        company: 'Compañía comercial, El Cairo',
+      },
+      t3: {
+        quote:
+          'El TPV sin conexión cubrió nuestros sábados de mercado una temporada entera. Se sincroniza solo cuando vuelve la señal.',
+        author: 'Propietario',
+        company: 'Ultramarinos especializado',
+      },
+    },
+    showcase: {
+      alt: 'Panel de control de ModuBiz que muestra ingresos, ofertas, alertas de stock bajo y el embudo de ventas con tasa de éxito por etapa',
+      nav: {
+        dashboard: 'Panel de control',
+        crm: 'CRM',
+        inventory: 'Inventario',
+        pos: 'Punto de venta',
+        accounting: 'Contabilidad',
+        purchasing: 'Compras',
+      },
+      kpi: {
+        revenue: 'Ingresos (mes en curso)',
+        deals: 'Ofertas abiertas',
+        lowStock: 'Artículos con stock bajo',
+        invoices: 'Facturas abiertas',
+      },
+      pipeline: {
+        title: 'Embudo de ventas',
+        winRate: 'Tasa de éxito',
+      },
+      stage: {
+        new: 'Nuevo',
+        qualified: 'Cualificado',
+        won: 'Ganado',
+      },
+    },
+    finalCta: {
+      title: 'Empieza gratis. Activa lo que necesites.',
+      subtitle: 'Tu primer módulo es gratis 14 días. Tus datos son tuyos — expórtalos cuando quieras.',
+      primary: 'Empezar gratis',
+      secondary: 'Iniciar sesión',
+    },
+    footer: {
+      product: 'Producto',
+      modules: 'Módulos',
+      company: 'Empresa',
+      about: 'Acerca de',
+      contact: 'Contacto',
+      legal: 'Legal',
+      privacy: 'Privacidad',
+      terms: 'Términos',
+      rights: '© {year} ModuBiz. Todos los derechos reservados.',
+      builtWith: 'Construido con Next.js, NestJS y PostgreSQL.',
+    },
+  },
+
   admin: {
     title: 'Consola de administración',
     subtitle: 'Back-office de superusuario para operar la plataforma SaaS',

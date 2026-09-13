@@ -2181,6 +2181,185 @@ const en = {
   },
 
   // ─── Platform Admin Console ──────────────────────────────────────────────
+  // ─── Public marketing landing page ────────────────────────────────
+  landing: {
+    brandTagline: 'Modular business platform',
+    nav: {
+      product: 'Product',
+      modules: 'Modules',
+      how: 'How it works',
+      testimonials: 'Customers',
+      signIn: 'Sign in',
+      getStarted: 'Get started free',
+    },
+    hero: {
+      badge: 'Multi-tenant · Multi-currency · RTL-ready',
+      title: 'Run every part of your business — one module at a time',
+      subtitle:
+        'ModuBiz is a modular SaaS platform for small and medium businesses. Start with a lightweight core, then switch on CRM, Inventory, Point of Sale, Accounting, and Purchasing — paying only for what your team actually uses.',
+      ctaPrimary: 'Get started free',
+      ctaSecondary: 'Sign in',
+      trialNote: 'Every module includes a 14-day free trial — no credit card required.',
+      statModules: 'business modules',
+      statLanguages: 'languages · full RTL',
+      statTrial: 'day free trial per module',
+    },
+    pillars: {
+      title: 'Why teams choose ModuBiz',
+      subtitle:
+        'A modern alternative to all-in-one suites — simpler, international from day one, and priced to how you actually grow.',
+      modular: {
+        title: 'Subscribe to what you use',
+        body: 'Each business capability is an independent module with its own data, permissions, and price. Enable one, disable it later — your data stays intact.',
+      },
+      isolation: {
+        title: 'Airtight tenant isolation',
+        body: 'PostgreSQL Row-Level Security enforced on every query. Your organization’s data can never be read by another tenant — verified by automated isolation tests on every module.',
+      },
+      intl: {
+        title: 'International from day one',
+        body: 'English, Arabic (full RTL), French, and Spanish are platform primitives — not add-ons. Multi-currency with immutable exchange-rate snapshots comes standard.',
+      },
+      audit: {
+        title: 'Audit trail & role-based access',
+        body: 'Every mutation is recorded in an append-only audit log. Granular permissions and team-scoped ownership keep large teams safe.',
+      },
+    },
+    modules: {
+      title: 'The modules',
+      subtitle:
+        'Turn on only the business applications your team needs. More arrive over time — enabling the tenth costs no more than enabling the third.',
+      statusAvailable: 'Available',
+      statusPlanned: 'Planned',
+      crm: {
+        name: 'CRM',
+        tagline: 'Contacts, deals & pipelines',
+        body: 'Contacts and companies, configurable multi-pipeline sales boards with per-stage win rates, activities, merge and duplicate detection.',
+      },
+      inventory: {
+        name: 'Inventory',
+        tagline: 'Stock you can trust',
+        body: 'Products with variants, multi-warehouse stock, and an append-only movement ledger — current stock is always derived and reconcilable.',
+      },
+      pos: {
+        name: 'Point of Sale',
+        tagline: 'Sell anywhere, even offline',
+        body: 'An offline-first register that keeps selling without a network — IndexedDB outbox, background sync, and instant receipt printing.',
+      },
+      accounting: {
+        name: 'Accounting & Invoicing',
+        tagline: 'Books that close themselves',
+        body: 'Double-entry general ledger, AR invoice lifecycle with credit notes, tax rates, customer statements, and aging reports.',
+      },
+      purchasing: {
+        name: 'Purchasing & Suppliers',
+        tagline: 'Purchase-to-pay',
+        body: 'Suppliers, purchase orders, goods receipts, supplier returns, and bills — flowing straight into inventory and the ledger.',
+      },
+      ecommerce: {
+        name: 'E-commerce',
+        tagline: 'Your online storefront',
+        body: 'A storefront on the same stock ledger as your register and warehouse. Planned — powered by the Inventory reservation port.',
+      },
+      food: {
+        name: 'Food Ordering & Delivery',
+        tagline: 'Menus, orders, couriers',
+        body: 'Menu management, order intake, and delivery flows built on Inventory and POS. Planned.',
+      },
+      hr: {
+        name: 'HR',
+        tagline: 'People & payroll',
+        body: 'Employees, shifts, leave, and payroll — reusing the same identity, team, and permission core. Planned.',
+      },
+    },
+    how: {
+      title: 'Up and running in four steps',
+      subtitle: 'No implementation project, no sales call required.',
+      step1: {
+        title: 'Create your organization',
+        body: 'Sign up, name your company, pick your base currency and language. It takes under a minute.',
+      },
+      step2: {
+        title: 'Pick your modules',
+        body: 'Start a 14-day free trial of any module — no card required. Mix and match; they share one core.',
+      },
+      step3: {
+        title: 'Invite your team',
+        body: 'Assign roles, organize people into teams, and scope who owns which records — down to the team level.',
+      },
+      step4: {
+        title: 'Go live',
+        body: 'Import your data, make your first sale, and watch everything stay in sync — in your language and currency.',
+      },
+    },
+    testimonials: {
+      title: 'Built for teams like yours',
+      subtitle: 'Early access program — these are the teams we are building with.',
+      sampleNote: 'Sample stories from our early-access design partners.',
+      t1: {
+        quote:
+          'We turned off the suite we were paying five figures for and switched on only what we needed. The stock ledger alone paid for the switch.',
+        author: 'Operations lead',
+        company: 'Retail chain, 3 warehouses',
+      },
+      t2: {
+        quote:
+          'The Arabic interface is real RTL, not mirrored English. Our team stopped asking “which button do I press?” in week one.',
+        author: 'Managing director',
+        company: 'Trading company, Cairo',
+      },
+      t3: {
+        quote: 'Offline POS sold our Saturday market days for a full season. It just syncs when the signal comes back.',
+        author: 'Owner',
+        company: 'Specialty grocery',
+      },
+    },
+    showcase: {
+      alt: 'ModuBiz dashboard showing revenue, deals, low-stock alerts, and the sales pipeline board with per-stage win rates',
+      nav: {
+        dashboard: 'Dashboard',
+        crm: 'CRM',
+        inventory: 'Inventory',
+        pos: 'Point of Sale',
+        accounting: 'Accounting',
+        purchasing: 'Purchasing',
+      },
+      kpi: {
+        revenue: 'Revenue (MTD)',
+        deals: 'Open deals',
+        lowStock: 'Low-stock items',
+        invoices: 'Open invoices',
+      },
+      pipeline: {
+        title: 'Sales pipeline',
+        winRate: 'Win rate',
+      },
+      stage: {
+        new: 'New',
+        qualified: 'Qualified',
+        won: 'Won',
+      },
+    },
+    finalCta: {
+      title: 'Start free. Turn on what you need.',
+      subtitle: 'Your first module is free for 14 days. Your data is yours — export it any time.',
+      primary: 'Get started free',
+      secondary: 'Sign in',
+    },
+    footer: {
+      product: 'Product',
+      modules: 'Modules',
+      company: 'Company',
+      about: 'About',
+      contact: 'Contact',
+      legal: 'Legal',
+      privacy: 'Privacy',
+      terms: 'Terms',
+      rights: '© {year} ModuBiz. All rights reserved.',
+      builtWith: 'Built with Next.js, NestJS, and PostgreSQL.',
+    },
+  },
+
   admin: {
     title: 'Admin console',
     subtitle: 'Superuser back-office for operating the SaaS platform',

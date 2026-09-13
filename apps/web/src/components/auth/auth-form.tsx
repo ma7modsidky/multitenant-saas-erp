@@ -71,8 +71,10 @@ export function LoginForm({ className, onSuccess, next, initialEmail }: LoginFor
       setSuccess(true);
       onSuccess?.();
       // Prefer the sanitized `next` target (e.g. returning to an invitation
-      // link) over the dashboard. safeNextPath rejects external/absolute URLs.
-      router.replace(safeNextPath(next) ?? `/${locale}`);
+      // link) over the app home. safeNextPath rejects external/absolute URLs.
+      // The locale root is the public marketing landing page — the app home
+      // is /dashboard.
+      router.replace(safeNextPath(next) ?? `/${locale}/dashboard`);
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError) {
