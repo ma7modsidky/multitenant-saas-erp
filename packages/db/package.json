@@ -27,7 +27,7 @@
     "seed": "tsc -b && node --env-file=../../.env scripts/seed.mjs"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.2",
+    "drizzle-orm": "0.45.3",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
