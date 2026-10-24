@@ -16,7 +16,7 @@
     "test:arch": "vitest run --config vitest.arch.config.ts"
   },
   "dependencies": {
-    "@casl/ability": "^6.7.0",
+    "@casl/ability": "^7.0.1",
     "@modubiz/config": "workspace:*",
     "@modubiz/contracts": "workspace:*",
     "@modubiz/db": "workspace:*",
